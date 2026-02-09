@@ -1,4 +1,3 @@
-```javascript
 import React, { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import EventFeed from './components/EventFeed'
@@ -28,4 +27,3 @@ function App() {
 }
 
 export default App
-```
