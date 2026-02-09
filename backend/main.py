@@ -89,7 +89,7 @@ async def event_processor():
                 db.commit()
         db.close()
 
-@app.get("/events", response_model=List[dict])
+@app.get("/api/events", response_model=List[dict])
 def get_events(limit: int = 50, db: Session = Depends(get_db)):
     events = db.query(TrafficEvent).order_by(TrafficEvent.created_at.desc()).limit(limit).all()
     return [
@@ -104,7 +104,7 @@ def get_events(limit: int = 50, db: Session = Depends(get_db)):
         } for e in events
     ]
 
-@app.post("/settings")
+@app.post("/api/settings")
 def update_settings(settings: dict, db: Session = Depends(get_db)):
     for k, v in settings.items():
         s = db.query(Settings).filter(Settings.key == k).first()
@@ -123,7 +123,7 @@ def update_settings(settings: dict, db: Session = Depends(get_db)):
         
     return {"status": "ok"}
 
-@app.get("/settings")
+@app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):
     settings = db.query(Settings).all()
     res = {s.key: s.value for s in settings}
@@ -138,8 +138,6 @@ if os.path.exists("static"):
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         if full_path.startswith("api"):
-            # This should technically be handled by the route decorators above, 
-            # but we add this for extra safety.
             raise HTTPException(status_code=404)
         
         file_path = os.path.join("static", full_path)
