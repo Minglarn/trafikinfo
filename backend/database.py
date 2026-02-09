@@ -21,6 +21,7 @@ class TrafficEvent(Base):
     title = Column(String)
     description = Column(Text)
     location = Column(String)
+    icon_id = Column(String) # Trafikverket IconId
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 

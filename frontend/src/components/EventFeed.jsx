@@ -10,6 +10,8 @@ export default function EventFeed() {
     const [events, setEvents] = useState([])
     const [loading, setLoading] = useState(true)
 
+    const [isConnected, setIsConnected] = useState(false)
+
     const fetchEvents = async () => {
         try {
             const response = await axios.get(`${API_BASE}/events`)
@@ -22,8 +24,32 @@ export default function EventFeed() {
 
     useEffect(() => {
         fetchEvents()
-        const interval = setInterval(fetchEvents, 5000)
-        return () => clearInterval(interval)
+
+        const eventSource = new EventSource(`${API_BASE}/stream`)
+
+        eventSource.onopen = () => {
+            setIsConnected(true)
+        }
+
+        eventSource.onmessage = (event) => {
+            try {
+                const newEvent = JSON.parse(event.data)
+                setEvents(prev => [newEvent, ...prev])
+            } catch (err) {
+                console.error('Error parsing SSE event:', err)
+            }
+        }
+
+        eventSource.onerror = (err) => {
+            console.error('SSE Error:', err)
+            setIsConnected(false)
+            eventSource.close()
+            // Simple retry logic could be added here, but EventSource usually retries automatically
+        }
+
+        return () => {
+            eventSource.close()
+        }
     }, [])
 
     if (loading) {
@@ -42,8 +68,12 @@ export default function EventFeed() {
                     <h2 className="text-2xl font-bold text-white">Realtidsflöde</h2>
                     <p className="text-slate-400">Aktuella händelser på de svenska vägarna</p>
                 </div>
-                <div className="bg-slate-800 px-3 py-1 rounded-full text-xs font-mono text-blue-400 border border-slate-700">
-                    AUTO-REFRESH: 5S
+                <div className={`px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
+                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-red-400'}`}></span>
+                    {isConnected ? 'LIVE STREAM' : 'OFFLINE'}
                 </div>
             </div>
 
@@ -72,7 +102,8 @@ export default function EventFeed() {
                                         </span>
                                     </div>
 
-                                    <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                                    <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                                        {event.icon_url && <img src={event.icon_url} alt="Icon" className="w-6 h-6 object-contain" />}
                                         {event.title || 'Okänd händelse'}
                                     </h3>
 

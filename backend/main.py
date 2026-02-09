@@ -89,22 +89,62 @@ async def event_processor():
                     event_type=ev['event_type'],
                     title=ev['title'],
                     description=ev['description'],
-                    location=ev['location']
+                    location=ev['location'],
+                    icon_id=ev['icon_id']
                 )
                 db.add(new_event)
                 db.commit()
                 db.refresh(new_event)
                 
+                # Add icon_url to event data for MQTT
+                mqtt_data = ev.copy()
+                if ev.get('icon_id'):
+                    mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+
                 # Push to MQTT
-                if mqtt_client.publish_event(ev):
+                if mqtt_client.publish_event(mqtt_data):
                     new_event.pushed_to_mqtt = 1
                     logger.info(f"Event {ev['external_id']} pushed to MQTT")
                 else:
                     new_event.pushed_to_mqtt = 0
                     logger.warning(f"Event {ev['external_id']} failed to push to MQTT")
                 
+                
+                # Broadcast to connected frontend clients
+                event_data = {
+                    "id": new_event.id,
+                    "external_id": new_event.external_id,
+                    "title": new_event.title,
+                    "description": new_event.description,
+                    "location": new_event.location,
+                    "icon_url": mqtt_data.get('icon_url'),
+                    "created_at": new_event.created_at.isoformat(),
+                    "pushed_to_mqtt": bool(new_event.pushed_to_mqtt)
+                }
+                for queue in connected_clients:
+                    await queue.put(event_data)
+
                 db.commit()
         db.close()
+
+# Global list of connected SSE clients
+connected_clients = []
+
+@app.get("/api/stream")
+async def stream_events():
+    queue = asyncio.Queue()
+    connected_clients.append(queue)
+    
+    async def event_generator():
+        try:
+            while True:
+                data = await queue.get()
+                yield json.dumps(data)
+        except asyncio.CancelledError:
+            connected_clients.remove(queue)
+
+    from sse_starlette.sse import EventSourceResponse
+    return EventSourceResponse(event_generator())
 
 @app.get("/api/events", response_model=List[dict])
 def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)):
@@ -123,6 +163,7 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
             "title": e.title,
             "description": e.description,
             "location": e.location,
+            "icon_url": f"https://api.trafikinfo.trafikverket.se/v1/icons/{e.icon_id}?type=png32x32" if e.icon_id else None,
             "created_at": e.created_at,
             "pushed_to_mqtt": bool(e.pushed_to_mqtt)
         } for e in events

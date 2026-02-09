@@ -93,13 +93,35 @@ def parse_situation(json_data):
         situations = payload.get('RESPONSE', {}).get('RESULT', [{}])[0].get('Situation', [])
         
         parsed_events = []
+        
+        # Mapping from IconId to Swedish text
+        icon_text_map = {
+            "vehicleBreakdown": "Fordonshaveri",
+            "accident": "Trafikolycka",
+            "roadWork": "Vägarbete",
+            "congestion": "Köbildning",
+            "obstruction": "Hinder på väg",
+            "roadConditions": "Väglag",
+            "trafficMessage": "Trafikmeddelande"
+        }
+
         for sit in situations:
             for devi in sit.get('Deviation', []):
+                icon_id = devi.get('IconId')
+                
+                # Determine title: Header -> Message -> Icon Mapping -> MessageType -> Default
+                title = devi.get('Header') or devi.get('Message')
+                if not title and icon_id:
+                    title = icon_text_map.get(icon_id)
+                if not title:
+                    title = devi.get('MessageType', 'Trafikhändelse')
+
                 event = {
                     "external_id": devi.get('Id'),
-                    "title": devi.get('Header') or devi.get('Message') or devi.get('MessageType', 'Trafikhändelse'),
+                    "title": title,
                     "description": devi.get('Description'),
                     "location": devi.get('LocationDescriptor'),
+                    "icon_id": icon_id,
                     "event_type": "Situation",
                     "timestamp": devi.get('CreationTime')
                 }
