@@ -14,7 +14,8 @@ from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
+debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trafikinfo API")
@@ -90,8 +91,15 @@ async def event_processor():
         db.close()
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, db: Session = Depends(get_db)):
-    events = db.query(TrafficEvent).order_by(TrafficEvent.created_at.desc()).limit(limit).all()
+def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)):
+    query = db.query(TrafficEvent)
+    
+    if hours:
+        from datetime import datetime, timedelta
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        query = query.filter(TrafficEvent.created_at >= cutoff)
+        
+    events = query.order_by(TrafficEvent.created_at.desc()).limit(limit).all()
     return [
         {
             "id": e.id,

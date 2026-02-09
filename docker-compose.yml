@@ -9,3 +9,5 @@ services:
     volumes:
       - ./data:/app/data
     restart: always
+    environment:
+      - DEBUG_MODE=false # Set to true for detailed logs
