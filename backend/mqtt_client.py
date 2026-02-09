@@ -43,7 +43,9 @@ class MQTTClient:
         
         try:
             payload = json.dumps(event_data)
-            self.client.publish(self.config["topic"], payload)
+            info = self.client.publish(self.config["topic"], payload)
+            info.wait_for_publish(timeout=2.0) # Wait a bit to ensure it goes out
+            logger.info(f"Published to {self.config['topic']}: {event_data.get('external_id')}")
             return True
         except Exception as e:
             logger.error(f"Failed to publish to MQTT: {e}")

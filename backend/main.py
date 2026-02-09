@@ -46,9 +46,20 @@ async def startup_event():
     db = SessionLocal()
     api_key = db.query(Settings).filter(Settings.key == "api_key").first()
     mqtt_host = db.query(Settings).filter(Settings.key == "mqtt_host").first()
+    mqtt_port = db.query(Settings).filter(Settings.key == "mqtt_port").first()
+    mqtt_user = db.query(Settings).filter(Settings.key == "mqtt_username").first()
+    mqtt_pass = db.query(Settings).filter(Settings.key == "mqtt_password").first()
+    mqtt_topic = db.query(Settings).filter(Settings.key == "mqtt_topic").first()
     
-    if mqtt_host:
-        mqtt_client.update_config({"host": mqtt_host.value})
+    mqtt_config = {}
+    if mqtt_host: mqtt_config["host"] = mqtt_host.value
+    if mqtt_port: mqtt_config["port"] = int(mqtt_port.value)
+    if mqtt_user: mqtt_config["username"] = mqtt_user.value
+    if mqtt_pass: mqtt_config["password"] = mqtt_pass.value
+    if mqtt_topic: mqtt_config["topic"] = mqtt_topic.value
+
+    if mqtt_config:
+        mqtt_client.update_config(mqtt_config)
     
     if api_key:
         start_worker(api_key.value)
@@ -85,8 +96,13 @@ async def event_processor():
                 db.refresh(new_event)
                 
                 # Push to MQTT
-                mqtt_client.publish_event(ev)
-                new_event.pushed_to_mqtt = 1
+                if mqtt_client.publish_event(ev):
+                    new_event.pushed_to_mqtt = 1
+                    logger.info(f"Event {ev['external_id']} pushed to MQTT")
+                else:
+                    new_event.pushed_to_mqtt = 0
+                    logger.warning(f"Event {ev['external_id']} failed to push to MQTT")
+                
                 db.commit()
         db.close()
 
@@ -130,8 +146,16 @@ async def update_settings(settings: dict, db: Session = Depends(get_db)):
         if "api_key" in settings:
             start_worker(str(settings["api_key"]))
         
-        if "mqtt_host" in settings:
-            mqtt_client.update_config({"host": str(settings["mqtt_host"])})
+        # Update MQTT config if any related setting changed
+        mqtt_updates = {}
+        if "mqtt_host" in settings: mqtt_updates["host"] = str(settings["mqtt_host"])
+        if "mqtt_port" in settings: mqtt_updates["port"] = int(settings["mqtt_port"])
+        if "mqtt_username" in settings: mqtt_updates["username"] = str(settings["mqtt_username"])
+        if "mqtt_password" in settings: mqtt_updates["password"] = str(settings["mqtt_password"])
+        if "mqtt_topic" in settings: mqtt_updates["topic"] = str(settings["mqtt_topic"])
+        
+        if mqtt_updates:
+            mqtt_client.update_config(mqtt_updates)
             
         return {"status": "ok"}
     except Exception as e:

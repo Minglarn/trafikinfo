@@ -35,9 +35,9 @@ export default function HistoryBoard() {
     }
 
     const filteredHistory = history.filter(event =>
-        event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (event.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (event.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (event.description || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return (

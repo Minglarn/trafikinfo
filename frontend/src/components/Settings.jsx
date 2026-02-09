@@ -105,6 +105,29 @@ export default function Settings() {
                             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
                         />
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-700/50 pt-4">
+                        <div className="space-y-2">
+                            <label className="text-sm text-slate-400 font-medium">Username (Optional)</label>
+                            <input
+                                type="text"
+                                value={settings.mqtt_username || ''}
+                                onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                placeholder="mqtt_user"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm text-slate-400 font-medium">Password (Optional)</label>
+                            <input
+                                type="password"
+                                value={settings.mqtt_password || ''}
+                                onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                placeholder="••••••••"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {message && (

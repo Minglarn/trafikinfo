@@ -97,7 +97,7 @@ def parse_situation(json_data):
             for devi in sit.get('Deviation', []):
                 event = {
                     "external_id": devi.get('Id'),
-                    "title": devi.get('Header'),
+                    "title": devi.get('Header') or devi.get('Message') or devi.get('MessageType', 'Trafikhändelse'),
                     "description": devi.get('Description'),
                     "location": devi.get('LocationDescriptor'),
                     "event_type": "Situation",
