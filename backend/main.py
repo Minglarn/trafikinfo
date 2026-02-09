@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import asyncio
+import os
 import json
 import logging
 from typing import List
@@ -127,6 +130,22 @@ def get_settings(db: Session = Depends(get_db)):
     if "api_key" not in res:
         res["api_key"] = "" # Secret removed for GitHub safety
     return res
+
+# Static files and SPA fallback
+if os.path.exists("static"):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api"):
+            # This should technically be handled by the route decorators above, 
+            # but we add this for extra safety.
+            raise HTTPException(status_code=404)
+        
+        file_path = os.path.join("static", full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse("static/index.html")
 
 if __name__ == "__main__":
     import uvicorn

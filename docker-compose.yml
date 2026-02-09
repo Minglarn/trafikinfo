@@ -1,25 +1,11 @@
 version: '3.8'
 
 services:
-  backend:
-    image: ghcr.io/minglarn/trafikinfo-backend:latest
-    container_name: trafikinfo-backend
+  trafikinfo:
+    image: ghcr.io/minglarn/trafikinfo:latest
+    container_name: trafikinfo-flux
     ports:
-      - "7080:8000"
+      - "7081:8000"
     volumes:
-      - backend-data:/app
+      - ./data:/app/data
     restart: always
-    environment:
-      - DATABASE_URL=sqlite:///./trafikinfo.db
-
-  frontend:
-    image: ghcr.io/minglarn/trafikinfo-frontend:latest
-    container_name: trafikinfo-frontend
-    ports:
-      - "7081:80"
-    depends_on:
-      - backend
-    restart: always
-
-volumes:
-  backend-data:
