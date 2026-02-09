@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: trafikinfo-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app
+    restart: always
+    environment:
+      - DATABASE_URL=sqlite:///./trafikinfo.db
+
+  frontend:
+    build: ./frontend
+    container_name: trafikinfo-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  backend-data:

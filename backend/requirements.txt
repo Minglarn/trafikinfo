@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+paho-mqtt
+httpx
+sse-starlette
+sqlalchemy
+python-dotenv
+pydantic
+pydantic-settings
+asyncio
