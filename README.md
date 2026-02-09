@@ -1,8 +1,8 @@
-# Trafikinfo Flux 🚦
+# Trafikinfo Flux
 
 Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata från det svenska Trafikverkets API. Systemet strömmar händelser (Situationer), lagrar dem i en lokal databas för historik och kan automatiskt pusha utvalda händelser till en MQTT-broker.
 
-## ✨ Funktioner
+## Funktioner
 
 - **SSE Streaming**: Direktuppkoppling mot Trafikverket för händelser i realtid.
 - **Geofiltre**: Inbyggt stöd för att filtrera på specifika län (t.ex. Stockholm och Södermanland).
@@ -11,7 +11,7 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 - **Historik**: Full spårbarhet av alla mottagna händelser via en sökbar databas.
 - **Dockerized**: Enkel installation och körning med Docker Compose.
 
-## 🚀 Kom igång
+## Kom igång
 
 ### Förutsättningar
 - Docker och Docker Compose
@@ -21,7 +21,7 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 
 1. Klona repot:
    ```bash
-   git clone <din-repo-url>
+   git clone https://github.com/Minglarn/trafikinfo
    cd trafikinfo
    ```
 
@@ -37,12 +37,12 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 
 4. Öppna GUI:et på [http://localhost:8080](http://localhost:8080).
 
-## 🛠 Teknikstack
+## Teknikstack
 
 - **Backend**: Python (FastAPI, SQLAlchemy, SSE-Starlette)
 - **Frontend**: React (Vite, Tailwind CSS, Framer Motion)
 - **Databas**: SQLite
 - **Kommunikation**: MQTT (Paho-MQTT), SSE (HTTP)
 
-## 📜 Licens
+## Licens
 MIT
