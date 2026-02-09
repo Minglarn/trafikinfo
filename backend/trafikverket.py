@@ -9,8 +9,11 @@ logger = logging.getLogger(__name__)
 class TrafikverketStream:
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.base_url = "https://api.trafikverket.se/v2/query.json"
+        # Updated URL per user suggestion
+        self.base_url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
         self.running = False
+        self.connected = False
+        self.last_error = None
         self.queue = asyncio.Queue()
 
     async def get_sse_url(self, object_type: str = "Situation"):
@@ -34,8 +37,12 @@ class TrafikverketStream:
                 data = response.json()
                 # The response contains a link to the SSE stream
                 sse_url = data['RESPONSE']['RESULT'][0]['INFO']['SSEURL']
+                self.connected = True
+                self.last_error = None
                 return sse_url
             except Exception as e:
+                self.connected = False
+                self.last_error = str(e)
                 logger.error(f"Failed to get SSE URL: {e}")
                 return None
 
@@ -50,6 +57,7 @@ class TrafikverketStream:
             try:
                 async with httpx.AsyncClient(timeout=None) as client:
                     async with client.stream("GET", sse_url) as response:
+                        self.connected = True
                         async for line in response.aiter_lines():
                             if not self.running:
                                 break
@@ -58,16 +66,20 @@ class TrafikverketStream:
                                 if data:
                                     await self.queue.put(data)
             except Exception as e:
+                self.connected = False
+                self.last_error = str(e)
                 logger.error(f"Stream error: {e}")
                 await asyncio.sleep(5)
 
     def stop_streaming(self):
         self.running = False
+        self.connected = False
 
     async def get_events(self):
         while True:
             data = await self.queue.get()
             yield data
+
 
 def parse_situation(json_data):
     # Simplified parser for Trafikverket Situation object

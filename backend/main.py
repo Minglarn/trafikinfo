@@ -146,6 +146,20 @@ def get_settings(db: Session = Depends(get_db)):
         res["api_key"] = "" # Secret removed for GitHub safety
     return res
 
+@app.get("/api/status")
+def get_status():
+    global tv_stream
+    return {
+        "trafikverket": {
+            "connected": tv_stream.connected if tv_stream else False,
+            "last_error": tv_stream.last_error if tv_stream else None
+        },
+        "mqtt": {
+            "connected": mqtt_client.connected,
+            "broker": mqtt_client.config.get("host")
+        }
+    }
+
 # Static files and SPA fallback
 if os.path.exists("static"):
     app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")

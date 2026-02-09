@@ -11,6 +11,31 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         { id: 'settings', label: 'Inställningar', icon: Settings },
     ]
 
+    // Poll system status
+    const [status, setStatus] = useState({
+        trafikverket: { connected: false },
+        mqtt: { connected: false }
+    })
+
+    useEffect(() => {
+        const fetchStatus = async () => {
+            try {
+                // Since this component might be loaded before axios base url is set in some cases, use relative path if possible, 
+                // but here we assume API_BASE is handled or relative path works via proxy/catch-all
+                const res = await fetch('/api/status')
+                if (res.ok) {
+                    const data = await res.json()
+                    setStatus(data)
+                }
+            } catch (e) {
+                console.error("Status fetch error", e)
+            }
+        }
+        fetchStatus()
+        const interval = setInterval(fetchStatus, 5000)
+        return () => clearInterval(interval)
+    }, [])
+
     return (
         <motion.div
             animate={{ width: isCollapsed ? 80 : 250 }}
@@ -71,10 +96,24 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             </button>
 
             {/* Footer Status */}
-            <div className={`p-4 border-t border-slate-800 ${isCollapsed ? 'justify-center' : ''} flex`}>
-                <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    {!isCollapsed && <span className="text-xs text-slate-500 font-medium">System Online</span>}
+            <div className={`p-4 border-t border-slate-800 flex flex-col gap-3 ${isCollapsed ? 'items-center' : ''}`}>
+                {!isCollapsed && <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Systemstatus</p>}
+
+                {/* Trafikverket Status */}
+                <div className="flex items-center gap-3" title={status.trafikverket.last_error}>
+                    <span className={`w-2.5 h-2.5 rounded-full ${status.trafikverket.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    {!isCollapsed && (
+                        <div className="flex flex-col">
+                            <span className="text-sm text-slate-300">Trafikverket</span>
+                            {!status.trafikverket.connected && <span className="text-[10px] text-red-400">Frånkopplad</span>}
+                        </div>
+                    )}
+                </div>
+
+                {/* MQTT Status */}
+                <div className="flex items-center gap-3">
+                    <span className={`w-2.5 h-2.5 rounded-full ${status.mqtt.connected ? 'bg-green-500 animate-pulse' : 'bg-slate-600'}`}></span>
+                    {!isCollapsed && <span className="text-sm text-slate-300">MQTT Broker</span>}
                 </div>
             </div>
         </motion.div>
