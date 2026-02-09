@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Save, ShieldCheck, Server, Send, AlertCircle } from 'lucide-react'
+import { Save, ShieldCheck, Server, AlertCircle } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 

@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings as SettingsIcon, Bell } from 'lucide-react'
+import React, { useState } from 'react'
+import { Activity, History, Settings as SettingsIcon } from 'lucide-react'
 import EventFeed from './components/EventFeed'
 import HistoryBoard from './components/HistoryBoard'
 import Settings from './components/Settings'
 
 function App() {
   const [activeTab, setActiveTab] = useState('feed')
-  const [eventCount, setEventCount] = useState(0)
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">

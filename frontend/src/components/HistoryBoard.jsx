@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { Search, Filter, Database, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Database } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
