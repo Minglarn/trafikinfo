@@ -5,7 +5,7 @@ services:
     image: ghcr.io/minglarn/trafikinfo-backend:latest
     container_name: trafikinfo-backend
     ports:
-      - "7000:8000"
+      - "7080:8000"
     volumes:
       - backend-data:/app
     restart: always
@@ -16,7 +16,7 @@ services:
     image: ghcr.io/minglarn/trafikinfo-frontend:latest
     container_name: trafikinfo-frontend
     ports:
-      - "7080:80"
+      - "7081:80"
     depends_on:
       - backend
     restart: always
