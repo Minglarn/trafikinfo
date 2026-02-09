@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Activity, History, Settings, ChevronLeft, ChevronRight, Menu } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -68,8 +68,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
                             className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${isActive
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                 }`}
                         >
                             <Icon className="w-6 h-6 min-w-6" />

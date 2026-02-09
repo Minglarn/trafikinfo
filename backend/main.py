@@ -113,7 +113,7 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
     ]
 
 @app.post("/api/settings")
-def update_settings(settings: dict, db: Session = Depends(get_db)):
+async def update_settings(settings: dict, db: Session = Depends(get_db)):
     try:
         for k, v in settings.items():
             # Convert value to string to ensure compatibility with Settings model

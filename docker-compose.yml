@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   trafikinfo:
+    build: .
     image: ghcr.io/minglarn/trafikinfo:latest
     container_name: trafikinfo-flux
     ports:
