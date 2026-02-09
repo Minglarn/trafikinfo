@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    image: ghcr.io/minglarn/trafikinfo-backend:latest
     container_name: trafikinfo-backend
     ports:
       - "8000:8000"
@@ -13,7 +13,7 @@ services:
       - DATABASE_URL=sqlite:///./trafikinfo.db
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/minglarn/trafikinfo-frontend:latest
     container_name: trafikinfo-frontend
     ports:
       - "8080:80"

@@ -32,7 +32,8 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 
 3. Starta systemet:
    ```bash
-   docker-compose up --build
+   docker-compose pull
+   docker-compose up -d
    ```
 
 4. Öppna GUI:et på [http://localhost:8080](http://localhost:8080).
