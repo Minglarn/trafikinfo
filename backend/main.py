@@ -106,22 +106,29 @@ def get_events(limit: int = 50, db: Session = Depends(get_db)):
 
 @app.post("/api/settings")
 def update_settings(settings: dict, db: Session = Depends(get_db)):
-    for k, v in settings.items():
-        s = db.query(Settings).filter(Settings.key == k).first()
-        if s:
-            s.value = v
-        else:
-            s = Settings(key=k, value=v)
-            db.add(s)
-    db.commit()
-    
-    if "api_key" in settings:
-        start_worker(settings["api_key"])
-    
-    if "mqtt_host" in settings:
-        mqtt_client.update_config({"host": settings["mqtt_host"]})
+    try:
+        for k, v in settings.items():
+            # Convert value to string to ensure compatibility with Settings model
+            str_value = str(v) if v is not None else ""
+            
+            s = db.query(Settings).filter(Settings.key == k).first()
+            if s:
+                s.value = str_value
+            else:
+                s = Settings(key=k, value=str_value)
+                db.add(s)
+        db.commit()
         
-    return {"status": "ok"}
+        if "api_key" in settings:
+            start_worker(str(settings["api_key"]))
+        
+        if "mqtt_host" in settings:
+            mqtt_client.update_config({"host": str(settings["mqtt_host"])})
+            
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):

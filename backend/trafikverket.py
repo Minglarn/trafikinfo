@@ -29,7 +29,7 @@ class TrafikverketStream:
         """
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={{"Content-Type": "text/xml"}})
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 response.raise_for_status()
                 data = response.json()
                 # The response contains a link to the SSE stream
