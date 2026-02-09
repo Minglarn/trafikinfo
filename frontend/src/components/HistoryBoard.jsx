@@ -3,7 +3,7 @@ import axios from 'axios'
 import { format } from 'date-fns'
 import { Search, Database } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = '/api'
 
 export default function HistoryBoard() {
     const [history, setHistory] = useState([])

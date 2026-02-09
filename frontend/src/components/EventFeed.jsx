@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { MapPin, Info, AlertTriangle, Share2, Clock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = '/api'
 
 export default function EventFeed() {
     const [events, setEvents] = useState([])
