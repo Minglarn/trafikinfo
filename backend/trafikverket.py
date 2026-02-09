@@ -116,6 +116,14 @@ def parse_situation(json_data):
                 if not title:
                     title = devi.get('MessageType', 'Trafikhändelse')
 
+                # Parse times
+                start_time = devi.get('StartTime')
+                end_time = devi.get('EndTime')
+
+                # Extract Severity
+                severity_code = devi.get('SeverityCode')
+                severity_text = devi.get('SeverityText')
+
                 event = {
                     "external_id": devi.get('Id'),
                     "title": title,
@@ -123,7 +131,15 @@ def parse_situation(json_data):
                     "location": devi.get('LocationDescriptor'),
                     "icon_id": icon_id,
                     "event_type": "Situation",
-                    "timestamp": devi.get('CreationTime')
+                    "timestamp": devi.get('CreationTime'),
+                    "message_type": devi.get('MessageType'),
+                    "severity_code": severity_code,
+                    "severity_text": severity_text,
+                    "road_number": devi.get('RoadNumber'),
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "temporary_limit": devi.get('TemporaryLimit'),
+                    "traffic_restriction_type": devi.get('TrafficRestrictionType')
                 }
                 parsed_events.append(event)
         return parsed_events

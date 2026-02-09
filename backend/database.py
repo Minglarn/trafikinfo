@@ -23,6 +23,17 @@ class TrafficEvent(Base):
     location = Column(String)
     icon_id = Column(String) # Trafikverket IconId
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Enriched fields
+    message_type = Column(String) # e.g. "Vägarbete"
+    severity_code = Column(Integer) # 1-5
+    severity_text = Column(String)
+    road_number = Column(String) # e.g. "E4"
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    temporary_limit = Column(String)
+    traffic_restriction_type = Column(String)
+
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
 class Settings(Base):
@@ -34,3 +45,30 @@ class Settings(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    migrate_db()
+
+def migrate_db():
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    columns = [c['name'] for c in inspector.get_columns("traffic_events")]
+    
+    # Define expected columns and their types for migration
+    expected_columns = {
+        "message_type": "VARCHAR",
+        "severity_code": "INTEGER",
+        "severity_text": "VARCHAR",
+        "road_number": "VARCHAR",
+        "start_time": "DATETIME",
+        "end_time": "DATETIME",
+        "temporary_limit": "VARCHAR",
+        "traffic_restriction_type": "VARCHAR"
+    }
+
+    with engine.connect() as conn:
+        for col_name, col_type in expected_columns.items():
+            if col_name not in columns:
+                print(f"Migrating database: Adding missing column '{col_name}'")
+                try:
+                    conn.execute(text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
+                except Exception as e:
+                    print(f"Error adding column {col_name}: {e}")

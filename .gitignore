@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 backend/trafikinfo.db
+data/trafikinfo.db
 backend/.env
 .venv/
 venv/

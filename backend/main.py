@@ -84,13 +84,28 @@ async def event_processor():
             # Check if event already exists
             existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
             if not existing:
+                # Parse parsed times to datetime if necessary, or let SQLAlchemy handle ISO strings (usually works with SQLite)
+                # But to be safe and consistent, let's keep them as is from parser (strings) and let SQLite adapter handle it,
+                # or better, parse them here if we want strictly datetime objects. 
+                # For now, we will pass them as is.
+                
                 new_event = TrafficEvent(
                     external_id=ev['external_id'],
                     event_type=ev['event_type'],
                     title=ev['title'],
                     description=ev['description'],
                     location=ev['location'],
-                    icon_id=ev['icon_id']
+                    icon_id=ev['icon_id'],
+                    message_type=ev.get('message_type'),
+                    severity_code=ev.get('severity_code'),
+                    severity_text=ev.get('severity_text'),
+                    road_number=ev.get('road_number'),
+                    # For SQLite + SQLAlchemy, passing ISO strings to DateTime usually works fine.
+                    # If strictly needed, we would parse: datetime.fromisoformat(ev['start_time'])
+                    start_time=datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None,
+                    end_time=datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None,
+                    temporary_limit=ev.get('temporary_limit'),
+                    traffic_restriction_type=ev.get('traffic_restriction_type')
                 )
                 db.add(new_event)
                 db.commit()
@@ -119,7 +134,15 @@ async def event_processor():
                     "location": new_event.location,
                     "icon_url": mqtt_data.get('icon_url'),
                     "created_at": new_event.created_at.isoformat(),
-                    "pushed_to_mqtt": bool(new_event.pushed_to_mqtt)
+                    "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
+                    "message_type": new_event.message_type,
+                    "severity_code": new_event.severity_code,
+                    "severity_text": new_event.severity_text,
+                    "road_number": new_event.road_number,
+                    "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
+                    "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
+                    "temporary_limit": new_event.temporary_limit,
+                    "traffic_restriction_type": new_event.traffic_restriction_type
                 }
                 for queue in connected_clients:
                     await queue.put(event_data)
@@ -165,7 +188,15 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
             "location": e.location,
             "icon_url": f"https://api.trafikinfo.trafikverket.se/v1/icons/{e.icon_id}?type=png32x32" if e.icon_id else None,
             "created_at": e.created_at,
-            "pushed_to_mqtt": bool(e.pushed_to_mqtt)
+            "pushed_to_mqtt": bool(e.pushed_to_mqtt),
+            "message_type": e.message_type,
+            "severity_code": e.severity_code,
+            "severity_text": e.severity_text,
+            "road_number": e.road_number,
+            "start_time": e.start_time,
+            "end_time": e.end_time,
+            "temporary_limit": e.temporary_limit,
+            "traffic_restriction_type": e.traffic_restriction_type
         } for e in events
     ]
 

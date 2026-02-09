@@ -65,14 +65,14 @@ export default function EventFeed() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Realtidsflöde</h2>
-                    <p className="text-slate-400">Aktuella händelser på de svenska vägarna</p>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Realtidsflöde</h2>
+                    <p className="text-slate-500 dark:text-slate-400">Aktuella händelser på de svenska vägarna</p>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
-                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                    : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
                     }`}>
-                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-red-400'}`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-500 dark:bg-blue-400 animate-pulse' : 'bg-red-500 dark:bg-red-400'}`}></span>
                     {isConnected ? 'LIVE STREAM' : 'OFFLINE'}
                 </div>
             </div>
@@ -85,57 +85,113 @@ export default function EventFeed() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, x: -100 }}
-                            className="bg-slate-800/50 border border-slate-700 p-5 rounded-2xl hover:border-slate-600 transition-all group relative overflow-hidden"
+                            className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-5 rounded-2xl hover:border-slate-300 dark:hover:border-slate-600 transition-all group relative overflow-hidden shadow-sm dark:shadow-none"
                         >
-                            {/* Vertical Accent */}
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+                            {/* Severe Event Border */
+                                event.severity_code >= 4 && (
+                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] z-10 animate-pulse"></div>
+                                )}
+
+                            {/* Standard Border (if not severe) */}
+                            {(!event.severity_code || event.severity_code < 4) && (
+                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.severity_code === 2 ? 'bg-yellow-500' : 'bg-blue-500'} 
+                                    shadow-[0_0_10px_rgba(59,130,246,0.5)]`}></div>
+                            )}
 
                             <div className="flex flex-col md:flex-row gap-6">
                                 <div className="flex-1 space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-blue-500/10 text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-500/20">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600">
                                             {event.external_id}
                                         </span>
-                                        <span className="text-slate-500 text-xs flex items-center gap-1">
+
+                                        {/* Road Number Badge */}
+                                        {event.road_number && (
+                                            <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded border border-yellow-600 shadow-sm">
+                                                {event.road_number}
+                                            </span>
+                                        )}
+
+                                        {/* Message Type Badge */}
+                                        {event.message_type && (
+                                            <span className="bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
+                                                {event.message_type}
+                                            </span>
+                                        )}
+
+                                        <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto">
                                             <Clock className="w-3 h-3" />
-                                            {format(new Date(event.created_at), 'HH:mm:ss')}
+                                            {format(new Date(event.created_at), 'HH:mm')}
                                         </span>
                                     </div>
 
-                                    <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
-                                        {event.icon_url && <img src={event.icon_url} alt="Icon" className="w-6 h-6 object-contain" />}
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                                        {event.icon_url && <img src={event.icon_url} alt="Icon" className="w-8 h-8 object-contain" />}
                                         {event.title || 'Okänd händelse'}
                                     </h3>
 
                                     <div className="space-y-2">
-                                        <div className="flex items-start gap-2 text-slate-400 text-sm">
-                                            <MapPin className="w-4 h-4 mt-1 flex-shrink-0 text-slate-500" />
-                                            <span>{event.location || 'Platsinformation saknas'}</span>
+                                        <div className="flex items-start gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                                            <MapPin className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                                            <span className="font-medium text-slate-700 dark:text-slate-300">{event.location || 'Platsinformation saknas'}</span>
                                         </div>
-                                        <div className="flex items-start gap-2 text-slate-300 text-sm leading-relaxed">
-                                            <Info className="w-4 h-4 mt-1 flex-shrink-0 text-slate-500" />
-                                            <span>{event.description}</span>
+
+                                        <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+                                            <Info className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                                            <div className="space-y-1">
+                                                <p>{event.description}</p>
+
+                                                {/* Extra Details */}
+                                                {(event.temporary_limit || event.traffic_restriction_type) && (
+                                                    <div className="pt-2 flex flex-wrap gap-2">
+                                                        {event.temporary_limit && (
+                                                            <span className="text-xs bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-2 py-1 rounded border border-red-200 dark:border-red-500/20">
+                                                                {event.temporary_limit}
+                                                            </span>
+                                                        )}
+                                                        {event.traffic_restriction_type && (
+                                                            <span className="text-xs bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 px-2 py-1 rounded border border-orange-200 dark:border-orange-500/20">
+                                                                {event.traffic_restriction_type}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
+
+                                        {/* Validity Period */}
+                                        {(event.start_time || event.end_time) && (
+                                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
+                                                <span>Gäller:</span>
+                                                {event.start_time && <span className="text-slate-700 dark:text-slate-400">{format(new Date(event.start_time), 'd MMM HH:mm')}</span>}
+                                                <span>→</span>
+                                                {event.end_time ? (
+                                                    <span className="text-slate-700 dark:text-slate-400">{format(new Date(event.end_time), 'd MMM HH:mm')}</span>
+                                                ) : (
+                                                    <span className="italic">Tillsvidare</span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div className="flex md:flex-col justify-between md:justify-start items-center md:items-end gap-4 border-t md:border-t-0 md:border-l border-slate-700/50 pt-4 md:pt-0 md:pl-6">
+                                <div className="flex md:flex-col justify-between md:justify-start items-center md:items-end gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 min-w-[140px]">
                                     <div className="flex flex-col items-center md:items-end">
                                         <span className="text-[10px] uppercase font-bold text-slate-500 mb-1">MQTT Status</span>
                                         {event.pushed_to_mqtt ? (
-                                            <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                                            <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 font-medium">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-green-400"></span>
                                                 Pushed
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500"></span>
                                                 Pending
                                             </div>
                                         )}
                                     </div>
 
-                                    <button className="flex items-center gap-2 bg-slate-700 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+                                    <button className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-700 dark:text-white hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors border border-slate-200 dark:border-transparent">
                                         <Share2 className="w-4 h-4" />
                                         Push manuellt
                                     </button>
@@ -146,8 +202,8 @@ export default function EventFeed() {
                 </AnimatePresence>
 
                 {events.length === 0 && (
-                    <div className="text-center py-20 bg-slate-800/30 rounded-3xl border border-dashed border-slate-700">
-                        <AlertTriangle className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <AlertTriangle className="w-10 h-10 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
                         <p className="text-slate-500">Inga aktiva händelser hittades för tillfället.</p>
                     </div>
                 )}

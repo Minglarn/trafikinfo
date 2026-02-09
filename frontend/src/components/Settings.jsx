@@ -43,24 +43,24 @@ export default function Settings() {
     return (
         <div className="max-w-2xl mx-auto space-y-8">
             <div>
-                <h2 className="text-2xl font-bold text-white">Inställningar</h2>
-                <p className="text-slate-400">Hantera dina API-nycklar och MQTT-kopplingar</p>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Inställningar</h2>
+                <p className="text-slate-500 dark:text-slate-400">Hantera dina API-nycklar och MQTT-kopplingar</p>
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">
                 {/* API Key */}
-                <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl space-y-4">
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                     <div className="flex items-center gap-3 mb-2">
-                        <ShieldCheck className="w-5 h-5 text-blue-400" />
-                        <h3 className="text-lg font-semibold">Trafikverket API</h3>
+                        <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Trafikverket API</h3>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm text-slate-400 font-medium">Authentication Key</label>
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Authentication Key</label>
                         <input
                             type="password"
                             value={settings.api_key}
                             onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                             placeholder="Din API-nyckel..."
                         />
                         <p className="text-xs text-slate-500">Hämta din nyckel på dataportalen.trafikverket.se</p>
@@ -68,62 +68,62 @@ export default function Settings() {
                 </div>
 
                 {/* MQTT Config */}
-                <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl space-y-6">
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-6 shadow-sm dark:shadow-none">
                     <div className="flex items-center gap-3 mb-2">
-                        <Server className="w-5 h-5 text-blue-400" />
-                        <h3 className="text-lg font-semibold">MQTT Broker</h3>
+                        <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm text-slate-400 font-medium">Host</label>
+                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Host</label>
                             <input
                                 type="text"
                                 value={settings.mqtt_host}
                                 onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm text-slate-400 font-medium">Port</label>
+                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
                             <input
                                 type="text"
                                 value={settings.mqtt_port}
                                 onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                                 placeholder="1883"
                             />
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm text-slate-400 font-medium">Topic Path</label>
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path</label>
                         <input
                             type="text"
                             value={settings.mqtt_topic}
                             onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-700/50 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700/50 pt-4">
                         <div className="space-y-2">
-                            <label className="text-sm text-slate-400 font-medium">Username (Optional)</label>
+                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Username (Optional)</label>
                             <input
                                 type="text"
                                 value={settings.mqtt_username || ''}
                                 onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                                 placeholder="mqtt_user"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm text-slate-400 font-medium">Password (Optional)</label>
+                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Password (Optional)</label>
                             <input
                                 type="password"
                                 value={settings.mqtt_password || ''}
                                 onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 transition-colors"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                                 placeholder="••••••••"
                             />
                         </div>
@@ -131,7 +131,7 @@ export default function Settings() {
                 </div>
 
                 {message && (
-                    <div className={`p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                    <div className={`p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20' : 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/20'}`}>
                         {message.type === 'success' ? <ShieldCheck className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
                         <span className="text-sm font-medium">{message.text}</span>
                     </div>
