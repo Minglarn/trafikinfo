@@ -23,27 +23,13 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 
 ## Kom igång med Docker Compose
 
-Det snabbaste sättet att starta Trafikinfo Flux är att använda Docker Compose.
+Det snabbaste sättet att starta Trafikinfo Flux är att använda Docker Compose. All konfiguration sker sedan direkt i webbgränssnittet.
 
 ### 1. Förberedelser
 Du behöver en API-nyckel från [Trafikverket Datautbytesportal](https://dataportalen.trafikverket.se/).
 
-### 2. Konfiguration
-Vi rekommenderar att du använder en `.env`-fil för att hålla dina inloggningsuppgifter säkra.
-
-1. Kopiera exempel-filen:
-   ```bash
-   cp .env.example .env
-   ```
-2. Öppna `.env` och fyll i följande variabler:
-   - `TRAFIKVERKET_API_KEY`: Din API-nyckel (från [Trafikverket](https://dataportalen.trafikverket.se/)).
-   - `MQTT_HOST`: Adressen till din MQTT-broker (t.ex. `192.168.1.50`).
-   - `MQTT_PORT`: Porten (oftast `1883`).
-   - `MQTT_USER` & `MQTT_PASSWORD`: Användarnamn och lösenord (om din broker kräver det).
-   - `MQTT_TOPIC`: Ämnet där händelser ska publiceras (t.ex. `trafikinfo/events`).
-
-### 3. Docker Compose (`docker-compose.yml`)
-Din `docker-compose.yml` kan sedan hållas ren och referera till `.env`-filen:
+### 2. Docker Compose (`docker-compose.yml`)
+Skapa en `docker-compose.yml` med följande innehåll:
 
 ```yaml
 services:
@@ -55,10 +41,23 @@ services:
     volumes:
       - ./data:/app/data
     restart: always
-    env_file: .env
     environment:
       - TZ=Europe/Stockholm
 ```
+
+### 3. Starta
+Kör följande kommando i samma mapp:
+```bash
+docker-compose up -d
+```
+
+### 4. Konfiguration
+1. Öppna [http://localhost:7081](http://localhost:7081) i din webbläsare.
+2. Systemet kommer automatiskt skicka dig till **Inställningar** vid första start.
+3. Klistra in din API-nyckel från Trafikverket.
+4. Välj vilka län du vill bevaka (Stockholm och Södermanland är förvalda).
+5. (Valfritt) Aktivera och konfigurera MQTT om du vill skicka data vidare.
+6. Tryck på **Spara inställningar**.
 
 ### 4. Starta
 Kör följande kommando i samma mapp:

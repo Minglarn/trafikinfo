@@ -26,20 +26,15 @@ logger = logging.getLogger(__name__)
 SNAPSHOTS_DIR = os.path.join(os.getcwd(), "data", "snapshots")
 os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
-# Map environment variables to database setting keys
-ENV_TO_DB = {
-    "TRAFIKVERKET_API_KEY": "api_key",
-    "MQTT_HOST": "mqtt_host",
-    "MQTT_PORT": "mqtt_port",
-    "MQTT_USER": "mqtt_username",
-    "MQTT_PASSWORD": "mqtt_password",
-    "CAMERA_RADIUS_KM": "camera_radius_km",
-    "MQTT_TOPIC": "mqtt_topic"
-}
-
-# Defaults if not in DB or ENV
+# Defaults for fresh install
 DEFAULTS = {
-    "camera_radius_km": "5.0"
+    "camera_radius_km": "5.0",
+    "selected_counties": "1,4",  # Stockholm & Södermanland
+    "mqtt_enabled": "false",
+    "mqtt_host": "localhost",
+    "mqtt_port": "1883",
+    "mqtt_topic": "trafikinfo/events",
+    "retention_days": "30"
 }
 
 app = FastAPI(title="Trafikinfo API")
@@ -77,17 +72,7 @@ async def startup_event():
     # Load settings & seed from environment if database is empty
     db = SessionLocal()
     
-    # Seeding logic: Environment variables provide defaults if database keys are missing
-    for env_key, db_key in ENV_TO_DB.items():
-        env_val = os.getenv(env_key)
-        if env_val is not None: # Check for None explicitly, allow empty strings if set
-            existing = db.query(Settings).filter(Settings.key == db_key).first()
-            if not existing:
-                logger.info(f"Seeding settings key '{db_key}' from environment variable '{env_key}'")
-                new_setting = Settings(key=db_key, value=env_val)
-                db.add(new_setting)
-    
-    # Seed defaults for keys that might not be in ENV
+    # Seed defaults if database keys are missing
     for key, val in DEFAULTS.items():
         existing = db.query(Settings).filter(Settings.key == key).first()
         if not existing:
@@ -105,7 +90,11 @@ async def startup_event():
     mqtt_topic = db.query(Settings).filter(Settings.key == "mqtt_topic").first()
     selected_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
     
-    mqtt_config = {}
+    mqtt_enabled = db.query(Settings).filter(Settings.key == "mqtt_enabled").first()
+    
+    mqtt_config = {
+        "enabled": mqtt_enabled.value.lower() == "true" if mqtt_enabled else False
+    }
     if mqtt_host: mqtt_config["host"] = mqtt_host.value
     if mqtt_port: mqtt_config["port"] = int(mqtt_port.value)
     if mqtt_user: mqtt_config["username"] = mqtt_user.value
@@ -527,6 +516,7 @@ async def update_settings(settings: dict, db: Session = Depends(get_db)):
         
         # Update MQTT config if any related setting changed
         mqtt_updates = {}
+        if "mqtt_enabled" in settings: mqtt_updates["enabled"] = str(settings["mqtt_enabled"]).lower() == "true"
         if "mqtt_host" in settings: mqtt_updates["host"] = str(settings["mqtt_host"])
         if "mqtt_port" in settings: mqtt_updates["port"] = int(settings["mqtt_port"])
         if "mqtt_username" in settings: mqtt_updates["username"] = str(settings["mqtt_username"])
@@ -578,16 +568,19 @@ def get_status(db: Session = Depends(get_db)):
     api_key = db.query(Settings).filter(Settings.key == "api_key").first()
     
     return {
+        "setup_required": not (api_key and api_key.value),
         "trafikverket": {
             "connected": tv_stream.connected if tv_stream else False,
+            "api_key_set": bool(api_key and api_key.value),
             "last_error": tv_stream.last_error if tv_stream else None
         },
         "mqtt": {
             "connected": mqtt_client.connected,
+            "enabled": mqtt_client.config.get("enabled", False),
             "broker": mqtt_client.config.get("host")
         },
         "version": VERSION,
-        "setup_required": not (api_key and api_key.value)
+        "cleanup": "running"
     }
 
 @app.get("/api/version")

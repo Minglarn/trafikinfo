@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2 } from 'lucide-react'
+import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
 
@@ -132,9 +132,19 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
                 </div>
 
                 {/* MQTT Status */}
-                <div className="flex items-center gap-3">
-                    <span className={`w-2.5 h-2.5 rounded-full ${status.mqtt.connected ? 'bg-green-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'}`}></span>
-                    {!isCollapsed && <span className="text-sm text-slate-600 dark:text-slate-300">MQTT Broker</span>}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-slate-400" />
+                        {!isCollapsed && <span className="text-xs text-slate-600 dark:text-slate-400">MQTT Broker</span>}
+                    </div>
+                    {!isCollapsed && (
+                        <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${!status.mqtt?.enabled ? 'bg-slate-300 dark:bg-slate-700' : status.mqtt?.connected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500'}`} />
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${!status.mqtt?.enabled ? 'text-slate-400' : status.mqtt?.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {!status.mqtt?.enabled ? 'Avaktiverad' : status.mqtt?.connected ? 'Ansluten' : 'Fel'}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Version Display */}

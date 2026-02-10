@@ -8,6 +8,7 @@ class MQTTClient:
     def __init__(self):
         self.client = mqtt.Client()
         self.config = {
+            "enabled": False,
             "host": "localhost",
             "port": 1883,
             "username": "",
@@ -24,7 +25,13 @@ class MQTTClient:
         try:
             if self.connected:
                 self.client.disconnect()
+                self.client.loop_stop()
+                self.connected = False
             
+            if not self.config.get("enabled"):
+                logger.info("MQTT is disabled in settings, skipping connection")
+                return
+
             if self.config["username"]:
                 self.client.username_pw_set(self.config["username"], self.config["password"])
             

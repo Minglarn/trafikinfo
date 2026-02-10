@@ -9,6 +9,5 @@ services:
       - ./data:/app/data
       - ./data/snapshots:/app/data/snapshots
     restart: always
-    env_file: .env
     environment:
       - TZ=Europe/Stockholm

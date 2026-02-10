@@ -116,18 +116,24 @@ export default function Settings() {
             </div>
 
             <div className="space-y-6">
-                <div className="setting-group">
-                    <label>Kameraradie (km)</label>
-                    <input
-                        type="number"
-                        name="camera_radius_km"
-                        value={settings.camera_radius_km || 5}
-                        onChange={(e) => setSettings({ ...settings, camera_radius_km: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                        min="1"
-                        max="50"
-                    />
-                    <small className="text-xs text-slate-500">Sökområde för att matcha kameror mot händelser.</small>
+                <div className="setting-group bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Generellt</h3>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Kameraradie (km)</label>
+                        <input
+                            type="number"
+                            name="camera_radius_km"
+                            value={settings.camera_radius_km ?? ''}
+                            onChange={(e) => setSettings({ ...settings, camera_radius_km: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                            min="1"
+                            max="50"
+                        />
+                        <p className="text-xs text-slate-500">Sökområde för att matcha kameror mot händelser.</p>
+                    </div>
                 </div>
 
                 {/* Constants like Data Retention */}
@@ -137,9 +143,9 @@ export default function Settings() {
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Datalagring</h3>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spara historik</label>
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spara händelsehistorik</label>
                         <select
-                            value={settings.retention_days || '30'}
+                            value={settings.retention_days ?? '30'}
                             onChange={(e) => setSettings({ ...settings, retention_days: e.target.value })}
                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors appearance-none"
                         >
@@ -160,7 +166,7 @@ export default function Settings() {
                         <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Farlig zon</h3>
                     </div>
                     <p className="text-sm text-red-700 dark:text-red-300">
-                        Här kan du återställa systemet till fabriksinställningar. Detta raderar all historik och alla sparade bilder.
+                        Här kan du återställa systemet till fabriksinställningar. Detta raderar all historik, alla inställningar och alla sparade bilder.
                     </p>
 
                     {!showResetConfirm ? (
@@ -176,7 +182,7 @@ export default function Settings() {
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-red-200 dark:border-red-900/30 shadow-lg space-y-3 animate-in fade-in zoom-in duration-200">
                             <h4 className="font-bold text-red-600 dark:text-red-400">VILL DU VERKLIGEN GÖRA DETTA?</h4>
                             <p className="text-xs text-slate-600 dark:text-slate-400">
-                                Denna åtgärd går inte att ångra. All databasdata och alla bilder kommer att raderas permanent.
+                                Denna åtgärd går inte att ångra. All databasdata och alla bilder kommer att raderas permanent. Appen kommer kräva ny konfiguration.
                             </p>
                             <div className="flex gap-2 pt-2">
                                 <button
@@ -208,7 +214,7 @@ export default function Settings() {
                         <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Authentication Key</label>
                         <input
                             type="password"
-                            value={settings.api_key}
+                            value={settings.api_key ?? ''}
                             onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                             placeholder="Din API-nyckel..."
@@ -293,7 +299,7 @@ export default function Settings() {
                             <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Välj ljud</label>
                             <div className="flex items-center gap-2">
                                 <select
-                                    value={soundFile}
+                                    value={soundFile ?? 'chime1.mp3'}
                                     onChange={(e) => {
                                         const newFile = e.target.value
                                         setSoundFile(newFile)
@@ -322,66 +328,84 @@ export default function Settings() {
                 </div>
 
                 {/* MQTT Config */}
-                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-6 shadow-sm dark:shadow-none">
-                    <div className="flex items-center gap-3 mb-2">
-                        <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-3">
+                            <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const isEnabled = settings.mqtt_enabled === 'true';
+                                setSettings({ ...settings, mqtt_enabled: isEnabled ? 'false' : 'true' });
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.mqtt_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`}
+                            />
+                        </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Host</label>
-                            <input
-                                type="text"
-                                value={settings.mqtt_host}
-                                onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
-                            <input
-                                type="text"
-                                value={settings.mqtt_port}
-                                onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                placeholder="1883"
-                            />
-                        </div>
-                    </div>
+                    {settings.mqtt_enabled === 'true' && (
+                        <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Host</label>
+                                    <input
+                                        type="text"
+                                        value={settings.mqtt_host ?? ''}
+                                        onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
+                                    <input
+                                        type="text"
+                                        value={settings.mqtt_port ?? ''}
+                                        onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                        placeholder="1883"
+                                    />
+                                </div>
+                            </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path</label>
-                        <input
-                            type="text"
-                            value={settings.mqtt_topic}
-                            onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                        />
-                    </div>
+                            <div className="space-y-2">
+                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path</label>
+                                <input
+                                    type="text"
+                                    value={settings.mqtt_topic ?? ''}
+                                    onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                />
+                            </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700/50 pt-4">
-                        <div className="space-y-2">
-                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Username (Optional)</label>
-                            <input
-                                type="text"
-                                value={settings.mqtt_username || ''}
-                                onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                placeholder="mqtt_user"
-                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700/50 pt-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Username (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={settings.mqtt_username ?? ''}
+                                        onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                        placeholder="mqtt_user"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Password (Optional)</label>
+                                    <input
+                                        type="password"
+                                        value={settings.mqtt_password ?? ''}
+                                        onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Password (Optional)</label>
-                            <input
-                                type="password"
-                                value={settings.mqtt_password || ''}
-                                onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                placeholder="••••••••"
-                            />
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {message && (
