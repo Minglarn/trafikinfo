@@ -59,13 +59,6 @@ docker-compose up -d
 5. (Valfritt) Aktivera och konfigurera MQTT om du vill skicka data vidare.
 6. Tryck på **Spara inställningar**.
 
-### 4. Starta
-Kör följande kommando i samma mapp:
-```bash
-docker-compose up -d
-```
-
-Öppna sedan [http://localhost:7081](http://localhost:7081) i din webbläsare.
 
 ## Teknikstack
 
