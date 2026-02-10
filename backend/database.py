@@ -72,7 +72,11 @@ def migrate_db():
         "longitude": "FLOAT",
         "camera_url": "VARCHAR",
         "camera_name": "VARCHAR",
-        "camera_snapshot": "VARCHAR"
+        "camera_snapshot": "VARCHAR",
+        "icon_id": "VARCHAR",
+        "pushed_to_mqtt": "INTEGER",
+        "external_id": "VARCHAR",
+        "event_type": "VARCHAR"
     }
 
     with engine.connect() as conn:

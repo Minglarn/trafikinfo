@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.12] - 2026-02-10
+
+### Fixed
+- **Database Migration**: Added startup check to automatically add missing columns (`icon_id`, `pushed_to_mqtt`, etc.) to existing databases, preventing crash on restart.
+
 ## [26.2.11] - 2026-02-10
 
 ### Added
