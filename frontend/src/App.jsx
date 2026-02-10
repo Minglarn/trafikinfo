@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import EventFeed from './components/EventFeed'
 import HistoryBoard from './components/HistoryBoard'
 import Settings from './components/Settings'
+import Statistics from './components/Statistics'
 
 function App() {
   const [activeTab, setActiveTab] = useState('feed')
@@ -42,6 +43,7 @@ function App() {
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
           <div className="max-w-7xl mx-auto h-full">
             {activeTab === 'feed' && <EventFeed />}
+            {activeTab === 'statistics' && <Statistics />}
             {activeTab === 'history' && <HistoryBoard />}
             {activeTab === 'settings' && <Settings />}
           </div>

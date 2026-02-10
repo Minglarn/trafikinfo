@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react'
+import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme }) {
@@ -7,6 +7,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
 
     const menuItems = [
         { id: 'feed', label: 'Realtid', icon: Activity },
+        { id: 'statistics', label: 'Statistik', icon: BarChart2 },
         { id: 'history', label: 'Historik', icon: History },
         { id: 'settings', label: 'Inställningar', icon: Settings },
     ]

@@ -9,6 +9,7 @@ import json
 import logging
 from typing import List
 from datetime import datetime
+from sqlalchemy import func
 
 from database import SessionLocal, init_db, TrafficEvent, Settings
 from mqtt_client import mqtt_client
@@ -200,6 +201,47 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
             "traffic_restriction_type": e.traffic_restriction_type
         } for e in events
     ]
+
+@app.get("/api/stats")
+def get_stats(hours: int = 24, db: Session = Depends(get_db)):
+    from datetime import datetime, timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Base query for time range
+    base_query = db.query(TrafficEvent).filter(TrafficEvent.created_at >= cutoff)
+    
+    # Total count
+    total_events = base_query.count()
+    
+    # Count by Message Type
+    type_counts = db.query(TrafficEvent.message_type, func.count(TrafficEvent.id))\
+        .filter(TrafficEvent.created_at >= cutoff)\
+        .group_by(TrafficEvent.message_type).all()
+        
+    # Count by Severity
+    severity_counts = db.query(TrafficEvent.severity_text, func.count(TrafficEvent.id))\
+        .filter(TrafficEvent.created_at >= cutoff)\
+        .group_by(TrafficEvent.severity_text).all()
+        
+    # Events over time (grouped by hour) - simpler approach for SQLite
+    # In a real postgres we would use date_trunc. For sqlite we can fetch and aggregate in python or use strftime
+    events = base_query.with_entities(TrafficEvent.created_at).all()
+    
+    timeline = {}
+    for e in events:
+        # Group by hour: "YYYY-MM-DD HH:00"
+        key = e.created_at.strftime("%Y-%m-%d %H:00")
+        timeline[key] = timeline.get(key, 0) + 1
+        
+    # Sort timeline
+    sorted_timeline = [{"time": k, "count": v} for k, v in sorted(timeline.items())]
+
+    return {
+        "total": total_events,
+        "by_type": [{"name": t[0] or "Okänd", "value": t[1]} for t in type_counts],
+        "by_severity": [{"name": s[0] or "Okänd", "value": s[1]} for s in severity_counts],
+        "timeline": sorted_timeline
+    }
 
 @app.post("/api/settings")
 async def update_settings(settings: dict, db: Session = Depends(get_db)):
