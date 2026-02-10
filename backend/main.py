@@ -8,6 +8,7 @@ import os
 import json
 import logging
 from typing import List
+from datetime import datetime
 
 from database import SessionLocal, init_db, TrafficEvent, Settings
 from mqtt_client import mqtt_client
