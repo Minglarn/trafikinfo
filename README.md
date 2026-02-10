@@ -19,8 +19,17 @@ Det snabbaste sättet att starta Trafikinfo Flux är att använda Docker Compose
 ### 1. Förberedelser
 Du behöver en API-nyckel från [Trafikverket Datautbytesportal](https://dataportalen.trafikverket.se/).
 
-### 2. Konfiguration (`docker-compose.yml`)
-Skapa en fil med följande innehåll:
+### 2. Konfiguration
+Vi rekommenderar att du använder en `.env`-fil för att hålla dina inloggningsuppgifter säkra.
+
+1. Kopiera exempel-filen:
+   ```bash
+   cp .env.example .env
+   ```
+2. Öppna `.env` och fyll i din `TRAFIKVERKET_API_KEY` samt MQTT-detaljer.
+
+### 3. Docker Compose (`docker-compose.yml`)
+Din `docker-compose.yml` kan sedan hållas ren och referera till `.env`-filen:
 
 ```yaml
 services:
@@ -32,17 +41,12 @@ services:
     volumes:
       - ./data:/app/data
     restart: always
+    env_file: .env
     environment:
-      - TRAFIKVERKET_API_KEY=DIN_NYCKEL_HÄR
-      - MQTT_HOST=ditt.mqtt.host
-      - MQTT_PORT=1883
-      - MQTT_USER=användare
-      - MQTT_PASSWORD=lösenord
-      - DEBUG_MODE=false
       - TZ=Europe/Stockholm
 ```
 
-### 3. Starta
+### 4. Starta
 Kör följande kommando i samma mapp:
 ```bash
 docker-compose up -d

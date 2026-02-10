@@ -8,6 +8,6 @@ services:
     volumes:
       - ./data:/app/data
     restart: always
+    env_file: .env
     environment:
-      - DEBUG_MODE=true # Set to true for detailed logs
       - TZ=Europe/Stockholm
