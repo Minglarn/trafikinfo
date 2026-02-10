@@ -1,16 +1,75 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Share2, Clock } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Share2, Clock, Filter, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_BASE = '/api'
 
+const MESSAGE_TYPES = [
+    'Viktig trafikinformation',
+    'Olycka',
+    'Vägarbete',
+    'Hinder',
+    'Restriktion',
+    'Trafikmeddelande',
+    'Färjor',
+]
+
+const SEVERITY_LEVELS = [
+    'Ingen påverkan',
+    'Liten påverkan',
+    'Stor påverkan',
+    'Mycket stor påverkan',
+]
+
+const SEVERITY_COLORS = {
+    'Ingen påverkan': 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600',
+    'Liten påverkan': 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20',
+    'Stor påverkan': 'bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/20',
+    'Mycket stor påverkan': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
+}
+
 export default function EventFeed() {
     const [events, setEvents] = useState([])
     const [loading, setLoading] = useState(true)
-
     const [isConnected, setIsConnected] = useState(false)
+
+    // Filter state
+    const [activeMessageTypes, setActiveMessageTypes] = useState([])
+    const [activeSeverities, setActiveSeverities] = useState([])
+    const [showFilters, setShowFilters] = useState(false)
+
+    const toggleMessageType = (type) => {
+        setActiveMessageTypes(prev =>
+            prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+        )
+    }
+
+    const toggleSeverity = (level) => {
+        setActiveSeverities(prev =>
+            prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
+        )
+    }
+
+    const clearFilters = () => {
+        setActiveMessageTypes([])
+        setActiveSeverities([])
+    }
+
+    const activeFilterCount = activeMessageTypes.length + activeSeverities.length
+
+    const filteredEvents = useMemo(() => {
+        return events.filter(event => {
+            if (activeMessageTypes.length > 0 && !activeMessageTypes.includes(event.message_type)) {
+                return false
+            }
+            if (activeSeverities.length > 0 && !activeSeverities.includes(event.severity_text)) {
+                return false
+            }
+            return true
+        })
+    }, [events, activeMessageTypes, activeSeverities])
 
     const fetchEvents = async () => {
         try {
@@ -44,7 +103,6 @@ export default function EventFeed() {
             console.error('SSE Error:', err)
             setIsConnected(false)
             eventSource.close()
-            // Simple retry logic could be added here, but EventSource usually retries automatically
         }
 
         return () => {
@@ -68,18 +126,106 @@ export default function EventFeed() {
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Realtidsflöde</h2>
                     <p className="text-slate-500 dark:text-slate-400">Aktuella händelser på de svenska vägarna</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
-                    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                    : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                    }`}>
-                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-500 dark:bg-blue-400 animate-pulse' : 'bg-red-500 dark:bg-red-400'}`}></span>
-                    {isConnected ? 'LIVE STREAM' : 'OFFLINE'}
+                <div className="flex items-center gap-3">
+                    {/* Filter Toggle */}
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-2 transition-all ${showFilters || activeFilterCount > 0
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                            }`}
+                    >
+                        <Filter className="w-3.5 h-3.5" />
+                        Filter
+                        {activeFilterCount > 0 && (
+                            <span className="bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Live Status */}
+                    <div className={`px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
+                        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                        : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                        }`}>
+                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-500 dark:bg-blue-400 animate-pulse' : 'bg-red-500 dark:bg-red-400'}`}></span>
+                        {isConnected ? 'LIVE STREAM' : 'OFFLINE'}
+                    </div>
                 </div>
             </div>
 
+            {/* Filter Bar */}
+            <AnimatePresence>
+                {showFilters && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-4">
+                            {/* Message Type Filter */}
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Meddelandetyp</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {MESSAGE_TYPES.map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => toggleMessageType(type)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeMessageTypes.includes(type)
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                                }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Severity Filter */}
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Påverkan</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {SEVERITY_LEVELS.map(level => (
+                                        <button
+                                            key={level}
+                                            onClick={() => toggleSeverity(level)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeSeverities.includes(level)
+                                                ? SEVERITY_COLORS[level] + ' ring-2 ring-offset-1 ring-blue-500 dark:ring-offset-slate-900'
+                                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                                }`}
+                                        >
+                                            {level}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Active Filters Summary */}
+                            {activeFilterCount > 0 && (
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs text-slate-500">
+                                        Visar {filteredEvents.length} av {events.length} händelser
+                                    </span>
+                                    <button
+                                        onClick={clearFilters}
+                                        className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1 transition-colors"
+                                    >
+                                        <X className="w-3 h-3" />
+                                        Rensa filter
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="grid gap-4">
                 <AnimatePresence initial={false}>
-                    {events.map((event) => (
+                    {filteredEvents.map((event) => (
                         <motion.div
                             key={event.id}
                             initial={{ opacity: 0, y: 20 }}
