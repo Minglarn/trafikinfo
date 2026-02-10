@@ -2,8 +2,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
-backend/trafikinfo.db
-data/trafikinfo.db
+# Data & Local database
+data/
+!data/.gitkeep
 backend/.env
 .venv/
 venv/

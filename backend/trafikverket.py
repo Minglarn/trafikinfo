@@ -243,6 +243,8 @@ async def get_cameras(api_key: str):
             <INCLUDE>Id</INCLUDE>
             <INCLUDE>Name</INCLUDE>
             <INCLUDE>PhotoUrl</INCLUDE>
+            <INCLUDE>FullSizePhotoUrl</INCLUDE>
+            <INCLUDE>HasFullSizePhoto</INCLUDE>
             <INCLUDE>Geometry.WGS84</INCLUDE>
         </QUERY>
     </REQUEST>
@@ -264,6 +266,8 @@ async def get_cameras(api_key: str):
                             "id": res.get('Id'),
                             "name": res.get('Name'),
                             "url": res.get('PhotoUrl'),
+                            "fullsize_url": res.get('FullSizePhotoUrl'),
+                            "has_fullsize": res.get('HasFullSizePhoto', False),
                             "longitude": float(match.group(1)),
                             "latitude": float(match.group(2))
                         })

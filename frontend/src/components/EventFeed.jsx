@@ -432,13 +432,13 @@ export default function EventFeed() {
                                                             ARKIV
                                                         </span>
                                                     ) : (
-                                                        <span className="text-[9px] font-bold text-white bg-indigo-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
+                                                        <span className="text-[9px] font-bold text-white bg-emerald-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
                                                             KAMERA
                                                         </span>
                                                     )}
                                                 </div>
                                                 <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${event.camera_snapshot ? 'bg-blue-400' : 'bg-indigo-400'}`} />
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${event.camera_snapshot ? 'bg-blue-400' : 'bg-emerald-400'}`} />
                                                     <span className="truncate">{event.camera_name || 'Kamera'}</span>
                                                 </div>
                                             </div>

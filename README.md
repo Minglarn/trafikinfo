@@ -9,6 +9,11 @@
 
 ![App Screenshot](screenshot.png)
 
+### 🎨 UI Statusindikatorer
+I händelseflödet ser du små etiketter uppe till höger på kamerabilderna:
+- **KAMERA (Indigo)**: Visar en direktlänk till Trafikverkets liveseerver.
+- **ARKIV (Blå)**: Visar en sparad ögonblicksbild (snapshot) från när händelsen först upptäcktes. Dessa sparas lokalt i hög upplösning för att säkerställa att du ser exakt vad som hände, även om livebilden ändras senare.
+
 Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata från det svenska Trafikverkets API. Systemet strömmar händelser (Situationer), lagrar dem i en lokal databas för historik och kan automatiskt pusha utvalda händelser till en MQTT-broker.
 
 ## Funktioner

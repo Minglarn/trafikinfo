@@ -114,22 +114,24 @@ async def refresh_cameras(api_key: str):
             cameras = new_cameras
             logger.info(f"Refreshed {len(cameras)} traffic cameras")
 
-async def download_camera_snapshot(url: str, event_id: str):
+async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_url: str = None):
     """Download camera image and save it to the snapshots directory."""
     if not url:
         return None
     
-    # Try to get the fullsize version if it's a Trafikverket URL
-    fullsize_url = url
-    if "api.trafikinfo.trafikverket.se" in url and not url.endswith("_fullsize.jpg"):
-        fullsize_url = url.replace(".jpg", "_fullsize.jpg")
+    # Prioritize explicit fullsize URL from API, otherwise try to guess it
+    fullsize_url = explicit_fullsize_url
+    if not fullsize_url:
+        fullsize_url = url
+        if "api.trafikinfo.trafikverket.se" in url and not url.endswith("_fullsize.jpg"):
+            fullsize_url = url.replace(".jpg", "_fullsize.jpg")
 
     filename = f"{event_id}_{int(datetime.now().timestamp())}.jpg"
     filepath = os.path.join(SNAPSHOTS_DIR, filename)
     
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Add a small retry loop or check for fullsize
+            # Try fullsize first
             response = await client.get(fullsize_url)
             if response.status_code != 200 and fullsize_url != url:
                 logger.info(f"Fullsize snapshot not available for {event_id}, falling back to default")
@@ -157,6 +159,7 @@ async def event_processor():
             nearest_cam = find_nearest_camera(ev.get('latitude'), ev.get('longitude'), cameras)
             camera_url = nearest_cam.get('url') if nearest_cam else None
             camera_name = nearest_cam.get('name') if nearest_cam else None
+            fullsize_url = nearest_cam.get('fullsize_url') if nearest_cam else None
 
             # Check if event already exists
             existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
@@ -177,7 +180,7 @@ async def event_processor():
                 existing.traffic_restriction_type = ev.get('traffic_restriction_type')
                 existing.latitude = ev.get('latitude')
                 existing.longitude = ev.get('longitude')
-                existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'])
+                existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
                 
                 db.commit()
                 
@@ -214,7 +217,7 @@ async def event_processor():
                 db.commit() # Commit to get ID if needed or just to save early
                 
                 # Download snapshot
-                new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'])
+                new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
                 db.commit()
                 db.refresh(new_event)
                 
