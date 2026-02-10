@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.11] - 2026-02-10
+
+### Added
+- **Modal Image Scaling**: Implemented full-screen image viewing by removing CSS width constraints in `EventModal.jsx`.
+- **Historical Backfill**: Added `backfill_cameras.py` to retrofit existing events with camera data.
+
+### Fixed
+- **API 400 Error**: Removed invalid `FullSizePhotoUrl` columns from Trafikverket API query.
+- **Image Integrity**: Added 5KB minimum size check to prevent saving corrupted/partial snapshots.
+- **Layout Stability**: Added `flex-shrink-0` to camera slots to prevent layout collapse.
+
 ## [26.2.10] - 2026-02-10
 
 ### Added

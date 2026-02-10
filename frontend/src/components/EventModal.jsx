@@ -1,20 +1,24 @@
-
-import React, { useEffect } from 'react'
-import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity, Camera } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import EventMap from './EventMap'
 
 export default function EventModal({ event, onClose }) {
+    const [showFullImage, setShowFullImage] = useState(false)
+
     // Close on escape key
     useEffect(() => {
         const handleEsc = (e) => {
-            if (e.key === 'Escape') onClose()
+            if (e.key === 'Escape') {
+                if (showFullImage) setShowFullImage(false)
+                else onClose()
+            }
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [onClose])
+    }, [onClose, showFullImage])
 
     if (!event) return null
 
@@ -83,16 +87,55 @@ export default function EventModal({ event, onClose }) {
                                 </p>
                             </div>
 
-                            {/* Map */}
-                            {event.latitude && event.longitude && (
-                                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                                    <EventMap
-                                        lat={event.latitude}
-                                        lng={event.longitude}
-                                        popupContent={event.location}
-                                    />
+                            {/* Media Section (Camera & Map) */}
+                            <div className="flex flex-col md:flex-row gap-4">
+                                {/* Camera Slot (Always visible) */}
+                                <div
+                                    className={`relative w-full md:w-1/2 h-48 sm:h-64 bg-slate-200 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url ? 'cursor-zoom-in' : 'cursor-default'}`}
+                                    onClick={() => {
+                                        if (event.camera_url) setShowFullImage(true);
+                                    }}
+                                >
+                                    {event.camera_url ? (
+                                        <img
+                                            src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                            alt={event.camera_name || 'Trafikkamera'}
+                                            className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
+                                            onError={(e) => {
+                                                if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
+                                                    e.target.src = event.camera_url;
+                                                } else {
+                                                    e.target.style.opacity = '0';
+                                                }
+                                            }}
+                                        />
+                                    ) : null}
+
+                                    {/* Placeholder shown if no camera or image fails */}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                                        <Camera className="w-10 h-10 mb-2 opacity-20" />
+                                        <span className="text-xs italic">Ingen bild tillgänglig</span>
+                                    </div>
+
+                                    {event.camera_name && (
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-xs text-white px-3 py-2 flex items-center gap-2 z-20">
+                                            <div className="w-2 h-2 rounded-full bg-slate-400" />
+                                            <span className="truncate">{event.camera_name}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+
+                                {/* Map */}
+                                {event.latitude && event.longitude && (
+                                    <div className={`rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 h-48 sm:h-64 ${event.camera_url ? 'w-full md:w-1/2' : 'w-full'}`}>
+                                        <EventMap
+                                            lat={event.latitude}
+                                            lng={event.longitude}
+                                            popupContent={event.location}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Details Grid */}
@@ -190,6 +233,41 @@ export default function EventModal({ event, onClose }) {
                         </div>
                     </div>
                 </motion.div>
+
+                {/* Nested Full-size Image Modal */}
+                <AnimatePresence>
+                    {showFullImage && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl"
+                            onClick={() => setShowFullImage(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.9 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0.9 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="relative w-full max-h-full flex flex-col items-center justify-center"
+                            >
+                                <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl max-w-[95vw] max-h-[95vh] w-full md:w-auto flex flex-col">
+                                    <div className="relative flex-1 min-h-0 w-full flex items-center justify-center bg-black">
+                                        <img
+                                            src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                            alt={event.camera_name}
+                                            className="max-w-full max-h-full object-contain"
+                                        />
+                                    </div>
+                                    <div className="p-4 bg-slate-900 border-t border-white/5 text-center flex-shrink-0 z-10">
+                                        <h3 className="text-white font-medium">{event.camera_name}</h3>
+                                        <p className="text-xs text-slate-400 mt-0.5">Trafikkamera ögonblicksbild (Full storlek)</p>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </AnimatePresence>
     )

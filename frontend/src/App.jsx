@@ -16,6 +16,31 @@ function App() {
     return 'dark'
   })
 
+  // Setup state
+  const [setupRequired, setSetupRequired] = useState(false)
+
+  // Fetch status and check if setup is required
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch('/api/status')
+        if (response.ok) {
+          const data = await response.json()
+          setSetupRequired(data.setup_required)
+          if (data.setup_required && activeTab !== 'settings') {
+            setActiveTab('settings')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch status:', error)
+      }
+    }
+    checkStatus()
+    // Check every 30 seconds
+    const interval = setInterval(checkStatus, 30000)
+    return () => clearInterval(interval)
+  }, [activeTab])
+
   // Apply theme class to html element
   React.useEffect(() => {
     const root = window.document.documentElement

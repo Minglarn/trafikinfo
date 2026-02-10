@@ -233,25 +233,23 @@ def find_nearest_camera(lat, lon, cameras, max_dist_km=10.0):
 async def get_cameras(api_key: str):
     """Fetch all traffic cameras from Trafikverket API."""
     url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
-    query = f"""
-    <REQUEST>
-        <LOGIN authenticationkey='{api_key}' />
-        <QUERY objecttype='Camera' schemaversion='1.0'>
-            <FILTER>
-                <EQ name="Deleted" value="false" />
-            </FILTER>
-            <INCLUDE>Id</INCLUDE>
-            <INCLUDE>Name</INCLUDE>
-            <INCLUDE>PhotoUrl</INCLUDE>
-            <INCLUDE>FullSizePhotoUrl</INCLUDE>
-            <INCLUDE>HasFullSizePhoto</INCLUDE>
-            <INCLUDE>Geometry.WGS84</INCLUDE>
-        </QUERY>
-    </REQUEST>
-    """
+    query = f"""<REQUEST>
+    <LOGIN authenticationkey='{api_key}' />
+    <QUERY objecttype='Camera' schemaversion='1.0'>
+        <FILTER>
+            <EQ name="Deleted" value="false" />
+        </FILTER>
+        <INCLUDE>Id</INCLUDE>
+        <INCLUDE>Name</INCLUDE>
+        <INCLUDE>PhotoUrl</INCLUDE>
+        <INCLUDE>Geometry.WGS84</INCLUDE>
+    </QUERY>
+</REQUEST>"""
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(url, content=query, headers={"Content-Type": "text/xml"})
+            if response.status_code != 200:
+                logger.error(f"Trafikverket API Error: {response.status_code} - {response.text}")
             response.raise_for_status()
             data = response.json()
             results = data.get('RESPONSE', {}).get('RESULT', [{}])[0].get('Camera', [])

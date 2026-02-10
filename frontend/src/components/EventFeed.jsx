@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Clock, Filter, X } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
@@ -118,11 +118,23 @@ export default function EventFeed() {
             setLoading(false)
             setIsFetchingMore(false)
         } catch (error) {
-            console.error('Error fetching events:', error)
+            console.error('Failed to fetch events:', error)
             setLoading(false)
             setIsFetchingMore(false)
         }
     }
+
+    // Modal keyboard handling
+    React.useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && selectedImage) {
+                setSelectedImage(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedImage]);
+
 
     useEffect(() => {
         // eslint-disable-next-line
@@ -402,47 +414,47 @@ export default function EventFeed() {
 
                                 <div className="flex md:flex-row justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6">
                                     <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0 flex-1">
-                                        {/* Camera Preview */}
-                                        {event.camera_url && (
-                                            <div
-                                                className="relative w-full md:w-48 h-32 bg-black rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera cursor-zoom-in"
-                                                onClick={(e) => {
+                                        {/* Camera Slot (Always visible) */}
+                                        <div
+                                            className={`relative w-full md:w-48 h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url ? 'cursor-zoom-in' : 'cursor-default'}`}
+                                            onClick={(e) => {
+                                                if (event.camera_url) {
                                                     e.stopPropagation();
                                                     setSelectedImage({
                                                         url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
                                                         name: event.camera_name
                                                     });
-                                                }}
-                                            >
+                                                }
+                                            }}
+                                        >
+                                            {event.camera_url ? (
                                                 <img
                                                     src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
                                                     alt={event.camera_name || 'Trafikkamera'}
-                                                    className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500"
+                                                    className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
                                                     onError={(e) => {
                                                         if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
                                                             e.target.src = event.camera_url;
                                                         } else {
-                                                            e.target.style.display = 'none';
+                                                            e.target.style.opacity = '0';
                                                         }
                                                     }}
                                                 />
-                                                <div className="absolute top-2 right-2 flex gap-1">
-                                                    {event.camera_snapshot ? (
-                                                        <span className="text-[9px] font-bold text-white bg-blue-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
-                                                            ARKIV
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-[9px] font-bold text-white bg-emerald-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
-                                                            KAMERA
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${event.camera_snapshot ? 'bg-blue-400' : 'bg-emerald-400'}`} />
-                                                    <span className="truncate">{event.camera_name || 'Kamera'}</span>
-                                                </div>
+                                            ) : null}
+
+                                            {/* Placeholder shown if no camera or image fails */}
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                                                <Camera className="w-8 h-8 mb-1 opacity-20" />
+                                                <span className="text-[10px] italic">Ingen bild tillgänglig</span>
                                             </div>
-                                        )}
+
+                                            {event.camera_name && (
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1 z-20">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                    <span className="truncate">{event.camera_name}</span>
+                                                </div>
+                                            )}
+                                        </div>
 
                                         {/* Map / Location Preview */}
                                         {event.latitude && event.longitude ? (
@@ -534,12 +546,6 @@ export default function EventFeed() {
                         className="relative max-w-4xl w-full max-h-full flex flex-col items-center animate-in zoom-in-95 duration-300"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <button
-                            className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
-                            onClick={() => setSelectedImage(null)}
-                        >
-                            <X size={28} />
-                        </button>
 
                         <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
                             <img

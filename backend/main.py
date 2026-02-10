@@ -26,6 +26,16 @@ logger = logging.getLogger(__name__)
 SNAPSHOTS_DIR = os.path.join(os.getcwd(), "data", "snapshots")
 os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
+# Map environment variables to database setting keys
+ENV_TO_DB = {
+    "TRAFIKVERKET_API_KEY": "api_key",
+    "MQTT_HOST": "mqtt_host",
+    "MQTT_PORT": "mqtt_port",
+    "MQTT_USER": "mqtt_username",
+    "MQTT_PASSWORD": "mqtt_password",
+    "MQTT_TOPIC": "mqtt_topic"
+}
+
 app = FastAPI(title="Trafikinfo API")
 
 # Serve snapshots
@@ -54,9 +64,24 @@ def get_db():
 @app.on_event("startup")
 async def startup_event():
     init_db()
-    # Load settings
+    
+    # Load settings & seed from environment if database is empty
     db = SessionLocal()
-    api_key = db.query(Settings).filter(Settings.key == "api_key").first()
+    
+    # Seeding logic: if a key exists in ENV but not in DB, seed it
+    for env_key, db_key in ENV_TO_DB.items():
+        env_val = os.getenv(env_key)
+        if env_val:
+            existing = db.query(Settings).filter(Settings.key == db_key).first()
+            if not existing:
+                logger.info(f"Seeding settings key '{db_key}' from environment variable '{env_key}'")
+                new_setting = Settings(key=db_key, value=env_val)
+                db.add(new_setting)
+    
+    db.commit()
+
+    # Re-fetch all settings after seeding
+    api_key_set = db.query(Settings).filter(Settings.key == "api_key").first()
     mqtt_host = db.query(Settings).filter(Settings.key == "mqtt_host").first()
     mqtt_port = db.query(Settings).filter(Settings.key == "mqtt_port").first()
     mqtt_user = db.query(Settings).filter(Settings.key == "mqtt_username").first()
@@ -82,8 +107,9 @@ async def startup_event():
     if mqtt_config:
         mqtt_client.update_config(mqtt_config)
     
-    if api_key:
-        start_worker(api_key.value, county_ids)
+    if api_key_set and api_key_set.value:
+        start_worker(api_key_set.value, county_ids)
+    
     db.close()
 
 def start_worker(api_key: str, county_ids: list = None):
@@ -138,6 +164,11 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
                 response = await client.get(url)
 
             if response.status_code == 200:
+                # Minimum size check to avoid corrupted/partial downloads (e.g. 5KB)
+                if len(response.content) < 5000:
+                    logger.warning(f"Downloaded snapshot for {event_id} is too small ({len(response.content)} bytes), rejecting.")
+                    return None
+                    
                 with open(filepath, "wb") as f:
                     f.write(response.content)
                 logger.info(f"Saved snapshot for event {event_id} to {filename} (Size: {len(response.content)} bytes)")
@@ -180,6 +211,12 @@ async def event_processor():
                 existing.traffic_restriction_type = ev.get('traffic_restriction_type')
                 existing.latitude = ev.get('latitude')
                 existing.longitude = ev.get('longitude')
+                
+                # Sync camera metadata for existing events
+                existing.camera_url = camera_url
+                existing.camera_name = camera_name
+                
+                # Update snapshot if missing
                 existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
                 
                 db.commit()
@@ -411,8 +448,10 @@ def get_settings(db: Session = Depends(get_db)):
     return res
 
 @app.get("/api/status")
-def get_status():
+def get_status(db: Session = Depends(get_db)):
     global tv_stream
+    api_key = db.query(Settings).filter(Settings.key == "api_key").first()
+    
     return {
         "trafikverket": {
             "connected": tv_stream.connected if tv_stream else False,
@@ -422,7 +461,8 @@ def get_status():
             "connected": mqtt_client.connected,
             "broker": mqtt_client.config.get("host")
         },
-        "version": VERSION
+        "version": VERSION,
+        "setup_required": not (api_key and api_key.value)
     }
 
 @app.get("/api/version")
