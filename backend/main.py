@@ -10,7 +10,7 @@ import json
 import logging
 import httpx
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import func
 
 from database import SessionLocal, init_db, TrafficEvent, Settings
@@ -33,7 +33,13 @@ ENV_TO_DB = {
     "MQTT_PORT": "mqtt_port",
     "MQTT_USER": "mqtt_username",
     "MQTT_PASSWORD": "mqtt_password",
+    "CAMERA_RADIUS_KM": "camera_radius_km",
     "MQTT_TOPIC": "mqtt_topic"
+}
+
+# Defaults if not in DB or ENV
+DEFAULTS = {
+    "camera_radius_km": "5.0"
 }
 
 app = FastAPI(title="Trafikinfo API")
@@ -68,16 +74,26 @@ async def startup_event():
     # Load settings & seed from environment if database is empty
     db = SessionLocal()
     
-    # Seeding logic: if a key exists in ENV but not in DB, seed it
+    # Seeding & Sync logic: if a key exists in ENV, ensure it matches DB (ENV takes precedence)
     for env_key, db_key in ENV_TO_DB.items():
         env_val = os.getenv(env_key)
-        if env_val:
+        if env_val is not None: # Check for None explicitly, allow empty strings if set
             existing = db.query(Settings).filter(Settings.key == db_key).first()
             if not existing:
                 logger.info(f"Seeding settings key '{db_key}' from environment variable '{env_key}'")
                 new_setting = Settings(key=db_key, value=env_val)
                 db.add(new_setting)
+            elif existing.value != env_val:
+                logger.info(f"Syncing settings key '{db_key}' from environment variable '{env_key}' (Overwriting DB)")
+                existing.value = env_val
     
+    # Seed defaults for keys that might not be in ENV
+    for key, val in DEFAULTS.items():
+        existing = db.query(Settings).filter(Settings.key == key).first()
+        if not existing:
+            logger.info(f"Seeding default setting '{key}' = '{val}'")
+            db.add(Settings(key=key, value=val))
+
     db.commit()
 
     # Re-fetch all settings after seeding
@@ -134,11 +150,52 @@ def start_worker(api_key: str, county_ids: list = None):
 async def refresh_cameras(api_key: str):
     global cameras
     while True:
-        await asyncio.sleep(3600) # Refresh every hour
-        new_cameras = await get_cameras(api_key)
-        if new_cameras:
-            cameras = new_cameras
-            logger.info(f"Refreshed {len(cameras)} traffic cameras")
+        try:
+            # 1. Refresh Cameras
+            new_cameras = await get_cameras(api_key)
+            if new_cameras:
+                cameras = new_cameras
+                logger.info(f"Refreshed {len(cameras)} traffic cameras")
+            
+            # 2. Cleanup Old Events (Retention Policy)
+            db = SessionLocal()
+            try:
+                # Get retention days from settings
+                retention_setting = db.query(Settings).filter(Settings.key == "retention_days").first()
+                days = int(retention_setting.value) if retention_setting and retention_setting.value else 30
+                
+                if days > 0:
+                    cutoff_date = datetime.now() - timedelta(days=days)
+                    
+                    # Find old events
+                    old_events = db.query(TrafficEvent).filter(TrafficEvent.created_at < cutoff_date).all()
+                    
+                    if old_events:
+                        logger.info(f"Cleaning up {len(old_events)} events older than {days} days")
+                        
+                        # Delete snapshots for these events
+                        for event in old_events:
+                            if event.camera_snapshot:
+                                snapshot_path = os.path.join(SNAPSHOTS_DIR, event.camera_snapshot)
+                                try:
+                                    if os.path.exists(snapshot_path):
+                                        os.unlink(snapshot_path)
+                                except Exception as e:
+                                    logger.error(f"Failed to delete snapshot {snapshot_path}: {e}")
+                        
+                        # Delete from DB
+                        db.query(TrafficEvent).filter(TrafficEvent.created_at < cutoff_date).delete()
+                        db.commit()
+                        logger.info("Cleanup complete")
+            except Exception as e:
+                logger.error(f"Error during cleanup: {e}")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(f"Error in background task: {e}")
+            
+        await asyncio.sleep(3600) # Run every hour
 
 async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_url: str = None):
     """Download camera image and save it to the snapshots directory."""
@@ -159,8 +216,18 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Try fullsize first
             response = await client.get(fullsize_url)
-            if response.status_code != 200 and fullsize_url != url:
-                logger.info(f"Fullsize snapshot not available for {event_id}, falling back to default")
+            
+            # Check if fullsize is valid (200 OK AND sufficiently large)
+            is_valid_fullsize = False
+            if response.status_code == 200:
+                if len(response.content) >= 5000:
+                    is_valid_fullsize = True
+                else:
+                    logger.warning(f"Fullsize snapshot {fullsize_url} is too small ({len(response.content)} bytes).")
+            
+            # Fallback to original URL if fullsize failed or was too small
+            if not is_valid_fullsize and fullsize_url != url:
+                logger.info(f"Falling back to original URL: {url}")
                 response = await client.get(url)
 
             if response.status_code == 200:
@@ -184,121 +251,131 @@ async def event_processor():
     global tv_stream, cameras
     async for raw_data in tv_stream.get_events():
         events = parse_situation(raw_data)
+        
+        # Create a new session for this batch
         db = SessionLocal()
-        for ev in events:
-            # Find nearest camera if event has coordinates
-            nearest_cam = find_nearest_camera(ev.get('latitude'), ev.get('longitude'), cameras)
-            camera_url = nearest_cam.get('url') if nearest_cam else None
-            camera_name = nearest_cam.get('name') if nearest_cam else None
-            fullsize_url = nearest_cam.get('fullsize_url') if nearest_cam else None
+        try:
+            # Get camera radius setting
+            radius_setting = db.query(Settings).filter(Settings.key == "camera_radius_km").first()
+            max_dist = float(radius_setting.value) if radius_setting else 5.0
 
-            # Check if event already exists
-            existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
-            
-            if existing:
-                # Update existing event
-                existing.title = ev['title']
-                existing.description = ev['description']
-                existing.location = ev['location']
-                existing.icon_id = ev['icon_id']
-                existing.message_type = ev.get('message_type')
-                existing.severity_code = ev.get('severity_code')
-                existing.severity_text = ev.get('severity_text')
-                existing.road_number = ev.get('road_number')
-                existing.start_time = datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None
-                existing.end_time = datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None
-                existing.temporary_limit = ev.get('temporary_limit')
-                existing.traffic_restriction_type = ev.get('traffic_restriction_type')
-                existing.latitude = ev.get('latitude')
-                existing.longitude = ev.get('longitude')
-                
-                # Sync camera metadata for existing events
-                existing.camera_url = camera_url
-                existing.camera_name = camera_name
-                
-                # Update snapshot if missing
-                existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
-                
-                db.commit()
-                
-                new_event = existing
-                mqtt_data = ev.copy()
-                if ev.get('icon_id'):
-                    mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
-                mqtt_data['camera_url'] = camera_url
-                mqtt_data['camera_name'] = camera_name
-                mqtt_data['camera_snapshot'] = new_event.camera_snapshot
+            for ev in events:
+                # Find nearest camera if event has coordinates
+                nearest_cam = find_nearest_camera(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
+                camera_url = nearest_cam.get('url') if nearest_cam else None
+                camera_name = nearest_cam.get('name') if nearest_cam else None
+                fullsize_url = nearest_cam.get('fullsize_url') if nearest_cam else None
 
-            else:
-                new_event = TrafficEvent(
-                    external_id=ev['external_id'],
-                    event_type=ev['event_type'],
-                    title=ev['title'],
-                    description=ev['description'],
-                    location=ev['location'],
-                    icon_id=ev['icon_id'],
-                    message_type=ev.get('message_type'),
-                    severity_code=ev.get('severity_code'),
-                    severity_text=ev.get('severity_text'),
-                    road_number=ev.get('road_number'),
-                    start_time=datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None,
-                    end_time=datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None,
-                    temporary_limit=ev.get('temporary_limit'),
-                    traffic_restriction_type=ev.get('traffic_restriction_type'),
-                    latitude=ev.get('latitude'),
-                    longitude=ev.get('longitude'),
-                    camera_url=camera_url,
-                    camera_name=camera_name
-                )
-                db.add(new_event)
-                db.commit() # Commit to get ID if needed or just to save early
+                # Check if event already exists
+                existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
                 
-                # Download snapshot
-                new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
-                db.commit()
-                db.refresh(new_event)
-                
-                mqtt_data = ev.copy()
-                if ev.get('icon_id'):
-                    mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
-                mqtt_data['camera_url'] = camera_url
-                mqtt_data['camera_name'] = camera_name
-                mqtt_data['camera_snapshot'] = new_event.camera_snapshot
- 
-                if mqtt_client.publish_event(mqtt_data):
-                    new_event.pushed_to_mqtt = 1
+                if existing:
+                    # Update existing event
+                    existing.title = ev['title']
+                    existing.description = ev['description']
+                    existing.location = ev['location']
+                    existing.icon_id = ev['icon_id']
+                    existing.message_type = ev.get('message_type')
+                    existing.severity_code = ev.get('severity_code')
+                    existing.severity_text = ev.get('severity_text')
+                    existing.road_number = ev.get('road_number')
+                    existing.start_time = datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None
+                    existing.end_time = datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None
+                    existing.temporary_limit = ev.get('temporary_limit')
+                    existing.traffic_restriction_type = ev.get('traffic_restriction_type')
+                    existing.latitude = ev.get('latitude')
+                    existing.longitude = ev.get('longitude')
+                    
+                    # Sync camera metadata for existing events
+                    existing.camera_url = camera_url
+                    existing.camera_name = camera_name
+                    
+                    # Update snapshot if missing
+                    existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                    
+                    db.commit()
+                    
+                    new_event = existing
+                    mqtt_data = ev.copy()
+                    if ev.get('icon_id'):
+                        mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                    mqtt_data['camera_url'] = camera_url
+                    mqtt_data['camera_name'] = camera_name
+                    mqtt_data['camera_snapshot'] = new_event.camera_snapshot
+
                 else:
-                    new_event.pushed_to_mqtt = 0
-                
-                # Broadcast to connected frontend clients
-                event_data = {
-                    "id": new_event.id,
-                    "external_id": new_event.external_id,
-                    "title": new_event.title,
-                    "description": new_event.description,
-                    "location": new_event.location,
-                    "icon_url": mqtt_data.get('icon_url'),
-                    "created_at": new_event.created_at.isoformat(),
-                    "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
-                    "message_type": new_event.message_type,
-                    "severity_code": new_event.severity_code,
-                    "severity_text": new_event.severity_text,
-                    "road_number": new_event.road_number,
-                    "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
-                    "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
-                    "temporary_limit": new_event.temporary_limit,
-                    "traffic_restriction_type": new_event.traffic_restriction_type,
-                    "latitude": new_event.latitude,
-                    "longitude": new_event.longitude,
-                    "camera_url": new_event.camera_url,
-                    "camera_name": new_event.camera_name,
-                    "camera_snapshot": new_event.camera_snapshot
-                }
-                for queue in connected_clients:
-                    await queue.put(event_data)
+                    new_event = TrafficEvent(
+                        external_id=ev['external_id'],
+                        event_type=ev['event_type'],
+                        title=ev['title'],
+                        description=ev['description'],
+                        location=ev['location'],
+                        icon_id=ev['icon_id'],
+                        message_type=ev.get('message_type'),
+                        severity_code=ev.get('severity_code'),
+                        severity_text=ev.get('severity_text'),
+                        road_number=ev.get('road_number'),
+                        start_time=datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None,
+                        end_time=datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None,
+                        temporary_limit=ev.get('temporary_limit'),
+                        traffic_restriction_type=ev.get('traffic_restriction_type'),
+                        latitude=ev.get('latitude'),
+                        longitude=ev.get('longitude'),
+                        camera_url=camera_url,
+                        camera_name=camera_name
+                    )
+                    db.add(new_event)
+                    db.commit() # Commit to get ID if needed or just to save early
+                    
+                    # Download snapshot
+                    new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                    db.commit()
+                    db.refresh(new_event)
+                    
+                    mqtt_data = ev.copy()
+                    if ev.get('icon_id'):
+                        mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                    mqtt_data['camera_url'] = camera_url
+                    mqtt_data['camera_name'] = camera_name
+                    mqtt_data['camera_snapshot'] = new_event.camera_snapshot
+     
+                    if mqtt_client.publish_event(mqtt_data):
+                        new_event.pushed_to_mqtt = 1
+                    else:
+                        new_event.pushed_to_mqtt = 0
+                    
+                    # Broadcast to connected frontend clients
+                    event_data = {
+                        "id": new_event.id,
+                        "external_id": new_event.external_id,
+                        "title": new_event.title,
+                        "description": new_event.description,
+                        "location": new_event.location,
+                        "icon_url": mqtt_data.get('icon_url'),
+                        "created_at": new_event.created_at.isoformat(),
+                        "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
+                        "message_type": new_event.message_type,
+                        "severity_code": new_event.severity_code,
+                        "severity_text": new_event.severity_text,
+                        "road_number": new_event.road_number,
+                        "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
+                        "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
+                        "temporary_limit": new_event.temporary_limit,
+                        "traffic_restriction_type": new_event.traffic_restriction_type,
+                        "latitude": new_event.latitude,
+                        "longitude": new_event.longitude,
+                        "camera_url": new_event.camera_url,
+                        "camera_name": new_event.camera_name,
+                        "camera_snapshot": new_event.camera_snapshot
+                    }
+                    for queue in connected_clients:
+                        await queue.put(event_data)
 
                 db.commit()
-        db.close()
+        except Exception as e:
+            logger.error(f"Error processing events: {e}")
+        finally:
+            db.close()
 
 # Global list of connected SSE clients
 connected_clients = []
@@ -325,7 +402,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
     
     if hours:
         from datetime import datetime, timedelta
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now() - timedelta(hours=hours)
         query = query.filter(TrafficEvent.created_at >= cutoff)
         
     events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
@@ -357,7 +434,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
 @app.get("/api/stats")
 def get_stats(hours: int = 24, db: Session = Depends(get_db)):
     from datetime import datetime, timedelta
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = datetime.now() - timedelta(hours=hours)
     
     # Base query for time range
     base_query = db.query(TrafficEvent).filter(TrafficEvent.created_at >= cutoff)
@@ -446,6 +523,29 @@ def get_settings(db: Session = Depends(get_db)):
     if "api_key" not in res:
         res["api_key"] = "" # Secret removed for GitHub safety
     return res
+
+@app.delete("/api/reset")
+async def reset_system(db: Session = Depends(get_db)):
+    """Factory Reset: Clears all events and snapshots."""
+    try:
+        # Clear database
+        db.query(TrafficEvent).delete()
+        db.commit()
+        
+        # Clear snapshots
+        for filename in os.listdir(SNAPSHOTS_DIR):
+            file_path = os.path.join(SNAPSHOTS_DIR, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                logger.error(f"Error deleting file {file_path}: {e}")
+                
+        logger.warning("Factory reset performed. All data cleared.")
+        return {"message": "Systemet har återställts."}
+    except Exception as e:
+        logger.error(f"Error during factory reset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
 def get_status(db: Session = Depends(get_db)):

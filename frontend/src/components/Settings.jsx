@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Save, ShieldCheck, Server, AlertCircle, Volume2, MapPin, Check } from 'lucide-react'
+import { Save, ShieldCheck, Server, AlertCircle, Volume2, MapPin, Check, Trash2, AlertTriangle } from 'lucide-react'
 
 const API_BASE = '/api'
 
@@ -34,10 +34,24 @@ export default function Settings() {
         mqtt_host: 'localhost',
         mqtt_port: '1883',
         mqtt_topic: 'trafikinfo/events',
-        selected_counties: '1,4' // Default
+        selected_counties: '1,4', // Default
+        retention_days: '30' // Default 30 days
     })
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null)
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
+
+    const performFactoryReset = async () => {
+        try {
+            await axios.delete(`${API_BASE}/reset`)
+            setMessage({ type: 'success', text: 'Systemet har återställts via Factory Reset.' })
+            setShowResetConfirm(false)
+            // Optional: Reload logic or clear local state if needed
+        } catch (error) {
+            console.error('Reset failed:', error)
+            setMessage({ type: 'error', text: 'Kunde inte återställa systemet.' })
+        }
+    }
 
     // Helper to toggle county selection
     const toggleCounty = (id) => {
@@ -102,6 +116,88 @@ export default function Settings() {
             </div>
 
             <div className="space-y-6">
+                <div className="setting-group">
+                    <label>Kameraradie (km)</label>
+                    <input
+                        type="number"
+                        name="camera_radius_km"
+                        value={settings.camera_radius_km || 5}
+                        onChange={(e) => setSettings({ ...settings, camera_radius_km: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                        min="1"
+                        max="50"
+                    />
+                    <small className="text-xs text-slate-500">Sökområde för att matcha kameror mot händelser.</small>
+                </div>
+
+                {/* Constants like Data Retention */}
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
+                    <div className="flex items-center gap-3 mb-2">
+                        <Trash2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Datalagring</h3>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spara historik</label>
+                        <select
+                            value={settings.retention_days || '30'}
+                            onChange={(e) => setSettings({ ...settings, retention_days: e.target.value })}
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors appearance-none"
+                        >
+                            <option value="7">7 dagar</option>
+                            <option value="30">30 dagar</option>
+                            <option value="90">90 dagar</option>
+                            <option value="365">1 år</option>
+                            <option value="0">För alltid (Rekommenderas ej)</option>
+                        </select>
+                        <p className="text-xs text-slate-500">Händelser och bilder äldre än detta rensas automatiskt varje natt.</p>
+                    </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-6 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                        <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Farlig zon</h3>
+                    </div>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                        Här kan du återställa systemet till fabriksinställningar. Detta raderar all historik och alla sparade bilder.
+                    </p>
+
+                    {!showResetConfirm ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowResetConfirm(true)}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition-colors text-sm flex items-center gap-2"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Rensa allt (Factory Reset)
+                        </button>
+                    ) : (
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-red-200 dark:border-red-900/30 shadow-lg space-y-3 animate-in fade-in zoom-in duration-200">
+                            <h4 className="font-bold text-red-600 dark:text-red-400">VILL DU VERKLIGEN GÖRA DETTA?</h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                                Denna åtgärd går inte att ångra. All databasdata och alla bilder kommer att raderas permanent.
+                            </p>
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={performFactoryReset}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg text-xs"
+                                >
+                                    Ja, rensa allt
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowResetConfirm(false)}
+                                    className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold py-2 px-3 rounded-lg text-xs"
+                                >
+                                    Avbryt
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* API Key */}
                 <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                     <div className="flex items-center gap-3 mb-2">

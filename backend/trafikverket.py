@@ -215,15 +215,36 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def find_nearest_camera(lat, lon, cameras, max_dist_km=10.0):
+def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
     if lat is None or lon is None or not cameras:
         return None
     
     nearest = None
     min_dist = max_dist_km
     
+    # Helper to normalize for matching
+    def clean_str(s):
+        if not s: return ""
+        return str(s).replace(" ", "").upper()
+
+    norm_target = clean_str(target_road)
+
     for cam in cameras:
+        # 1. Check distance first
         dist = calculate_distance(lat, lon, cam.get('latitude'), cam.get('longitude'))
+        if dist > max_dist_km:
+            continue
+
+        # 2. Check Road Number match (if event has one)
+        # API doesn't have RoadNumber for cameras, so we search in the Camera Name.
+        if norm_target:
+            cam_name = clean_str(cam.get('name'))
+            # Heuristic: Check if strict road number is in the camera name.
+            # Example: target="E18", name="E18Ekolsundsbron" -> Match.
+            # Example: target="40", name="Rv40Landvetter" -> Match.
+            if norm_target not in cam_name:
+                continue
+
         if dist < min_dist:
             min_dist = dist
             nearest = cam
@@ -243,6 +264,7 @@ async def get_cameras(api_key: str):
         <INCLUDE>Name</INCLUDE>
         <INCLUDE>PhotoUrl</INCLUDE>
         <INCLUDE>Geometry.WGS84</INCLUDE>
+        <INCLUDE>HasFullSizePhoto</INCLUDE>
     </QUERY>
 </REQUEST>"""
     async with httpx.AsyncClient() as client:
@@ -260,12 +282,16 @@ async def get_cameras(api_key: str):
                 if wgs84:
                     match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
                     if match:
+                        photo_url = res.get('PhotoUrl')
+                        has_fullsize = res.get('HasFullSizePhoto', False)
+                        fullsize_url = f"{photo_url}?type=fullsize" if has_fullsize and photo_url else None
+
                         cameras.append({
                             "id": res.get('Id'),
                             "name": res.get('Name'),
-                            "url": res.get('PhotoUrl'),
-                            "fullsize_url": res.get('FullSizePhotoUrl'),
-                            "has_fullsize": res.get('HasFullSizePhoto', False),
+                            "url": photo_url,
+                            "fullsize_url": fullsize_url,
+                            "has_fullsize": has_fullsize,
                             "longitude": float(match.group(1)),
                             "latitude": float(match.group(2))
                         })

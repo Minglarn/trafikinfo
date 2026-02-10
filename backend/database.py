@@ -22,7 +22,7 @@ class TrafficEvent(Base):
     description = Column(Text)
     location = Column(String)
     icon_id = Column(String) # Trafikverket IconId
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.now)
     
     # Enriched fields
     message_type = Column(String) # e.g. "Vägarbete"

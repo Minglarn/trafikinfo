@@ -35,7 +35,12 @@ Vi rekommenderar att du använder en `.env`-fil för att hålla dina inloggnings
    ```bash
    cp .env.example .env
    ```
-2. Öppna `.env` och fyll i din `TRAFIKVERKET_API_KEY` samt MQTT-detaljer.
+2. Öppna `.env` och fyll i följande variabler:
+   - `TRAFIKVERKET_API_KEY`: Din API-nyckel (från [Trafikverket](https://dataportalen.trafikverket.se/)).
+   - `MQTT_HOST`: Adressen till din MQTT-broker (t.ex. `192.168.1.50`).
+   - `MQTT_PORT`: Porten (oftast `1883`).
+   - `MQTT_USER` & `MQTT_PASSWORD`: Användarnamn och lösenord (om din broker kräver det).
+   - `MQTT_TOPIC`: Ämnet där händelser ska publiceras (t.ex. `trafikinfo/events`).
 
 ### 3. Docker Compose (`docker-compose.yml`)
 Din `docker-compose.yml` kan sedan hållas ren och referera till `.env`-filen:
