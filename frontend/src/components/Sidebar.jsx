@@ -139,9 +139,9 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
 
                 {/* Version Display */}
                 {!isCollapsed && (
-                    <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800/50">
-                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
-                            Version {status.version || '...'}
+                    <div className="pt-4 border-t border-slate-200 dark:border-slate-800/50 mt-2">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-center">
+                            Flux v{status.version || '26.2.16'}
                         </p>
                     </div>
                 )}

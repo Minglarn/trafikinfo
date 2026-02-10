@@ -283,26 +283,22 @@ async def event_processor():
                     existing.end_time = datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None
                     existing.temporary_limit = ev.get('temporary_limit')
                     existing.traffic_restriction_type = ev.get('traffic_restriction_type')
-                    existing.latitude = ev.get('latitude')
-                    existing.longitude = ev.get('longitude')
                     
-                    # Sync camera metadata for existing events
-                    existing.camera_url = camera_url
-                    existing.camera_name = camera_name
+                    # Prevent wiping out coordinates if they are missing in specific update
+                    if ev.get('latitude') is not None:
+                        existing.latitude = ev.get('latitude')
+                    if ev.get('longitude') is not None:
+                        existing.longitude = ev.get('longitude')
                     
-                    # Update snapshot if missing
-                    existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                    # Sync camera metadata for existing events (Only if we found a new one or don't have one)
+                    if camera_url:
+                        existing.camera_url = camera_url
+                        existing.camera_name = camera_name
+                        # Update snapshot if missing or if we have a new camera URL
+                        existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
                     
                     db.commit()
-                    
                     new_event = existing
-                    mqtt_data = ev.copy()
-                    if ev.get('icon_id'):
-                        mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
-                    mqtt_data['camera_url'] = camera_url
-                    mqtt_data['camera_name'] = camera_name
-                    mqtt_data['camera_snapshot'] = new_event.camera_snapshot
-
                 else:
                     new_event = TrafficEvent(
                         external_id=ev['external_id'],
@@ -325,51 +321,57 @@ async def event_processor():
                         camera_name=camera_name
                     )
                     db.add(new_event)
-                    db.commit() # Commit to get ID if needed or just to save early
+                    db.commit() 
                     
                     # Download snapshot
-                    new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
-                    db.commit()
+                    if camera_url:
+                        new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                        db.commit()
+                    
                     db.refresh(new_event)
-                    
-                    mqtt_data = ev.copy()
-                    if ev.get('icon_id'):
-                        mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
-                    mqtt_data['camera_url'] = camera_url
-                    mqtt_data['camera_name'] = camera_name
-                    mqtt_data['camera_snapshot'] = new_event.camera_snapshot
-     
-                    if mqtt_client.publish_event(mqtt_data):
-                        new_event.pushed_to_mqtt = 1
-                    else:
-                        new_event.pushed_to_mqtt = 0
-                    
-                    # Broadcast to connected frontend clients
-                    event_data = {
-                        "id": new_event.id,
-                        "external_id": new_event.external_id,
-                        "title": new_event.title,
-                        "description": new_event.description,
-                        "location": new_event.location,
-                        "icon_url": mqtt_data.get('icon_url'),
-                        "created_at": new_event.created_at.isoformat(),
-                        "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
-                        "message_type": new_event.message_type,
-                        "severity_code": new_event.severity_code,
-                        "severity_text": new_event.severity_text,
-                        "road_number": new_event.road_number,
-                        "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
-                        "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
-                        "temporary_limit": new_event.temporary_limit,
-                        "traffic_restriction_type": new_event.traffic_restriction_type,
-                        "latitude": new_event.latitude,
-                        "longitude": new_event.longitude,
-                        "camera_url": new_event.camera_url,
-                        "camera_name": new_event.camera_name,
-                        "camera_snapshot": new_event.camera_snapshot
-                    }
-                    for queue in connected_clients:
-                        await queue.put(event_data)
+                
+                # MQTT & Broadcast (Unified for New & Updated)
+                mqtt_data = ev.copy()
+                if ev.get('icon_id'):
+                    mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                
+                # Use data from the DB to ensure consistency (especially camera/snapshot)
+                mqtt_data['camera_url'] = new_event.camera_url
+                mqtt_data['camera_name'] = new_event.camera_name
+                mqtt_data['camera_snapshot'] = new_event.camera_snapshot
+
+                if mqtt_client.publish_event(mqtt_data):
+                    new_event.pushed_to_mqtt = 1
+                else:
+                    new_event.pushed_to_mqtt = 0
+                db.commit()
+                
+                # Broadcast to connected frontend clients
+                event_data = {
+                    "id": new_event.id,
+                    "external_id": new_event.external_id,
+                    "title": new_event.title,
+                    "description": new_event.description,
+                    "location": new_event.location,
+                    "icon_url": mqtt_data.get('icon_url'),
+                    "created_at": new_event.created_at.isoformat(),
+                    "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
+                    "message_type": new_event.message_type,
+                    "severity_code": new_event.severity_code,
+                    "severity_text": new_event.severity_text,
+                    "road_number": new_event.road_number,
+                    "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
+                    "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
+                    "temporary_limit": new_event.temporary_limit,
+                    "traffic_restriction_type": new_event.traffic_restriction_type,
+                    "latitude": new_event.latitude,
+                    "longitude": new_event.longitude,
+                    "camera_url": new_event.camera_url,
+                    "camera_name": new_event.camera_name,
+                    "camera_snapshot": new_event.camera_snapshot
+                }
+                for queue in connected_clients:
+                    await queue.put(event_data)
 
                 db.commit()
         except Exception as e:

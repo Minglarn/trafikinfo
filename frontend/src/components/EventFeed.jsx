@@ -149,9 +149,20 @@ export default function EventFeed() {
         eventSource.onmessage = (event) => {
             try {
                 const newEvent = JSON.parse(event.data)
-                // Add new event to top and increment offset so we don't load a duplicate at the bottom
-                setEvents(prev => [newEvent, ...prev])
-                setOffset(prev => prev + 1)
+
+                setEvents(prev => {
+                    const index = prev.findIndex(e => e.external_id === newEvent.external_id)
+                    if (index !== -1) {
+                        // Update existing event while preserving local state if needed
+                        const updatedEvents = [...prev]
+                        updatedEvents[index] = { ...updatedEvents[index], ...newEvent }
+                        return updatedEvents
+                    } else {
+                        // New event - add to top
+                        setOffset(o => o + 1)
+                        return [newEvent, ...prev]
+                    }
+                })
 
                 // Play sound if enabled
                 if (localStorage.getItem('soundEnabled') === 'true') {
@@ -416,9 +427,9 @@ export default function EventFeed() {
                                     <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0 flex-1">
                                         {/* Camera Slot (Always visible) */}
                                         <div
-                                            className={`relative w-full md:w-48 h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url ? 'cursor-zoom-in' : 'cursor-default'}`}
+                                            className={`relative w-full md:w-48 h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url || event.camera_snapshot ? 'cursor-zoom-in' : 'cursor-default'}`}
                                             onClick={(e) => {
-                                                if (event.camera_url) {
+                                                if (event.camera_url || event.camera_snapshot) {
                                                     e.stopPropagation();
                                                     setSelectedImage({
                                                         url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
@@ -427,7 +438,7 @@ export default function EventFeed() {
                                                 }
                                             }}
                                         >
-                                            {event.camera_url ? (
+                                            {(event.camera_url || event.camera_snapshot) ? (
                                                 <img
                                                     src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
                                                     alt={event.camera_name || 'Trafikkamera'}
