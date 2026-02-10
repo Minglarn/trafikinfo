@@ -11,3 +11,4 @@ services:
     restart: always
     environment:
       - TZ=Europe/Stockholm
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}

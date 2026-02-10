@@ -1,5 +1,5 @@
 VERSION = "26.2.16"
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -12,6 +12,7 @@ import httpx
 from typing import List
 from datetime import datetime, timedelta
 from sqlalchemy import func
+from pydantic import BaseModel
 
 from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera
 from mqtt_client import mqtt_client
@@ -37,7 +38,44 @@ DEFAULTS = {
     "retention_days": "30"
 }
 
+# Auth Config
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
 app = FastAPI(title="Trafikinfo API")
+
+class LoginRequest(BaseModel):
+    password: str
+
+def get_current_admin(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authentication header"
+        )
+    
+    token = authorization.split(" ")[1]
+    
+    if token != ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Ogiltigt lösenord"
+        )
+    
+    return {"role": "admin"}
+
+@app.post("/api/auth/login")
+async def login(request: LoginRequest):
+    if request.password == ADMIN_PASSWORD:
+        return {"token": ADMIN_PASSWORD}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Felaktigt lösenord"
+        )
+
+@app.get("/api/auth/check")
+async def check_auth(admin=Depends(get_current_admin)):
+    return {"status": "ok", "user": admin}
 
 # Serve snapshots
 app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")
@@ -593,7 +631,7 @@ def get_cameras_api(
     }
 
 @app.post("/api/cameras/{camera_id}/toggle-favorite")
-def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db)):
+def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     cam = db.query(Camera).filter(Camera.id == camera_id).first()
     if not cam:
         raise HTTPException(status_code=404, detail="Camera not found")
@@ -678,7 +716,7 @@ def get_stats(hours: int = 24, db: Session = Depends(get_db)):
     }
 
 @app.post("/api/settings")
-async def update_settings(settings: dict, db: Session = Depends(get_db)):
+async def update_settings(settings: dict, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     try:
         for k, v in settings.items():
             # Convert value to string to ensure compatibility with Settings model
@@ -731,7 +769,7 @@ def get_settings(db: Session = Depends(get_db)):
     return res
 
 @app.delete("/api/reset")
-async def reset_system(db: Session = Depends(get_db)):
+async def reset_system(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     """Factory Reset: Clears all events and snapshots."""
     try:
         # Clear database

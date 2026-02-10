@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Star, ExternalLink, X, Camera, RefreshCw } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { Search, Star, ExternalLink, X, Camera, RefreshCw, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
+import { useAuth } from '../context/AuthContext'
 
 const CameraGrid = () => {
+    const { isLoggedIn } = useAuth()
     const [favorites, setFavorites] = useState([])
     const [others, setOthers] = useState([])
     const [loading, setLoading] = useState(true)
@@ -84,9 +86,9 @@ const CameraGrid = () => {
     }, [showOthers])
 
     const toggleFavorite = async (id) => {
+        if (!isLoggedIn) return
         try {
-            const response = await axios.post(`/api/cameras/${id}/toggle-favorite`)
-            // Simplest way to handle favorites toggling with paginated search
+            await axios.post(`/api/cameras/${id}/toggle-favorite`)
             fetchInitial()
             if (showOthers || debouncedSearch) {
                 fetchOthers(0, true)
@@ -98,7 +100,7 @@ const CameraGrid = () => {
 
     // Infinite scroll observer
     const observer = React.useRef()
-    const lastElementRef = React.useCallback(node => {
+    const lastElementRef = useCallback(node => {
         if (loadingMore) return
         if (observer.current) observer.current.disconnect()
         observer.current = new IntersectionObserver(entries => {
@@ -130,18 +132,25 @@ const CameraGrid = () => {
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <ExternalLink className="w-8 h-8 text-white" />
                 </div>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(camera.id);
-                    }}
-                    className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-md transition-all ${camera.is_favorite
-                        ? 'bg-yellow-400 text-white shadow-lg scale-110'
-                        : 'bg-black/20 text-white hover:bg-black/40'
-                        }`}
-                >
-                    <Star className={`w-4 h-4 ${camera.is_favorite ? 'fill-current' : ''}`} />
-                </button>
+                {isLoggedIn && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(camera.id);
+                        }}
+                        className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-md transition-all ${camera.is_favorite
+                            ? 'bg-yellow-400 text-white shadow-lg scale-110'
+                            : 'bg-black/20 text-white hover:bg-black/40'
+                            }`}
+                    >
+                        <Star className={`w-4 h-4 ${camera.is_favorite ? 'fill-current' : ''}`} />
+                    </button>
+                )}
+                {!isLoggedIn && camera.is_favorite && (
+                    <div className="absolute top-2 right-2 p-2 rounded-full bg-yellow-400 text-white shadow-lg scale-110 backdrop-blur-md">
+                        <Star className="w-4 h-4 fill-current" />
+                    </div>
+                )}
                 {camera.type && (
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-medium uppercase tracking-wider">
                         {camera.type}
@@ -206,7 +215,7 @@ const CameraGrid = () => {
             {!debouncedSearch && favorites.length === 0 && counts.total === 0 && !loading ? (
                 <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-12 text-center border border-dashed border-slate-200 dark:border-slate-800">
                     <Camera className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">Inga kameror hittades</h3>
+                    <h3 className="text-lg font-medium text-slate-800 dark:text-200">Inga kameror hittades</h3>
                     <p className="text-slate-500 dark:text-slate-400 mt-2">Prova att kontrollera dina valda län i inställningar.</p>
                 </div>
             ) : (
@@ -351,15 +360,17 @@ const CameraGrid = () => {
                                                 )}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => toggleFavorite(selectedCamera.id)}
-                                            className={`p-3 rounded-xl transition-all ${selectedCamera.is_favorite
-                                                ? 'bg-yellow-400 text-white shadow-lg'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600'
-                                                }`}
-                                        >
-                                            <Star className={`w-6 h-6 ${selectedCamera.is_favorite ? 'fill-current' : ''}`} />
-                                        </button>
+                                        {isLoggedIn && (
+                                            <button
+                                                onClick={() => toggleFavorite(selectedCamera.id)}
+                                                className={`p-3 rounded-xl transition-all ${selectedCamera.is_favorite
+                                                    ? 'bg-yellow-400 text-white shadow-lg'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600'
+                                                    }`}
+                                            >
+                                                <Star className={`w-6 h-6 ${selectedCamera.is_favorite ? 'fill-current' : ''}`} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

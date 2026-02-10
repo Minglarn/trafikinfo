@@ -1,13 +1,16 @@
 import React, { useState } from 'react'
+import { AuthProvider } from './context/AuthContext'
 import Sidebar from './components/Sidebar'
 import EventFeed from './components/EventFeed'
 import HistoryBoard from './components/HistoryBoard'
 import Settings from './components/Settings'
 import Statistics from './components/Statistics'
 import CameraGrid from './components/CameraGrid'
+import LoginModal from './components/LoginModal'
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -62,6 +65,7 @@ function App() {
         setActiveTab={setActiveTab}
         theme={theme}
         toggleTheme={toggleTheme}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -76,7 +80,20 @@ function App() {
           </div>
         </main>
       </div>
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

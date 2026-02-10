@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server, Camera } from 'lucide-react'
+import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server, Camera, Lock, Unlock, LogOut } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
+import { useAuth } from '../context/AuthContext'
 
-export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
+    const { isLoggedIn, logout } = useAuth()
 
     const menuItems = [
         { id: 'feed', label: 'Realtid', icon: Activity },
@@ -87,6 +89,28 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
                     )
                 })}
             </nav>
+
+            {/* Auth Toggle */}
+            <div className="px-4 mb-2">
+                <button
+                    onClick={isLoggedIn ? logout : onOpenLogin}
+                    className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all border ${isLoggedIn
+                        ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/20'
+                        : 'bg-slate-50 dark:bg-transparent border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                >
+                    {isLoggedIn ? <Unlock className="w-6 h-6 min-w-6" /> : <Lock className="w-6 h-6 min-w-6" />}
+                    {!isCollapsed && (
+                        <motion.span
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="font-bold whitespace-nowrap text-xs uppercase tracking-wider"
+                        >
+                            {isLoggedIn ? 'Admin Inloggad' : 'Admin Login'}
+                        </motion.span>
+                    )}
+                </button>
+            </div>
 
             {/* Theme Toggle */}
             <div className="px-4 mb-4">

@@ -43,6 +43,7 @@ services:
     restart: always
     environment:
       - TZ=Europe/Stockholm
+      - ADMIN_PASSWORD=ditt_lösenord_här
 ```
 
 ### 3. Starta
@@ -51,12 +52,12 @@ Kör följande kommando i samma mapp:
 docker-compose up -d
 ```
 
-### 4. Konfiguration
+### 4. Konfiguration & Säkerhet
 1. Öppna [http://localhost:7081](http://localhost:7081) i din webbläsare.
-2. Systemet kommer automatiskt skicka dig till **Inställningar** vid första start.
-3. Klistra in din API-nyckel från Trafikverket.
-4. Välj vilka län du vill bevaka (Stockholm och Södermanland är förvalda).
-5. (Valfritt) Aktivera och konfigurera MQTT om du vill skicka data vidare.
+2. För att ändra inställningar eller markera favoriter behöver du logga in som **Admin**. 
+3. Klicka på lås-ikonen i sidomenyn och ange det lösenord du valde som `ADMIN_PASSWORD` (standard är `admin123`).
+4. Klistra in din API-nyckel från Trafikverket under inställningar.
+5. Välj vilka län du vill bevaka.
 6. Tryck på **Spara inställningar**.
 
 
