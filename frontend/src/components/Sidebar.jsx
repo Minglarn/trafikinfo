@@ -47,13 +47,18 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
                     <img src="/logo.png" alt="Trafikinfo Flux" className="w-full h-full object-contain" />
                 </div>
                 {!isCollapsed && (
-                    <motion.h1
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="text-xl font-bold tracking-tight text-slate-900 dark:text-white"
+                        className="flex flex-col items-center"
                     >
-                        Trafikinfo <span className="text-blue-600 dark:text-blue-500">Flux</span>
-                    </motion.h1>
+                        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                            Trafikinfo <span className="text-blue-600 dark:text-blue-500">Flux</span>
+                        </h1>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            v{status.version || '26.2.16'}
+                        </span>
+                    </motion.div>
                 )}
             </div>
 
