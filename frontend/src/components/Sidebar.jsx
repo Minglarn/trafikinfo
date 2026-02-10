@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server } from 'lucide-react'
+import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server, Camera } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
 
@@ -8,6 +8,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
 
     const menuItems = [
         { id: 'feed', label: 'Realtid', icon: Activity },
+        { id: 'cameras', label: 'Vägkamera', icon: Camera },
         { id: 'statistics', label: 'Statistik', icon: BarChart2 },
         { id: 'history', label: 'Historik', icon: History },
         { id: 'settings', label: 'Inställningar', icon: Settings },

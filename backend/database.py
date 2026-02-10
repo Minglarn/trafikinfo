@@ -68,6 +68,22 @@ class TrafficEventVersion(Base):
     camera_name = Column(String)
     camera_snapshot = Column(String)
 
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    id = Column(String, primary_key=True, index=True) # Trafikverket Cam ID
+    name = Column(String)
+    description = Column(Text)
+    location = Column(String)
+    type = Column(String) # Väglagskamera / Trafikflödeskamera
+    photo_url = Column(String)
+    fullsize_url = Column(String)
+    photo_time = Column(DateTime)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    county_no = Column(Integer) # Primary county
+    is_favorite = Column(Integer, default=0) # 0/1
+
 class Settings(Base):
     __tablename__ = "settings"
 
@@ -78,6 +94,12 @@ class Settings(Base):
 def init_db():
     Base.metadata.create_all(bind=engine)
     migrate_db()
+    
+    # Ensure cameras table exists (SQLAlchemy might skip if already exists)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    if "cameras" not in inspector.get_table_names():
+        Camera.__table__.create(bind=engine)
 
 def migrate_db():
     from sqlalchemy import inspect, text

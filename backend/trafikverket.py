@@ -259,12 +259,18 @@ async def get_cameras(api_key: str):
     <QUERY objecttype='Camera' schemaversion='1.0'>
         <FILTER>
             <EQ name="Deleted" value="false" />
+            <EQ name="Active" value="true" />
         </FILTER>
         <INCLUDE>Id</INCLUDE>
         <INCLUDE>Name</INCLUDE>
+        <INCLUDE>Description</INCLUDE>
+        <INCLUDE>Type</INCLUDE>
         <INCLUDE>PhotoUrl</INCLUDE>
+        <INCLUDE>PhotoTime</INCLUDE>
         <INCLUDE>Geometry.WGS84</INCLUDE>
         <INCLUDE>HasFullSizePhoto</INCLUDE>
+        <INCLUDE>CountyNo</INCLUDE>
+        <INCLUDE>Location</INCLUDE>
     </QUERY>
 </REQUEST>"""
     async with httpx.AsyncClient() as client:
@@ -285,15 +291,23 @@ async def get_cameras(api_key: str):
                         photo_url = res.get('PhotoUrl')
                         has_fullsize = res.get('HasFullSizePhoto', False)
                         fullsize_url = f"{photo_url}?type=fullsize" if has_fullsize and photo_url else None
+                        
+                        # CountyNo can be a list, we just take the first one or 0 if empty
+                        counties = res.get('CountyNo', [])
+                        primary_county = counties[0] if counties and isinstance(counties, list) else (counties if isinstance(counties, int) else 0)
 
                         cameras.append({
                             "id": res.get('Id'),
                             "name": res.get('Name'),
+                            "description": res.get('Description'),
+                            "location": res.get('Location'),
+                            "type": res.get('Type'),
                             "url": photo_url,
                             "fullsize_url": fullsize_url,
-                            "has_fullsize": has_fullsize,
+                            "photo_time": res.get('PhotoTime'),
                             "longitude": float(match.group(1)),
-                            "latitude": float(match.group(2))
+                            "latitude": float(match.group(2)),
+                            "county_no": primary_county
                         })
             return cameras
         except Exception as e:

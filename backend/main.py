@@ -13,7 +13,7 @@ from typing import List
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
-from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera
 from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearest_camera
 
@@ -54,6 +54,7 @@ app.add_middleware(
 stream_task = None
 processor_task = None
 refresh_task = None
+camera_sync_task = None
 init_cameras_task = None
 tv_stream = None
 cameras = []
@@ -156,56 +157,93 @@ def start_worker(api_key: str, county_ids: list = None):
     init_cameras_task = asyncio.create_task(init_cameras())
     processor_task = asyncio.create_task(event_processor())
 
-async def refresh_cameras(api_key: str):
-    global cameras
+    # Start camera sync
+    global camera_sync_task
+    camera_sync_task = asyncio.create_task(periodic_camera_sync())
+    
+    logger.info(f"Trafikinfo Flux v{VERSION} started")
+
+async def periodic_camera_sync():
+    """Background task to sync cameras with DB every 5 minutes."""
     while True:
         try:
-            # 1. Refresh Cameras
-            new_cameras = await get_cameras(api_key)
-            if new_cameras:
-                cameras = new_cameras
-                logger.info(f"Refreshed {len(cameras)} traffic cameras")
-            
-            # 2. Cleanup Old Events (Retention Policy)
             db = SessionLocal()
             try:
-                # Get retention days from settings
-                retention_setting = db.query(Settings).filter(Settings.key == "retention_days").first()
-                days = int(retention_setting.value) if retention_setting and retention_setting.value else 30
+                # 1. Get API Key and Selected Counties
+                api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
+                if not api_key_setting or not api_key_setting.value:
+                    await asyncio.sleep(30)
+                    continue
                 
-                if days > 0:
-                    cutoff_date = datetime.now() - timedelta(days=days)
-                    
-                    # Find old events
-                    old_events = db.query(TrafficEvent).filter(TrafficEvent.created_at < cutoff_date).all()
-                    
-                    if old_events:
-                        logger.info(f"Cleaning up {len(old_events)} events older than {days} days")
-                        
-                        # Delete snapshots for these events
-                        for event in old_events:
-                            if event.camera_snapshot:
-                                snapshot_path = os.path.join(SNAPSHOTS_DIR, event.camera_snapshot)
-                                try:
-                                    if os.path.exists(snapshot_path):
-                                        os.unlink(snapshot_path)
-                                except Exception as e:
-                                    logger.error(f"Failed to delete snapshot {snapshot_path}: {e}")
-                        
-                        # Delete from DB
-                        db.query(TrafficEvent).filter(TrafficEvent.created_at < cutoff_date).delete()
-                        db.query(TrafficEventVersion).filter(TrafficEventVersion.version_timestamp < cutoff_date).delete()
-                        db.commit()
-                        logger.info("Cleanup complete")
-            except Exception as e:
-                logger.error(f"Error during cleanup: {e}")
+                api_key = api_key_setting.value
+                county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
+
+                # 2. Fetch from API
+                new_cameras = await get_cameras(api_key)
+                if not new_cameras:
+                    await asyncio.sleep(60)
+                    continue
+
+                # 3. Update DB
+                for cam_data in new_cameras:
+                    # Only sync if in selected counties (or if no counties selected)
+                    if not selected_counties or cam_data["county_no"] in selected_counties:
+                        existing = db.query(Camera).filter(Camera.id == cam_data["id"]).first()
+                        if existing:
+                            # Update fields but preserve is_favorite
+                            existing.name = cam_data["name"]
+                            existing.description = cam_data["description"]
+                            existing.location = cam_data["location"]
+                            existing.type = cam_data["type"]
+                            existing.photo_url = cam_data["url"]
+                            existing.fullsize_url = cam_data["fullsize_url"]
+                            existing.photo_time = datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None
+                            existing.latitude = cam_data["latitude"]
+                            existing.longitude = cam_data["longitude"]
+                            existing.county_no = cam_data["county_no"]
+                        else:
+                            # New camera
+                            new_cam = Camera(
+                                id=cam_data["id"],
+                                name=cam_data["name"],
+                                description=cam_data["description"],
+                                location=cam_data["location"],
+                                type=cam_data["type"],
+                                photo_url=cam_data["url"],
+                                fullsize_url=cam_data["fullsize_url"],
+                                photo_time=datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None,
+                                latitude=cam_data["latitude"],
+                                longitude=cam_data["longitude"],
+                                county_no=cam_data["county_no"]
+                            )
+                            db.add(new_cam)
+                
+                db.commit()
+                
+                # Update global list for event mapping (nearest camera lookup)
+                global cameras
+                current_cameras = db.query(Camera).all()
+                cameras = [{
+                    "id": c.id,
+                    "name": c.name,
+                    "latitude": c.latitude,
+                    "longitude": c.longitude,
+                    "url": c.photo_url
+                } for c in current_cameras]
+                
+                logger.debug(f"Synced {len(current_cameras)} cameras to DB and global cache")
+
             finally:
                 db.close()
-                
         except Exception as e:
-            logger.error(f"Error in background task: {e}")
-            
-        await asyncio.sleep(3600) # Run every hour
+            logger.error(f"Error in periodic_camera_sync: {e}")
+        
+        await asyncio.sleep(300) # Every 5 minutes
+
+async def refresh_cameras(api_key: str):
+    # Keep legacy for stability during transition if needed
+    pass
 
 async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_url: str = None):
     """Download camera image and save it to the snapshots directory."""
@@ -477,6 +515,42 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
             "camera_snapshot": v.camera_snapshot
         } for v in versions
     ]
+
+@app.get("/api/cameras", response_model=List[dict])
+def get_cameras_api(db: Session = Depends(get_db)):
+    # Get selected counties from settings
+    county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+    selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
+    
+    query = db.query(Camera)
+    if selected_counties:
+        query = query.filter(Camera.county_no.in_(selected_counties))
+        
+    cams = query.order_by(Camera.is_favorite.desc(), Camera.name.asc()).all()
+    return [{
+        "id": c.id,
+        "name": c.name,
+        "description": c.description,
+        "location": c.location,
+        "type": c.type,
+        "url": c.photo_url,
+        "fullsize_url": c.fullsize_url,
+        "photo_time": c.photo_time,
+        "latitude": c.latitude,
+        "longitude": c.longitude,
+        "county_no": c.county_no,
+        "is_favorite": bool(c.is_favorite)
+    } for c in cams]
+
+@app.post("/api/cameras/{camera_id}/toggle-favorite")
+def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db)):
+    cam = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not cam:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    cam.is_favorite = 0 if cam.is_favorite else 1
+    db.commit()
+    return {"id": cam.id, "is_favorite": bool(cam.is_favorite)}
 
 @app.get("/api/events", response_model=List[dict])
 def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
