@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   trafikinfo:
     build: .
@@ -11,4 +9,5 @@ services:
       - ./data:/app/data
     restart: always
     environment:
-      - DEBUG_MODE=false # Set to true for detailed logs
+      - DEBUG_MODE=true # Set to true for detailed logs
+      - TZ=Europe/Stockholm
