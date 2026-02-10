@@ -107,63 +107,91 @@ def parse_situation(json_data):
         }
 
         for sit in situations:
-            for devi in sit.get('Deviation', []):
-                icon_id = devi.get('IconId')
+            sit_id = sit.get('Id')
+            deviations = sit.get('Deviation', [])
+            if not deviations:
+                continue
+
+            # Merge deviations for this situation
+            merged_desc = []
+            merged_restrictions = []
+            merged_message_types = []
+            
+            # Start with primary data from the first deviation
+            first_devi = deviations[0]
+            icon_id = first_devi.get('IconId')
+            start_time = first_devi.get('StartTime')
+            end_time = first_devi.get('EndTime')
+            severity_code = first_devi.get('SeverityCode')
+            severity_text = first_devi.get('SeverityText')
+            road_number = first_devi.get('RoadNumber')
+            location = first_devi.get('LocationDescriptor')
+            
+            # Geometry from first deviation that has it
+            latitude = None
+            longitude = None
+            
+            for devi in deviations:
+                # Descriptions
+                desc = devi.get('Description')
+                if desc and desc not in merged_desc:
+                    merged_desc.append(desc)
                 
-                # Determine title: Header -> Message -> Icon Mapping -> MessageType -> Default
-                title = devi.get('Header') or devi.get('Message')
-                if not title and icon_id:
-                    title = icon_text_map.get(icon_id)
-                if not title:
-                    title = devi.get('MessageType', 'Trafikhändelse')
+                # Restriction Types
+                restr = devi.get('TrafficRestrictionType')
+                if restr and restr not in merged_restrictions:
+                    merged_restrictions.append(restr)
+                
+                # Message Types
+                mtype = devi.get('MessageCode') or devi.get('MessageType')
+                if mtype and mtype not in merged_message_types:
+                    merged_message_types.append(mtype)
 
-                # Parse times
-                start_time = devi.get('StartTime')
-                end_time = devi.get('EndTime')
+                # Geometry
+                if latitude is None:
+                    geo = devi.get('Geometry', {})
+                    wgs84 = geo.get('Point', {}).get('WGS84') or geo.get('Line', {}).get('WGS84')
+                    if wgs84:
+                        match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                        if match:
+                            longitude = float(match.group(1))
+                            latitude = float(match.group(2))
+                
+                # Time window (earliest start, latest end)
+                d_start = devi.get('StartTime')
+                d_end = devi.get('EndTime')
+                if d_start and (not start_time or d_start < start_time):
+                    start_time = d_start
+                if d_end and (not end_time or d_end > end_time):
+                    end_time = d_end
 
-                # Extract Severity
-                severity_code = devi.get('SeverityCode')
-                severity_text = devi.get('SeverityText')
+            # Determine title: Header -> Message -> Icon Mapping -> Merged Message Types -> Default
+            title = first_devi.get('Header') or first_devi.get('Message')
+            if not title and icon_id:
+                title = icon_text_map.get(icon_id)
+            if not title:
+                title = " / ".join(merged_message_types) if merged_message_types else "Trafikhändelse"
 
-                # Parse Geometry (WGS84 typically "POINT (16.596 59.629)" or "LINESTRING (...)")
-                latitude = None
-                longitude = None
-                geo = devi.get('Geometry', {})
-                # Try to get WGS84 from Point first, then Line
-                wgs84 = None
-                if 'Point' in geo:
-                    wgs84 = geo['Point'].get('WGS84')
-                elif 'Line' in geo:
-                    wgs84 = geo['Line'].get('WGS84')
-
-                if wgs84:
-                    # Match first coordinate pair inside parentheses "(lon lat"
-                    # Works for both POINT (lon lat) and LINESTRING (lon lat, ...)
-                    match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
-                    if match:
-                        longitude = float(match.group(1))
-                        latitude = float(match.group(2))
-
-                event = {
-                    "external_id": devi.get('Id'),
-                    "title": title,
-                    "description": devi.get('Description'),
-                    "location": devi.get('LocationDescriptor'),
-                    "icon_id": icon_id,
-                    "event_type": "Situation",
-                    "timestamp": devi.get('CreationTime'),
-                    "message_type": devi.get('MessageCode') or devi.get('MessageType'),
-                    "severity_code": severity_code,
-                    "severity_text": severity_text,
-                    "road_number": devi.get('RoadNumber'),
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "temporary_limit": devi.get('TemporaryLimit'),
-                    "traffic_restriction_type": devi.get('TrafficRestrictionType'),
-                    "latitude": latitude,
-                    "longitude": longitude
-                }
-                parsed_events.append(event)
+            event = {
+                "external_id": sit_id, # Group by Situation ID
+                "title": title,
+                "description": " | ".join(merged_desc) if merged_desc else None,
+                "location": location,
+                "icon_id": icon_id,
+                "event_type": "Situation",
+                "timestamp": first_devi.get('CreationTime'),
+                "message_type": ", ".join(merged_message_types) if merged_message_types else None,
+                "severity_code": severity_code,
+                "severity_text": severity_text,
+                "road_number": road_number,
+                "start_time": start_time,
+                "end_time": end_time,
+                "temporary_limit": first_devi.get('TemporaryLimit'),
+                "traffic_restriction_type": ", ".join(merged_restrictions) if merged_restrictions else None,
+                "latitude": latitude,
+                "longitude": longitude
+            }
+            parsed_events.append(event)
         return parsed_events
     except Exception as e:
         logger.error(f"Error parsing situation: {e}")

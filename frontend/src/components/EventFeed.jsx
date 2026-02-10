@@ -79,8 +79,11 @@ export default function EventFeed() {
 
     const filteredEvents = useMemo(() => {
         return events.filter(event => {
-            if (activeMessageTypes.length > 0 && !activeMessageTypes.includes(event.message_type)) {
-                return false
+            if (activeMessageTypes.length > 0) {
+                const eventTypes = event.message_type ? event.message_type.split(', ') : []
+                if (!activeMessageTypes.some(t => eventTypes.includes(t))) {
+                    return false
+                }
             }
             if (activeSeverities.length > 0 && !activeSeverities.includes(event.severity_text)) {
                 return false
@@ -333,12 +336,12 @@ export default function EventFeed() {
                                             </span>
                                         )}
 
-                                        {/* Message Type Badge */}
-                                        {event.message_type && (
-                                            <span className="bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
-                                                {event.message_type}
+                                        {/* Message Type Badges */}
+                                        {event.message_type && event.message_type.split(', ').map((type, idx) => (
+                                            <span key={idx} className="bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
+                                                {type}
                                             </span>
-                                        )}
+                                        ))}
 
                                         {/* Restriction Badges */}
                                         {event.temporary_limit && (
@@ -346,11 +349,11 @@ export default function EventFeed() {
                                                 {event.temporary_limit}
                                             </span>
                                         )}
-                                        {event.traffic_restriction_type && (
-                                            <span className="bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-orange-200 dark:border-orange-500/20">
-                                                {event.traffic_restriction_type}
+                                        {event.traffic_restriction_type && event.traffic_restriction_type.split(', ').map((restr, idx) => (
+                                            <span key={idx} className="bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-orange-200 dark:border-orange-500/20">
+                                                {restr}
                                             </span>
-                                        )}
+                                        ))}
 
                                         <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto">
                                             <Clock className="w-3 h-3" />
@@ -372,8 +375,10 @@ export default function EventFeed() {
                                         {event.description && (
                                             <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
                                                 <Info className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
-                                                <div className="space-y-1">
-                                                    <p>{event.description}</p>
+                                                <div className="space-y-2">
+                                                    {event.description.split(' | ').map((desc, idx) => (
+                                                        <p key={idx}>{desc}</p>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
