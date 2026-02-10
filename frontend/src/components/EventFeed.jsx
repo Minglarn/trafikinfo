@@ -394,13 +394,13 @@ export default function EventFeed() {
                                     </div>
                                 </div>
 
-                                <div className="flex md:flex-col justify-between md:justify-start items-center md:items-end gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 min-w-[140px]">
+                                <div className="flex md:flex-col justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 min-w-[140px]">
 
-                                    <div className="flex flex-col gap-2 w-full md:w-48 mt-4 md:mt-0">
+                                    <div className="flex flex-col gap-2 w-full md:w-48 mt-4 md:mt-0 flex-1">
                                         {/* Map / Location Preview */}
                                         {event.latitude && event.longitude ? (
                                             <div
-                                                className="relative h-20 w-full bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                                className="relative flex-1 min-h-[100px] w-full bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
                                                 onClick={(e) => {
                                                     e.stopPropagation()
                                                     toggleMap(event.id)
@@ -421,7 +421,7 @@ export default function EventFeed() {
                                             </div>
                                         ) : (
                                             /* No Location Placeholder */
-                                            <div className="h-20 w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+                                            <div className="flex-1 min-h-[100px] w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
                                                 <MapPin className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-1" />
                                                 <span className="text-xs text-slate-400 dark:text-slate-500 italic">Plats ej känd</span>
                                             </div>
