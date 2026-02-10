@@ -13,7 +13,7 @@ from typing import List
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
-from database import SessionLocal, init_db, TrafficEvent, Settings
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings
 from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearest_camera
 
@@ -194,6 +194,7 @@ async def refresh_cameras(api_key: str):
                         
                         # Delete from DB
                         db.query(TrafficEvent).filter(TrafficEvent.created_at < cutoff_date).delete()
+                        db.query(TrafficEventVersion).filter(TrafficEventVersion.version_timestamp < cutoff_date).delete()
                         db.commit()
                         logger.info("Cleanup complete")
             except Exception as e:
@@ -280,6 +281,44 @@ async def event_processor():
                     existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
                     
                     if existing:
+                        # Check if anything significant changed before updating
+                        # We compare: title, description, location, severity_code, message_type
+                        has_changed = (
+                            existing.title != ev['title'] or
+                            existing.description != ev['description'] or
+                            existing.location != ev['location'] or
+                            existing.severity_code != ev.get('severity_code') or
+                            existing.message_type != ev.get('message_type') or
+                            existing.temporary_limit != ev.get('temporary_limit')
+                        )
+
+                        if has_changed:
+                            # Save history before updating
+                            logger.info(f"Event {ev['external_id']} changed, saving history version")
+                            history_version = TrafficEventVersion(
+                                event_id=existing.id,
+                                external_id=existing.external_id,
+                                version_timestamp=datetime.now(),
+                                title=existing.title,
+                                description=existing.description,
+                                location=existing.location,
+                                icon_id=existing.icon_id,
+                                message_type=existing.message_type,
+                                severity_code=existing.severity_code,
+                                severity_text=existing.severity_text,
+                                road_number=existing.road_number,
+                                start_time=existing.start_time,
+                                end_time=existing.end_time,
+                                temporary_limit=existing.temporary_limit,
+                                traffic_restriction_type=existing.traffic_restriction_type,
+                                latitude=existing.latitude,
+                                longitude=existing.longitude,
+                                camera_url=existing.camera_url,
+                                camera_name=existing.camera_name,
+                                camera_snapshot=existing.camera_snapshot
+                            )
+                            db.add(history_version)
+
                         # Update existing event
                         existing.title = ev['title']
                         existing.description = ev['description']
@@ -412,6 +451,33 @@ async def stream_events():
     from sse_starlette.sse import EventSourceResponse
     return EventSourceResponse(event_generator())
 
+@app.get("/api/events/{external_id}/history")
+async def get_event_history(external_id: str, db: Session = Depends(get_db)):
+    versions = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == external_id).order_by(TrafficEventVersion.version_timestamp.desc()).all()
+    # Format versions similarly to events for the frontend
+    return [
+        {
+            "id": v.id,
+            "external_id": v.external_id,
+            "version_timestamp": v.version_timestamp,
+            "title": v.title,
+            "description": v.description,
+            "location": v.location,
+            "icon_url": f"https://api.trafikinfo.trafikverket.se/v1/icons/{v.icon_id}?type=png32x32" if v.icon_id else None,
+            "message_type": v.message_type,
+            "severity_code": v.severity_code,
+            "severity_text": v.severity_text,
+            "road_number": v.road_number,
+            "start_time": v.start_time,
+            "end_time": v.end_time,
+            "temporary_limit": v.temporary_limit,
+            "traffic_restriction_type": v.traffic_restriction_type,
+            "latitude": v.latitude,
+            "longitude": v.longitude,
+            "camera_snapshot": v.camera_snapshot
+        } for v in versions
+    ]
+
 @app.get("/api/events", response_model=List[dict])
 def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
@@ -444,7 +510,8 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "longitude": e.longitude,
             "camera_url": e.camera_url,
             "camera_name": e.camera_name,
-            "camera_snapshot": e.camera_snapshot
+            "camera_snapshot": e.camera_snapshot,
+            "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
         } for e in events
     ]
 

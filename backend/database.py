@@ -42,6 +42,32 @@ class TrafficEvent(Base):
 
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
+class TrafficEventVersion(Base):
+    __tablename__ = "traffic_event_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, index=True) # TrafficEvent.id (internal ID)
+    external_id = Column(String, index=True) # Trafikverket ID
+    version_timestamp = Column(DateTime, default=datetime.datetime.now)
+    
+    title = Column(String)
+    description = Column(Text)
+    location = Column(String)
+    icon_id = Column(String)
+    message_type = Column(String)
+    severity_code = Column(Integer)
+    severity_text = Column(String)
+    road_number = Column(String)
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    temporary_limit = Column(String)
+    traffic_restriction_type = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    camera_url = Column(String)
+    camera_name = Column(String)
+    camera_snapshot = Column(String)
+
 class Settings(Base):
     __tablename__ = "settings"
 
