@@ -42,16 +42,74 @@ const CameraGrid = () => {
         }
     }
 
-    const filteredCameras = useMemo(() => {
-        return cameras.filter(cam =>
+    const { favoriteCameras, otherCameras } = useMemo(() => {
+        const filtered = cameras.filter(cam =>
             cam.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             cam.location?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).sort((a, b) => {
-            if (a.is_favorite && !b.is_favorite) return -1
-            if (!a.is_favorite && b.is_favorite) return 1
-            return a.name.localeCompare(b.name)
-        })
+        ).sort((a, b) => a.name.localeCompare(b.name))
+
+        return {
+            favoriteCameras: filtered.filter(cam => cam.is_favorite),
+            otherCameras: filtered.filter(cam => !cam.is_favorite)
+        }
     }, [cameras, searchTerm])
+
+    const CameraCard = ({ camera }) => (
+        <motion.div
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col"
+        >
+            <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-950 cursor-pointer" onClick={() => setSelectedCamera(camera)}>
+                <img
+                    src={camera.url}
+                    alt={camera.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => {
+                        e.target.src = 'https://via.placeholder.com/400x300?text=Bild+saknas';
+                    }}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <ExternalLink className="w-8 h-8 text-white" />
+                </div>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(camera.id);
+                    }}
+                    className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-md transition-all ${camera.is_favorite
+                        ? 'bg-yellow-400 text-white shadow-lg scale-110'
+                        : 'bg-black/20 text-white hover:bg-black/40'
+                        }`}
+                >
+                    <Star className={`w-4 h-4 ${camera.is_favorite ? 'fill-current' : ''}`} />
+                </button>
+                {camera.type && (
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-medium uppercase tracking-wider">
+                        {camera.type}
+                    </div>
+                )}
+            </div>
+            <div className="p-4 flex-1">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100 leading-tight mb-1 truncate" title={camera.name}>
+                    {camera.name}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[32px]">
+                    {camera.description || camera.location}
+                </p>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{camera.id}</span>
+                    {camera.photo_time && (
+                        <span>
+                            {format(new Date(camera.photo_time), 'HH:mm, d MMM', { locale: sv })}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    )
 
     if (loading && cameras.length === 0) {
         return (
@@ -63,7 +121,7 @@ const CameraGrid = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 pb-12">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -79,7 +137,7 @@ const CameraGrid = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                     <input
                         type="text"
-                        placeholder="Sök kamera..."
+                        placeholder="Sök bland kameror..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
@@ -87,73 +145,51 @@ const CameraGrid = () => {
                 </div>
             </header>
 
-            {filteredCameras.length === 0 ? (
+            {favoriteCameras.length === 0 && otherCameras.length === 0 ? (
                 <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-12 text-center border border-dashed border-slate-200 dark:border-slate-800">
                     <Camera className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">Inga kameror hittades</h3>
                     <p className="text-slate-500 dark:text-slate-400 mt-2">Prova att söka på något annat eller kontrollera dina valda län i inställningar.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    <AnimatePresence mode="popLayout">
-                        {filteredCameras.map((camera) => (
-                            <motion.div
-                                key={camera.id}
-                                layout
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.9 }}
-                                className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col"
-                            >
-                                <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-slate-950 cursor-pointer" onClick={() => setSelectedCamera(camera)}>
-                                    <img
-                                        src={camera.url}
-                                        alt={camera.name}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                        onError={(e) => {
-                                            e.target.src = 'https://via.placeholder.com/400x300?text=Bild+saknas';
-                                        }}
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <ExternalLink className="w-8 h-8 text-white" />
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleFavorite(camera.id);
-                                        }}
-                                        className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-md transition-all ${camera.is_favorite
-                                                ? 'bg-yellow-400 text-white shadow-lg scale-110'
-                                                : 'bg-black/20 text-white hover:bg-black/40'
-                                            }`}
-                                    >
-                                        <Star className={`w-4 h-4 ${camera.is_favorite ? 'fill-current' : ''}`} />
-                                    </button>
-                                    {camera.type && (
-                                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-medium uppercase tracking-wider">
-                                            {camera.type}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="p-4 flex-1">
-                                    <h3 className="font-semibold text-slate-800 dark:text-slate-100 leading-tight mb-1 truncate" title={camera.name}>
-                                        {camera.name}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[32px]">
-                                        {camera.description || camera.location}
-                                    </p>
-                                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
-                                        <span>{camera.id}</span>
-                                        {camera.photo_time && (
-                                            <span>
-                                                {format(new Date(camera.photo_time), 'HH:mm, d MMM', { locale: sv })}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                <div className="space-y-10">
+                    {/* Favorites Section */}
+                    {favoriteCameras.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <Star className="w-5 h-5 text-yellow-400 fill-current" />
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">Favoriter</h2>
+                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                <AnimatePresence mode="popLayout">
+                                    {favoriteCameras.map((camera) => (
+                                        <CameraCard key={camera.id} camera={camera} />
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* All / Other Cameras Section */}
+                    {otherCameras.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <Camera className="w-5 h-5 text-slate-400" />
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">
+                                    {favoriteCameras.length > 0 ? 'Övriga kameror' : 'Alla kameror'}
+                                </h2>
+                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                <AnimatePresence mode="popLayout">
+                                    {otherCameras.map((camera) => (
+                                        <CameraCard key={camera.id} camera={camera} />
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -215,8 +251,8 @@ const CameraGrid = () => {
                                         <button
                                             onClick={() => toggleFavorite(selectedCamera.id)}
                                             className={`p-3 rounded-xl transition-all ${selectedCamera.is_favorite
-                                                    ? 'bg-yellow-400 text-white shadow-lg'
-                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600'
+                                                ? 'bg-yellow-400 text-white shadow-lg'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600'
                                                 }`}
                                         >
                                             <Star className={`w-6 h-6 ${selectedCamera.is_favorite ? 'fill-current' : ''}`} />
