@@ -7,6 +7,7 @@ services:
       - "7081:8000"
     volumes:
       - ./data:/app/data
+      - ./data/snapshots:/app/data/snapshots
     restart: always
     env_file: .env
     environment:

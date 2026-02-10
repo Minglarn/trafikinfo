@@ -1,3 +1,4 @@
+VERSION = "26.2.10"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,20 +8,28 @@ import asyncio
 import os
 import json
 import logging
+import httpx
 from typing import List
 from datetime import datetime
 from sqlalchemy import func
 
 from database import SessionLocal, init_db, TrafficEvent, Settings
 from mqtt_client import mqtt_client
-from trafikverket import TrafikverketStream, parse_situation
+from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearest_camera
 
 # Setup logging
 debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Ensure snapshots directory exists
+SNAPSHOTS_DIR = os.path.join(os.getcwd(), "data", "snapshots")
+os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+
 app = FastAPI(title="Trafikinfo API")
+
+# Serve snapshots
+app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +42,7 @@ app.add_middleware(
 # Global stream object
 stream_task = None
 tv_stream = None
+cameras = []
 
 def get_db():
     db = SessionLocal()
@@ -52,6 +62,7 @@ async def startup_event():
     mqtt_user = db.query(Settings).filter(Settings.key == "mqtt_username").first()
     mqtt_pass = db.query(Settings).filter(Settings.key == "mqtt_password").first()
     mqtt_topic = db.query(Settings).filter(Settings.key == "mqtt_topic").first()
+    selected_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
     
     mqtt_config = {}
     if mqtt_host: mqtt_config["host"] = mqtt_host.value
@@ -60,34 +71,98 @@ async def startup_event():
     if mqtt_pass: mqtt_config["password"] = mqtt_pass.value
     if mqtt_topic: mqtt_config["topic"] = mqtt_topic.value
 
+    # Parse selected counties (stored as comma-separated string)
+    county_ids = ["1", "4"] # Default Stockholm/Södermanland
+    if selected_counties and selected_counties.value:
+        try:
+            county_ids = selected_counties.value.split(",")
+        except:
+            pass
+
     if mqtt_config:
         mqtt_client.update_config(mqtt_config)
     
     if api_key:
-        start_worker(api_key.value)
+        start_worker(api_key.value, county_ids)
     db.close()
 
-def start_worker(api_key: str):
-    global stream_task, tv_stream
+def start_worker(api_key: str, county_ids: list = None):
+    global stream_task, tv_stream, cameras
     if stream_task:
         tv_stream.stop_streaming()
         stream_task.cancel()
     
     tv_stream = TrafikverketStream(api_key)
-    stream_task = asyncio.create_task(tv_stream.start_streaming())
+    stream_task = asyncio.create_task(tv_stream.start_streaming(county_ids=county_ids))
+    
+    # Initialize cameras and start background refresh
+    async def init_cameras():
+        global cameras
+        cameras = await get_cameras(api_key)
+        logger.info(f"Loaded {len(cameras)} traffic cameras")
+        asyncio.create_task(refresh_cameras(api_key))
+
+    asyncio.create_task(init_cameras())
     asyncio.create_task(event_processor())
 
+async def refresh_cameras(api_key: str):
+    global cameras
+    while True:
+        await asyncio.sleep(3600) # Refresh every hour
+        new_cameras = await get_cameras(api_key)
+        if new_cameras:
+            cameras = new_cameras
+            logger.info(f"Refreshed {len(cameras)} traffic cameras")
+
+async def download_camera_snapshot(url: str, event_id: str):
+    """Download camera image and save it to the snapshots directory."""
+    if not url:
+        return None
+    
+    # Try to get the fullsize version if it's a Trafikverket URL
+    fullsize_url = url
+    if "api.trafikinfo.trafikverket.se" in url and not url.endswith("_fullsize.jpg"):
+        fullsize_url = url.replace(".jpg", "_fullsize.jpg")
+
+    filename = f"{event_id}_{int(datetime.now().timestamp())}.jpg"
+    filepath = os.path.join(SNAPSHOTS_DIR, filename)
+    
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Add a small retry loop or check for fullsize
+            response = await client.get(fullsize_url)
+            if response.status_code != 200 and fullsize_url != url:
+                logger.info(f"Fullsize snapshot not available for {event_id}, falling back to default")
+                response = await client.get(url)
+
+            if response.status_code == 200:
+                with open(filepath, "wb") as f:
+                    f.write(response.content)
+                logger.info(f"Saved snapshot for event {event_id} to {filename} (Size: {len(response.content)} bytes)")
+                return filename
+            else:
+                logger.warning(f"Failed to download snapshot from {url}: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error downloading snapshot for event {event_id}: {e}")
+    
+    return None
+
 async def event_processor():
-    global tv_stream
+    global tv_stream, cameras
     async for raw_data in tv_stream.get_events():
         events = parse_situation(raw_data)
         db = SessionLocal()
         for ev in events:
+            # Find nearest camera if event has coordinates
+            nearest_cam = find_nearest_camera(ev.get('latitude'), ev.get('longitude'), cameras)
+            camera_url = nearest_cam.get('url') if nearest_cam else None
+            camera_name = nearest_cam.get('name') if nearest_cam else None
+
             # Check if event already exists
             existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
             
             if existing:
-                # Update existing event with potentially new data (and new columns like traffic_restriction_type)
+                # Update existing event
                 existing.title = ev['title']
                 existing.description = ev['description']
                 existing.location = ev['location']
@@ -102,17 +177,17 @@ async def event_processor():
                 existing.traffic_restriction_type = ev.get('traffic_restriction_type')
                 existing.latitude = ev.get('latitude')
                 existing.longitude = ev.get('longitude')
+                existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'])
                 
                 db.commit()
-                # We don't re-push to MQTT here to avoid spamming, unless specifically requested.
-                # But we do want to broadcast the update to frontend? 
-                # Yes, let's treat it as a new event for the frontend stream so specific fields get updated live.
-                # Re-using the logic below for broadcasting would be good.
                 
                 new_event = existing
-                mqtt_data = ev.copy() # For frontend broadcast payload construction
+                mqtt_data = ev.copy()
                 if ev.get('icon_id'):
                     mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                mqtt_data['camera_url'] = camera_url
+                mqtt_data['camera_name'] = camera_name
+                mqtt_data['camera_snapshot'] = new_event.camera_snapshot
 
             else:
                 new_event = TrafficEvent(
@@ -126,32 +201,34 @@ async def event_processor():
                     severity_code=ev.get('severity_code'),
                     severity_text=ev.get('severity_text'),
                     road_number=ev.get('road_number'),
-                    # For SQLite + SQLAlchemy, passing ISO strings to DateTime usually works fine.
-                    # If strictly needed, we would parse: datetime.fromisoformat(ev['start_time'])
                     start_time=datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None,
                     end_time=datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None,
                     temporary_limit=ev.get('temporary_limit'),
                     traffic_restriction_type=ev.get('traffic_restriction_type'),
                     latitude=ev.get('latitude'),
-                    longitude=ev.get('longitude')
+                    longitude=ev.get('longitude'),
+                    camera_url=camera_url,
+                    camera_name=camera_name
                 )
                 db.add(new_event)
+                db.commit() # Commit to get ID if needed or just to save early
+                
+                # Download snapshot
+                new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'])
                 db.commit()
                 db.refresh(new_event)
                 
-                # Add icon_url to event data for MQTT
                 mqtt_data = ev.copy()
                 if ev.get('icon_id'):
                     mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                mqtt_data['camera_url'] = camera_url
+                mqtt_data['camera_name'] = camera_name
+                mqtt_data['camera_snapshot'] = new_event.camera_snapshot
  
-                # Push to MQTT (Only for new events)
                 if mqtt_client.publish_event(mqtt_data):
                     new_event.pushed_to_mqtt = 1
-                    logger.info(f"Event {ev['external_id']} pushed to MQTT")
                 else:
                     new_event.pushed_to_mqtt = 0
-                    logger.warning(f"Event {ev['external_id']} failed to push to MQTT")
-                
                 
                 # Broadcast to connected frontend clients
                 event_data = {
@@ -172,7 +249,10 @@ async def event_processor():
                     "temporary_limit": new_event.temporary_limit,
                     "traffic_restriction_type": new_event.traffic_restriction_type,
                     "latitude": new_event.latitude,
-                    "longitude": new_event.longitude
+                    "longitude": new_event.longitude,
+                    "camera_url": new_event.camera_url,
+                    "camera_name": new_event.camera_name,
+                    "camera_snapshot": new_event.camera_snapshot
                 }
                 for queue in connected_clients:
                     await queue.put(event_data)
@@ -228,7 +308,9 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "temporary_limit": e.temporary_limit,
             "traffic_restriction_type": e.traffic_restriction_type,
             "latitude": e.latitude,
-            "longitude": e.longitude
+            "longitude": e.longitude,
+            "camera_url": e.camera_url,
+            "camera_name": e.camera_name
         } for e in events
     ]
 
@@ -288,8 +370,18 @@ async def update_settings(settings: dict, db: Session = Depends(get_db)):
                 db.add(s)
         db.commit()
         
-        if "api_key" in settings:
-            start_worker(str(settings["api_key"]))
+        if "api_key" in settings or "selected_counties" in settings:
+            # Re-fetch both to restart properly
+            curr_key = db.query(Settings).filter(Settings.key == "api_key").first()
+            curr_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
+            
+            key_val = curr_key.value if curr_key else ""
+            county_ids = ["1", "4"]
+            if curr_counties and curr_counties.value:
+                county_ids = curr_counties.value.split(",")
+            
+            if key_val:
+                start_worker(key_val, county_ids)
         
         # Update MQTT config if any related setting changed
         mqtt_updates = {}
@@ -326,8 +418,13 @@ def get_status():
         "mqtt": {
             "connected": mqtt_client.connected,
             "broker": mqtt_client.config.get("host")
-        }
+        },
+        "version": VERSION
     }
+
+@app.get("/api/version")
+def get_version():
+    return {"version": VERSION}
 
 # Static files and SPA fallback
 if os.path.exists("static"):

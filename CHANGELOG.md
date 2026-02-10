@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.10] - 2026-02-10
+
+### Added
+- **County Filtering**: Added full support for selecting and filtering traffic events by Swedish counties (Län).
+- **High-Resolution Snapshots**: Implemented capture of full-size (100-300KB) camera images for improved detail.
+- **Geographic Settings UI**: New settings section for geographic monitoring with interactive county selector.
+- **MQTT Credentials**: Support for `MQTT_USER` and `MQTT_PASSWORD` in `.env`.
+- **CalVer Support**: Switched to Calendar Versioning (YY.MM.DD) for better release tracking.
+
+### Fixed
+- Resolved `ReferenceError` in Settings UI due to missing icon imports.
+- Fixed `TypeError` in background worker when starting stream with county filters.
+- Corrected camera snapshot download logic to prioritize `_fullsize.jpg` variants.
+
 ## [1.1.0] - 2026-02-10
 
 ### Added

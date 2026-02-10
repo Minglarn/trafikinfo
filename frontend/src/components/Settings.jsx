@@ -1,18 +1,55 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Save, ShieldCheck, Server, AlertCircle, Volume2 } from 'lucide-react'
+import { Save, ShieldCheck, Server, AlertCircle, Volume2, MapPin, Check } from 'lucide-react'
 
 const API_BASE = '/api'
+
+const SWEDISH_COUNTIES = [
+    { id: '1', name: 'Stockholms län' },
+    { id: '3', name: 'Uppsala län' },
+    { id: '4', name: 'Södermanlands län' },
+    { id: '5', name: 'Östergötlands län' },
+    { id: '6', name: 'Jönköpings län' },
+    { id: '7', name: 'Kronobergs län' },
+    { id: '8', name: 'Kalmar län' },
+    { id: '9', name: 'Gotlands län' },
+    { id: '10', name: 'Blekinge län' },
+    { id: '12', name: 'Skåne län' },
+    { id: '13', name: 'Hallands län' },
+    { id: '14', name: 'Västra Götalands län' },
+    { id: '17', name: 'Värmlands län' },
+    { id: '18', name: 'Örebro län' },
+    { id: '19', name: 'Västmanlands län' },
+    { id: '20', name: 'Dalarnas län' },
+    { id: '21', name: 'Gävleborgs län' },
+    { id: '22', name: 'Västernorrlands län' },
+    { id: '23', name: 'Jämtlands län' },
+    { id: '24', name: 'Västerbottens län' },
+    { id: '25', name: 'Norrbottens län' }
+]
 
 export default function Settings() {
     const [settings, setSettings] = useState({
         api_key: '',
         mqtt_host: 'localhost',
         mqtt_port: '1883',
-        mqtt_topic: 'trafikinfo/events'
+        mqtt_topic: 'trafikinfo/events',
+        selected_counties: '1,4' // Default
     })
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null)
+
+    // Helper to toggle county selection
+    const toggleCounty = (id) => {
+        const currentCounties = settings.selected_counties ? settings.selected_counties.split(',') : []
+        let newCounties
+        if (currentCounties.includes(id)) {
+            newCounties = currentCounties.filter(c => c !== id)
+        } else {
+            newCounties = [...currentCounties, id]
+        }
+        setSettings({ ...settings, selected_counties: newCounties.join(',') })
+    }
 
     // Audio Settings State
     const [soundEnabled, setSoundEnabled] = useState(false)
@@ -52,14 +89,16 @@ export default function Settings() {
         } catch (error) {
             setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' })
         }
-
+        setSaving(false)
     }
 
+    const selectedCountiesList = settings.selected_counties ? settings.selected_counties.split(',') : []
+
     return (
-        <div className="max-w-2xl mx-auto space-y-8">
+        <div className="max-w-2xl mx-auto space-y-8 pb-20">
             <div>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Inställningar</h2>
-                <p className="text-slate-500 dark:text-slate-400">Hantera dina API-nycklar och MQTT-kopplingar</p>
+                <p className="text-slate-500 dark:text-slate-400">Hantera dina API-nycklar, MQTT och geografisk bevakning</p>
             </div>
 
             <div className="space-y-6">
@@ -79,6 +118,51 @@ export default function Settings() {
                             placeholder="Din API-nyckel..."
                         />
                         <p className="text-xs text-slate-500">Hämta din nyckel på dataportalen.trafikverket.se</p>
+                    </div>
+                </div>
+
+                {/* County Selection */}
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
+                    <div className="flex items-center gap-3 mb-2">
+                        <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Geografisk bevakning (Län)</h3>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Välj vilka län du vill ta emot händelser för från Trafikverket.</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                        {SWEDISH_COUNTIES.map((county) => (
+                            <label
+                                key={county.id}
+                                className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${selectedCountiesList.includes(county.id)
+                                    ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
+                                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                                    }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={selectedCountiesList.includes(county.id)}
+                                    onChange={() => toggleCounty(county.id)}
+                                />
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedCountiesList.includes(county.id) ? 'bg-blue-600 border-blue-600' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
+                                    }`}>
+                                    {selectedCountiesList.includes(county.id) && <Check className="w-3 h-3 text-white" />}
+                                </div>
+                                <span className="text-sm font-medium">{county.name}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                            {selectedCountiesList.length} valda län
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setSettings({ ...settings, selected_counties: SWEDISH_COUNTIES.map(c => c.id).join(',') })}
+                            className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                        >
+                            Välj alla
+                        </button>
                     </div>
                 </div>
 

@@ -17,17 +17,21 @@ class TrafikverketStream:
         self.last_error = None
         self.queue = asyncio.Queue()
 
-    async def get_sse_url(self, object_type: str = "Situation"):
+    async def get_sse_url(self, object_type: str = "Situation", county_ids: list = None):
+        filter_block = ""
+        if county_ids:
+            # Build <OR><EQ name="Deviation.CountyNo" value="X" />...</OR>
+            conditions = "".join([f'<EQ name="Deviation.CountyNo" value="{cid}" />' for cid in county_ids])
+            filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
+        else:
+            # Default fallback if nothing selected
+            filter_block = ""
+
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
             <QUERY objecttype='{object_type}' schemaversion='1.5' sseurl='true'>
-                <FILTER>
-                    <OR>
-                        <EQ name="Deviation.CountyNo" value="1" />
-                        <EQ name="Deviation.CountyNo" value="4" />
-                    </OR>
-                </FILTER>
+                {filter_block}
             </QUERY>
         </REQUEST>
         """
@@ -47,10 +51,10 @@ class TrafikverketStream:
                 logger.error(f"Failed to get SSE URL: {e}")
                 return None
 
-    async def start_streaming(self):
+    async def start_streaming(self, county_ids: list = None):
         self.running = True
         while self.running:
-            sse_url = await self.get_sse_url()
+            sse_url = await self.get_sse_url(county_ids=county_ids)
             if not sse_url:
                 await asyncio.sleep(10)
                 continue
@@ -196,3 +200,74 @@ def parse_situation(json_data):
     except Exception as e:
         logger.error(f"Error parsing situation: {e}")
         return []
+
+import math
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance in kilometers between two points using Haversine formula."""
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return float('inf')
+    
+    R = 6371  # Earth radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+def find_nearest_camera(lat, lon, cameras, max_dist_km=10.0):
+    if lat is None or lon is None or not cameras:
+        return None
+    
+    nearest = None
+    min_dist = max_dist_km
+    
+    for cam in cameras:
+        dist = calculate_distance(lat, lon, cam.get('latitude'), cam.get('longitude'))
+        if dist < min_dist:
+            min_dist = dist
+            nearest = cam
+    
+    return nearest
+
+async def get_cameras(api_key: str):
+    """Fetch all traffic cameras from Trafikverket API."""
+    url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
+    query = f"""
+    <REQUEST>
+        <LOGIN authenticationkey='{api_key}' />
+        <QUERY objecttype='Camera' schemaversion='1.0'>
+            <FILTER>
+                <EQ name="Deleted" value="false" />
+            </FILTER>
+            <INCLUDE>Id</INCLUDE>
+            <INCLUDE>Name</INCLUDE>
+            <INCLUDE>PhotoUrl</INCLUDE>
+            <INCLUDE>Geometry.WGS84</INCLUDE>
+        </QUERY>
+    </REQUEST>
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, content=query, headers={"Content-Type": "text/xml"})
+            response.raise_for_status()
+            data = response.json()
+            results = data.get('RESPONSE', {}).get('RESULT', [{}])[0].get('Camera', [])
+            
+            cameras = []
+            for res in results:
+                wgs84 = res.get('Geometry', {}).get('WGS84')
+                if wgs84:
+                    match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                    if match:
+                        cameras.append({
+                            "id": res.get('Id'),
+                            "name": res.get('Name'),
+                            "url": res.get('PhotoUrl'),
+                            "longitude": float(match.group(1)),
+                            "latitude": float(match.group(2))
+                        })
+            return cameras
+        except Exception as e:
+            logger.error(f"Failed to fetch cameras: {e}")
+            return []

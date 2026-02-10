@@ -1,7 +1,9 @@
-# Trafikinfo Flux
+# 🚦 Trafikinfo Flux
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)
+[![Version](https://img.shields.io/badge/version-26.2.10-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 ![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
 

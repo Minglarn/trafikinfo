@@ -41,6 +41,7 @@ export default function EventFeed() {
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
     const [showFilters, setShowFilters] = useState(false)
+    const [selectedImage, setSelectedImage] = useState(null)
 
     // Pagination state
     const [offset, setOffset] = useState(0)
@@ -399,13 +400,54 @@ export default function EventFeed() {
                                     </div>
                                 </div>
 
-                                <div className="flex md:flex-col justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 min-w-[140px]">
+                                <div className="flex md:flex-row justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6">
+                                    <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0 flex-1">
+                                        {/* Camera Preview */}
+                                        {event.camera_url && (
+                                            <div
+                                                className="relative w-full md:w-48 h-32 bg-black rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera cursor-zoom-in"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedImage({
+                                                        url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
+                                                        name: event.camera_name
+                                                    });
+                                                }}
+                                            >
+                                                <img
+                                                    src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                    alt={event.camera_name || 'Trafikkamera'}
+                                                    className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500"
+                                                    onError={(e) => {
+                                                        if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
+                                                            e.target.src = event.camera_url;
+                                                        } else {
+                                                            e.target.style.display = 'none';
+                                                        }
+                                                    }}
+                                                />
+                                                <div className="absolute top-2 right-2 flex gap-1">
+                                                    {event.camera_snapshot ? (
+                                                        <span className="text-[9px] font-bold text-white bg-blue-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
+                                                            ARKIV
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] font-bold text-white bg-indigo-600/80 px-1.5 py-0.5 rounded shadow-sm backdrop-blur-sm">
+                                                            KAMERA
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1">
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${event.camera_snapshot ? 'bg-blue-400' : 'bg-indigo-400'}`} />
+                                                    <span className="truncate">{event.camera_name || 'Kamera'}</span>
+                                                </div>
+                                            </div>
+                                        )}
 
-                                    <div className="flex flex-col gap-2 w-full md:w-48 mt-4 md:mt-0 flex-1">
                                         {/* Map / Location Preview */}
                                         {event.latitude && event.longitude ? (
                                             <div
-                                                className="relative flex-1 min-h-[100px] w-full bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                                className="relative flex-1 min-h-[128px] md:w-64 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
                                                 onClick={(e) => {
                                                     e.stopPropagation()
                                                     toggleMap(event.id)
@@ -481,6 +523,38 @@ export default function EventFeed() {
                     </div>
                 )}
             </div>
+
+            {/* Image Modal */}
+            {selectedImage && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div
+                        className="relative max-w-4xl w-full max-h-full flex flex-col items-center animate-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                            onClick={() => setSelectedImage(null)}
+                        >
+                            <X size={28} />
+                        </button>
+
+                        <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                            <img
+                                src={selectedImage.url}
+                                alt={selectedImage.name}
+                                className="max-w-full max-h-[75vh] object-contain"
+                            />
+                            <div className="p-4 bg-slate-900/90 backdrop-blur-sm border-t border-white/5 text-center">
+                                <h3 className="text-white font-medium">{selectedImage.name}</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">Trafikkamera ögonblicksbild (Full storlek)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
