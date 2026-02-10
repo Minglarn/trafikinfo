@@ -5,45 +5,61 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 ## Funktioner
 
 - **SSE Streaming**: Direktuppkoppling mot Trafikverket för händelser i realtid.
-- **Geofiltre**: Inbyggt stöd för att filtrera på specifika län (t.ex. Stockholm och Södermanland).
+- **Kartvisualisering**: Interaktiva kartor för att se exakt var händelser sker.
+- **Statistik & Analys**: Dashboard som visar trender och fördelning av trafikstörningar.
 - **MQTT Bridge**: Skickar vidare trafikdata till ditt smarta hem eller andra system.
-- **Web GUI**: Modernt gränssnitt byggt med React och Tailwind CSS.
-- **Historik**: Full spårbarhet av alla mottagna händelser via en sökbar databas.
-- **Dockerized**: Enkel installation och körning med Docker Compose.
+- **Ljudaviseringar**: Möjlighet att få ljudsignaler vid nya händelser.
+- **Web GUI**: Modernt, responsivt gränssnitt med mörkt läge.
+- **Historik**: Sökbar databas över alla historiska händelser.
 
-## Kom igång
+## Kom igång med Docker Compose
 
-### Förutsättningar
-- Docker och Docker Compose
-- En API-nyckel från [Trafikverket Datautbytesportal](https://dataportalen.trafikverket.se/)
+Det snabbaste sättet att starta Trafikinfo Flux är att använda Docker Compose.
 
-### Installation
+### 1. Förberedelser
+Du behöver en API-nyckel från [Trafikverket Datautbytesportal](https://dataportalen.trafikverket.se/).
 
-1. Klona repot:
-   ```bash
-   git clone https://github.com/Minglarn/trafikinfo
-   cd trafikinfo
-   ```
+### 2. Konfiguration (`docker-compose.yml`)
+Skapa en fil med följande innehåll:
 
-2. Skapa en `.env`-fil baserat på `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
+```yaml
+services:
+  trafikinfo:
+    image: ghcr.io/minglarn/trafikinfo:latest
+    container_name: trafikinfo-flux
+    ports:
+      - "7081:8000"
+    volumes:
+      - ./data:/app/data
+    restart: always
+    environment:
+      - TRAFIKVERKET_API_KEY=DIN_NYCKEL_HÄR
+      - MQTT_HOST=ditt.mqtt.host
+      - MQTT_PORT=1883
+      - MQTT_USER=användare
+      - MQTT_PASSWORD=lösenord
+      - DEBUG_MODE=false
+      - TZ=Europe/Stockholm
+```
 
-3. Starta systemet:
-   ```bash
-   docker-compose pull
-   docker-compose up -d
-   ```
+### 3. Starta
+Kör följande kommando i samma mapp:
+```bash
+docker-compose up -d
+```
 
-4. Öppna GUI:et på [http://localhost:7081](http://localhost:7081).
+Öppna sedan [http://localhost:7081](http://localhost:7081) i din webbläsare.
 
 ## Teknikstack
 
-- **Backend**: Python (FastAPI, SQLAlchemy, SSE-Starlette)
-- **Frontend**: React (Vite, Tailwind CSS, Framer Motion)
-- **Databas**: SQLite
+Projektet är byggt med följande teknologier:
+
+- **Programspråk**: Python (Backend) & JavaScript/HTML5 (Frontend)
+- **Backend Framework**: FastAPI, SSE-Starlette
+- **Frontend Framework**: React, Vite, Tailwind CSS, Framer Motion
+- **Kartor**: Leaflet
+- **Databas**: SQLite (SQLAlchemy)
 - **Kommunikation**: MQTT (Paho-MQTT), SSE (HTTP)
 
 ## Licens
-MIT
+Detta projekt är licensierat under **MIT License**.
