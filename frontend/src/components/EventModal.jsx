@@ -1,6 +1,7 @@
 
 import React, { useEffect } from 'react'
 import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import EventMap from './EventMap'

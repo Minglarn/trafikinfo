@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Save, ShieldCheck, Server, AlertCircle } from 'lucide-react'
+import { Save, ShieldCheck, Server, AlertCircle, Volume2 } from 'lucide-react'
 
 const API_BASE = '/api'
 
@@ -13,6 +13,22 @@ export default function Settings() {
     })
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null)
+
+    // Audio Settings State
+    const [soundEnabled, setSoundEnabled] = useState(false)
+    const [soundFile, setSoundFile] = useState('chime1.mp3')
+
+    useEffect(() => {
+        const savedEnabled = localStorage.getItem('soundEnabled') === 'true'
+        const savedFile = localStorage.getItem('soundFile') || 'chime1.mp3'
+        setSoundEnabled(savedEnabled)
+        setSoundFile(savedFile)
+    }, [])
+
+    const playSound = () => {
+        const audio = new Audio(`/sounds/${soundFile}`)
+        audio.play().catch(e => console.error('Error playing sound:', e))
+    }
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -35,9 +51,8 @@ export default function Settings() {
             setMessage({ type: 'success', text: 'Inställningarna har sparats!' })
         } catch (error) {
             setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' })
-        } finally {
-            setSaving(false)
         }
+
     }
 
     return (
@@ -47,7 +62,7 @@ export default function Settings() {
                 <p className="text-slate-500 dark:text-slate-400">Hantera dina API-nycklar och MQTT-kopplingar</p>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-6">
+            <div className="space-y-6">
                 {/* API Key */}
                 <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                     <div className="flex items-center gap-3 mb-2">
@@ -65,6 +80,65 @@ export default function Settings() {
                         />
                         <p className="text-xs text-slate-500">Hämta din nyckel på dataportalen.trafikverket.se</p>
                     </div>
+                </div>
+
+                {/* Sound Settings */}
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
+                    <div className="flex items-center gap-3 mb-2">
+                        <Volume2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Ljudnotiser</h3>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spela ljud vid ny händelse</label>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const newValue = !soundEnabled
+                                setSoundEnabled(newValue)
+                                localStorage.setItem('soundEnabled', newValue)
+                                // Trigger a custom event so other components can update immediately
+                                window.dispatchEvent(new Event('storage'))
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${soundEnabled ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                            />
+                        </button>
+                    </div>
+
+                    {soundEnabled && (
+                        <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Välj ljud</label>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={soundFile}
+                                    onChange={(e) => {
+                                        const newFile = e.target.value
+                                        setSoundFile(newFile)
+                                        localStorage.setItem('soundFile', newFile)
+                                        window.dispatchEvent(new Event('storage'))
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors appearance-none"
+                                >
+                                    <option value="chime1.mp3">Chime 1 (MP3)</option>
+                                    <option value="chime2.wav">Chime 2 (WAV)</option>
+                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const audio = new Audio(`/sounds/${soundFile}`)
+                                        audio.play().catch(e => console.error('Error playing sound:', e))
+                                    }}
+                                    className="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                    title="Provlyssna"
+                                >
+                                    <Volume2 className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* MQTT Config */}
@@ -138,7 +212,8 @@ export default function Settings() {
                 )}
 
                 <button
-                    type="submit"
+                    type="button"
+                    onClick={handleSave}
                     disabled={saving}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
                 >
@@ -151,7 +226,7 @@ export default function Settings() {
                         </>
                     )}
                 </button>
-            </form>
+            </div>
         </div>
     )
 }

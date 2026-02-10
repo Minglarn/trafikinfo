@@ -62,8 +62,8 @@ export default function Statistics() {
                             key={hours}
                             onClick={() => setTimeRange(hours)}
                             className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${timeRange === hours
-                                    ? 'bg-blue-600 text-white shadow-sm'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                         >
                             {hours === 24 ? '24h' : hours === 168 ? '7d' : '30d'}
@@ -189,7 +189,7 @@ export default function Statistics() {
     )
 }
 
-function StatCard({ title, value, icon: Icon, color, trend }) {
+function StatCard({ title, value, icon: Icon, color, trend }) { // eslint-disable-line no-unused-vars
     const colorClasses = {
         blue: 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
         red: 'bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400',

@@ -1,0 +1,68 @@
+
+/app/frontend/src/components/EventFeed.jsx
+    5:10  error    'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+  123:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  121 |
+  122 |     useEffect(() => {
+> 123 |         fetchEvents(true) // Initial load with reset
+      |         ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  124 |
+  125 |         const eventSource = new EventSource(`${API_BASE}/stream`)
+  126 |  react-hooks/set-state-in-effect
+  158:8   warning  React Hook useEffect has a missing dependency: 'fetchEvents'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  176:51  warning  The ref value 'observerTarget.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'observerTarget.current' to a variable inside the effect, and use that variable in the cleanup function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+  179:8   warning  React Hook useEffect has a missing dependency: 'fetchEvents'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+
+/app/frontend/src/components/EventModal.jsx
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/frontend/src/components/HistoryBoard.jsx
+  11:12  error    'loading' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  17:9   error    Error: Cannot access variable before it is declared
+
+`fetchHistory` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  15 |
+  16 |     useEffect(() => {
+> 17 |         fetchHistory()
+     |         ^^^^^^^^^^^^ `fetchHistory` accessed before it is declared
+  18 |         // Poll every 30 seconds
+  19 |         const interval = setInterval(fetchHistory, 30000)
+  20 |         return () => clearInterval(interval)
+
+  21 |     }, [hours]) // Reload when hours change
+  22 |
+> 23 |     const fetchHistory = async () => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 24 |         try {
+     | ^^^^^^^^^^^^^
+> 25 |             const response = await axios.get(`${API_BASE}/events`, {
+     …
+     | ^^^^^^^^^^^^^
+> 36 |         }
+     | ^^^^^^^^^^^^^
+> 37 |     }
+     | ^^^^^^ `fetchHistory` is declared here
+  38 |
+  39 |     const filteredHistory = history.filter(event =>
+  40 |         (event.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||  react-hooks/immutability
+  21:8   warning  React Hook useEffect has a missing dependency: 'fetchHistory'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+
+/app/frontend/src/components/Settings.jsx
+  230:1  error  Parsing error: Unexpected token
+
+/app/frontend/src/components/Sidebar.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/app/frontend/src/components/Statistics.jsx
+  192:41  error  'Icon' is defined but never used  no-unused-vars
+
+✖ 12 problems (8 errors, 4 warnings)
+

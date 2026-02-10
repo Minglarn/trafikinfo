@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
 import { MapPin, Info, AlertTriangle, Clock, Filter, X } from 'lucide-react'
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
 
@@ -120,6 +121,7 @@ export default function EventFeed() {
     }
 
     useEffect(() => {
+        // eslint-disable-next-line
         fetchEvents(true) // Initial load with reset
 
         const eventSource = new EventSource(`${API_BASE}/stream`)
@@ -134,6 +136,13 @@ export default function EventFeed() {
                 // Add new event to top and increment offset so we don't load a duplicate at the bottom
                 setEvents(prev => [newEvent, ...prev])
                 setOffset(prev => prev + 1)
+
+                // Play sound if enabled
+                if (localStorage.getItem('soundEnabled') === 'true') {
+                    const file = localStorage.getItem('soundFile') || 'chime1.mp3'
+                    const audio = new Audio(`/sounds/${file}`)
+                    audio.play().catch(e => console.error('Error playing sound:', e))
+                }
             } catch (err) {
                 console.error('Error parsing SSE event:', err)
             }

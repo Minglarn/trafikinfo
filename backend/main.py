@@ -85,12 +85,36 @@ async def event_processor():
         for ev in events:
             # Check if event already exists
             existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
-            if not existing:
-                # Parse parsed times to datetime if necessary, or let SQLAlchemy handle ISO strings (usually works with SQLite)
-                # But to be safe and consistent, let's keep them as is from parser (strings) and let SQLite adapter handle it,
-                # or better, parse them here if we want strictly datetime objects. 
-                # For now, we will pass them as is.
+            
+            if existing:
+                # Update existing event with potentially new data (and new columns like traffic_restriction_type)
+                existing.title = ev['title']
+                existing.description = ev['description']
+                existing.location = ev['location']
+                existing.icon_id = ev['icon_id']
+                existing.message_type = ev.get('message_type')
+                existing.severity_code = ev.get('severity_code')
+                existing.severity_text = ev.get('severity_text')
+                existing.road_number = ev.get('road_number')
+                existing.start_time = datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None
+                existing.end_time = datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None
+                existing.temporary_limit = ev.get('temporary_limit')
+                existing.traffic_restriction_type = ev.get('traffic_restriction_type')
+                existing.latitude = ev.get('latitude')
+                existing.longitude = ev.get('longitude')
                 
+                db.commit()
+                # We don't re-push to MQTT here to avoid spamming, unless specifically requested.
+                # But we do want to broadcast the update to frontend? 
+                # Yes, let's treat it as a new event for the frontend stream so specific fields get updated live.
+                # Re-using the logic below for broadcasting would be good.
+                
+                new_event = existing
+                mqtt_data = ev.copy() # For frontend broadcast payload construction
+                if ev.get('icon_id'):
+                    mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+
+            else:
                 new_event = TrafficEvent(
                     external_id=ev['external_id'],
                     event_type=ev['event_type'],
@@ -119,8 +143,8 @@ async def event_processor():
                 mqtt_data = ev.copy()
                 if ev.get('icon_id'):
                     mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
-
-                # Push to MQTT
+ 
+                # Push to MQTT (Only for new events)
                 if mqtt_client.publish_event(mqtt_data):
                     new_event.pushed_to_mqtt = 1
                     logger.info(f"Event {ev['external_id']} pushed to MQTT")

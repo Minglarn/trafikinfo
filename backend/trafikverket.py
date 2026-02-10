@@ -152,7 +152,7 @@ def parse_situation(json_data):
                     "icon_id": icon_id,
                     "event_type": "Situation",
                     "timestamp": devi.get('CreationTime'),
-                    "message_type": devi.get('MessageType'),
+                    "message_type": devi.get('MessageCode') or devi.get('MessageType'),
                     "severity_code": severity_code,
                     "severity_text": severity_text,
                     "road_number": devi.get('RoadNumber'),

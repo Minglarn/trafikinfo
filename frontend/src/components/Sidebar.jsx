@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2 } from 'lucide-react'
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
 
 export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme }) {

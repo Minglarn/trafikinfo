@@ -8,17 +8,12 @@ const API_BASE = '/api'
 
 export default function HistoryBoard() {
     const [history, setHistory] = useState([])
-    const [loading, setLoading] = useState(true)
+
     const [searchTerm, setSearchTerm] = useState('')
     const [hours, setHours] = useState(24) // Default 24 hours
     const [selectedEvent, setSelectedEvent] = useState(null)
 
-    useEffect(() => {
-        fetchHistory()
-        // Poll every 30 seconds
-        const interval = setInterval(fetchHistory, 30000)
-        return () => clearInterval(interval)
-    }, [hours]) // Reload when hours change
+
 
     const fetchHistory = async () => {
         try {
@@ -29,12 +24,18 @@ export default function HistoryBoard() {
                 }
             })
             setHistory(response.data)
-            setLoading(false)
+
         } catch (error) {
             console.error('Error fetching history:', error)
-            setLoading(false)
         }
     }
+
+    useEffect(() => {
+        fetchHistory()
+        // Poll every 30 seconds
+        const interval = setInterval(fetchHistory, 30000)
+        return () => clearInterval(interval)
+    }, [hours]) // Reload when hours change
 
     const filteredHistory = history.filter(event =>
         (event.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

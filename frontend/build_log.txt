@@ -1,0 +1,29 @@
+
+> frontend@0.0.0 build
+> vite build
+
+vite v6.4.1 building for production...
+transforming...
+✓ 8 modules transformed.
+✗ Build failed in 19.07s
+error during build:
+[vite:esbuild] Transform failed with 1 error:
+/app/frontend/src/components/Settings.jsx:230:0: ERROR: Unexpected end of file
+file: /app/frontend/src/components/Settings.jsx:230:0
+
+Unexpected end of file
+228|          )
+229|      }
+230|  
+   |  ^
+
+    at failureErrorWithLog (/app/frontend/node_modules/esbuild/lib/main.js:1467:15)
+    at /app/frontend/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/app/frontend/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/app/frontend/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/app/frontend/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)
