@@ -77,7 +77,7 @@ async def startup_event():
     # Load settings & seed from environment if database is empty
     db = SessionLocal()
     
-    # Seeding & Sync logic: if a key exists in ENV, ensure it matches DB (ENV takes precedence)
+    # Seeding logic: Environment variables provide defaults if database keys are missing
     for env_key, db_key in ENV_TO_DB.items():
         env_val = os.getenv(env_key)
         if env_val is not None: # Check for None explicitly, allow empty strings if set
@@ -86,9 +86,6 @@ async def startup_event():
                 logger.info(f"Seeding settings key '{db_key}' from environment variable '{env_key}'")
                 new_setting = Settings(key=db_key, value=env_val)
                 db.add(new_setting)
-            elif existing.value != env_val:
-                logger.info(f"Syncing settings key '{db_key}' from environment variable '{env_key}' (Overwriting DB)")
-                existing.value = env_val
     
     # Seed defaults for keys that might not be in ENV
     for key, val in DEFAULTS.items():
