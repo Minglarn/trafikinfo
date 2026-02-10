@@ -395,20 +395,6 @@ export default function EventFeed() {
                                 </div>
 
                                 <div className="flex md:flex-col justify-between md:justify-start items-center md:items-end gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 min-w-[140px]">
-                                    <div className="flex flex-col items-center md:items-end">
-                                        <span className="text-[10px] uppercase font-bold text-slate-500 mb-1">MQTT Status</span>
-                                        {event.pushed_to_mqtt ? (
-                                            <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 font-medium">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-green-400"></span>
-                                                Pushed
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500"></span>
-                                                Pending
-                                            </div>
-                                        )}
-                                    </div>
 
                                     <div className="flex flex-col gap-2 w-full md:w-48 mt-4 md:mt-0">
                                         {/* Map / Location Preview */}
