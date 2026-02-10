@@ -136,6 +136,15 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
                     <span className={`w-2.5 h-2.5 rounded-full ${status.mqtt.connected ? 'bg-green-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'}`}></span>
                     {!isCollapsed && <span className="text-sm text-slate-600 dark:text-slate-300">MQTT Broker</span>}
                 </div>
+
+                {/* Version Display */}
+                {!isCollapsed && (
+                    <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800/50">
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
+                            Version {status.version || '...'}
+                        </p>
+                    </div>
+                )}
             </div>
         </motion.div>
     )

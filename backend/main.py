@@ -1,4 +1,4 @@
-VERSION = "26.2.10"
+VERSION = "26.2.16"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -427,7 +427,8 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "latitude": e.latitude,
             "longitude": e.longitude,
             "camera_url": e.camera_url,
-            "camera_name": e.camera_name
+            "camera_name": e.camera_name,
+            "camera_snapshot": e.camera_snapshot
         } for e in events
     ]
 
@@ -452,17 +453,14 @@ def get_stats(hours: int = 24, db: Session = Depends(get_db)):
         .filter(TrafficEvent.created_at >= cutoff)\
         .group_by(TrafficEvent.severity_text).all()
         
-    # Events over time (grouped by hour) - simpler approach for SQLite
-    # In a real postgres we would use date_trunc. For sqlite we can fetch and aggregate in python or use strftime
+    # Events over time (grouped by hour)
     events = base_query.with_entities(TrafficEvent.created_at).all()
     
     timeline = {}
     for e in events:
-        # Group by hour: "YYYY-MM-DD HH:00"
         key = e.created_at.strftime("%Y-%m-%d %H:00")
         timeline[key] = timeline.get(key, 0) + 1
         
-    # Sort timeline
     sorted_timeline = [{"time": k, "count": v} for k, v in sorted(timeline.items())]
 
     return {
