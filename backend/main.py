@@ -517,18 +517,40 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
     ]
 
 @app.get("/api/cameras")
-def get_cameras_api(only_favorites: bool = False, db: Session = Depends(get_db)):
+@app.get("/api/cameras")
+def get_cameras_api(
+    only_favorites: bool = False, 
+    limit: int = 24, 
+    offset: int = 0, 
+    search: str = None,
+    is_favorite: bool = None,
+    db: Session = Depends(get_db)
+):
     # Get selected counties from settings
     county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
     selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
     
-    query = db.query(Camera)
+    # Base query for all relevant cameras in selected counties
+    base_query = db.query(Camera)
     if selected_counties:
-        query = query.filter(Camera.county_no.in_(selected_counties))
+        base_query = base_query.filter(Camera.county_no.in_(selected_counties))
         
+    # Apply search filter across all records if provided
+    if search:
+        search_filter = f"%{search}%"
+        base_query = base_query.filter(
+            (Camera.name.ilike(search_filter)) | 
+            (Camera.location.ilike(search_filter)) |
+            (Camera.description.ilike(search_filter))
+        )
+
+    # Calculate metadata before pagination
+    total_count = base_query.count()
+    fav_count = base_query.filter(Camera.is_favorite == 1).count()
+
+    # If only_favorites is requested, legacy-style return but with counts
     if only_favorites:
-        favorites = query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
-        other_count = query.filter(Camera.is_favorite == 0).count()
+        favorites = base_query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
         return {
             "favorites": [{
                 "id": c.id, "name": c.name, "description": c.description, "location": c.location,
@@ -536,24 +558,39 @@ def get_cameras_api(only_favorites: bool = False, db: Session = Depends(get_db))
                 "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
                 "county_no": c.county_no, "is_favorite": True
             } for c in favorites],
-            "other_count": other_count
+            "favorites_count": fav_count,
+            "total_count": total_count,
+            "other_count": total_count - fav_count
         }
 
-    cams = query.order_by(Camera.is_favorite.desc(), Camera.name.asc()).all()
-    return [{
-        "id": c.id,
-        "name": c.name,
-        "description": c.description,
-        "location": c.location,
-        "type": c.type,
-        "url": c.photo_url,
-        "fullsize_url": c.fullsize_url,
-        "photo_time": c.photo_time,
-        "latitude": c.latitude,
-        "longitude": c.longitude,
-        "county_no": c.county_no,
-        "is_favorite": bool(c.is_favorite)
-    } for c in cams]
+    # Applied specific favorite filter if provided (for targeted fetches)
+    if is_favorite is not None:
+        base_query = base_query.filter(Camera.is_favorite == (1 if is_favorite else 0))
+
+    # Order and Paginate
+    # Default order: favorites first, then name
+    query = base_query.order_by(Camera.is_favorite.desc(), Camera.name.asc())
+    cams = query.offset(offset).limit(limit).all()
+
+    return {
+        "cameras": [{
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "location": c.location,
+            "type": c.type,
+            "url": c.photo_url,
+            "fullsize_url": c.fullsize_url,
+            "photo_time": c.photo_time,
+            "latitude": c.latitude,
+            "longitude": c.longitude,
+            "county_no": c.county_no,
+            "is_favorite": bool(c.is_favorite)
+        } for c in cams],
+        "total": total_count,
+        "favorites_count": fav_count,
+        "has_more": (offset + limit) < total_count
+    }
 
 @app.post("/api/cameras/{camera_id}/toggle-favorite")
 def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db)):

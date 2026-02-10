@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.13] - 2026-02-10
+
+### Added
+- **Infinite Scroll**: Truly dynamic loading for the camera grid with backend-supported pagination.
+- **Visibility Toggles**: New user control to show/hide "Övriga kameror" (non-favorite cameras).
+- **Server-side Search**: Optimized camera search that queries the database directly for performance.
+
+### Changed
+- **Paginated API**: Refactored `/api/cameras` to support `limit`, `offset`, and `search` filters.
+
 ## [26.2.12] - 2026-02-10
 
 ### Fixed

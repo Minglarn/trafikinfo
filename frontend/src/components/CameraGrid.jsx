@@ -6,93 +6,110 @@ import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 
 const CameraGrid = () => {
-    const [favoriteCameras, setFavoriteCameras] = useState([])
-    const [allCameras, setAllCameras] = useState([])
-    const [otherCount, setOtherCount] = useState(0)
-    const [allLoaded, setAllLoaded] = useState(false)
+    const [favorites, setFavorites] = useState([])
+    const [others, setOthers] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [selectedCamera, setSelectedCamera] = useState(null)
-    const [refreshing, setRefreshing] = useState(false)
+    const [showOthers, setShowOthers] = useState(false)
+    const [counts, setCounts] = useState({ total: 0, favorites: 0, others: 0 })
+    const [offset, setOffset] = useState(0)
+    const [hasMore, setHasMore] = useState(false)
+    const PAGE_SIZE = 24
 
-    const fetchCameras = async (showLoading = true, forceAll = false) => {
-        if (showLoading) setLoading(true)
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500)
+        return () => clearTimeout(timer)
+    }, [searchTerm])
+
+    // Initial fetch for favorites and counts
+    const fetchInitial = async () => {
+        setLoading(true)
         try {
-            const isAllMode = allLoaded || forceAll || searchTerm.length > 0;
-            const response = await axios.get('/api/cameras', {
-                params: { only_favorites: !isAllMode }
+            const res = await axios.get('/api/cameras', { params: { only_favorites: true } })
+            setFavorites(res.data.favorites || [])
+            setCounts({
+                total: res.data.total_count,
+                favorites: res.data.favorites_count,
+                others: res.data.other_count
             })
 
-            if (isAllMode) {
-                const data = Array.isArray(response.data) ? response.data : (response.data.favorites || []);
-                setAllCameras(data)
-                setFavoriteCameras(data.filter(c => c.is_favorite))
-                setAllLoaded(true)
-            } else {
-                setFavoriteCameras(response.data.favorites || [])
-                setOtherCount(response.data.other_count || 0)
-                // Auto-load all if no favorites exist
-                if (response.data.favorites?.length === 0 && response.data.other_count > 0) {
-                    fetchCameras(false, true)
-                }
+            // If search is active, trigger first batch of others
+            if (debouncedSearch) {
+                fetchOthers(0, true)
             }
         } catch (error) {
-            console.error('Failed to fetch cameras:', error)
+            console.error('Initial fetch failed:', error)
         } finally {
-            if (showLoading) setLoading(false)
-            setRefreshing(false)
+            setLoading(false)
+        }
+    }
+
+    // Fetch batch of "others"
+    const fetchOthers = async (currentOffset, reset = false) => {
+        if (loadingMore) return
+        setLoadingMore(true)
+        try {
+            const res = await axios.get('/api/cameras', {
+                params: {
+                    limit: PAGE_SIZE,
+                    offset: currentOffset,
+                    search: debouncedSearch,
+                    is_favorite: false
+                }
+            })
+
+            const newCams = res.data.cameras || []
+            setOthers(prev => reset ? newCams : [...prev, ...newCams])
+            setHasMore(res.data.has_more)
+            setOffset(currentOffset + PAGE_SIZE)
+        } catch (error) {
+            console.error('Fetch others failed:', error)
+        } finally {
+            setLoadingMore(false)
         }
     }
 
     useEffect(() => {
-        fetchCameras()
-        const interval = setInterval(() => fetchCameras(false), 30000) // Refresh every 30s
-        return () => clearInterval(interval)
-    }, [])
+        fetchInitial()
+    }, [debouncedSearch])
+
+    useEffect(() => {
+        if (showOthers && others.length === 0 && !debouncedSearch) {
+            fetchOthers(0, true)
+        }
+    }, [showOthers])
 
     const toggleFavorite = async (id) => {
         try {
             const response = await axios.post(`/api/cameras/${id}/toggle-favorite`)
-            const isFav = response.data.is_favorite;
-
-            // Update lists locally
-            setFavoriteCameras(prev => {
-                if (isFav) {
-                    const cam = allCameras.find(c => c.id === id);
-                    return cam ? [...prev, { ...cam, is_favorite: true }] : prev;
-                } else {
-                    return prev.filter(c => c.id !== id);
-                }
-            });
-
-            setAllCameras(prev => prev.map(cam =>
-                cam.id === id ? { ...cam, is_favorite: isFav } : cam
-            ));
+            // Simplest way to handle favorites toggling with paginated search
+            fetchInitial()
+            if (showOthers || debouncedSearch) {
+                fetchOthers(0, true)
+            }
         } catch (error) {
-            console.error('Failed to toggle favorite:', error)
+            console.error('Toggle favorite failed:', error)
         }
     }
 
-    const { filteredFavorites, filteredOthers } = useMemo(() => {
-        const lowerSearch = searchTerm.toLowerCase()
-        const filterFn = cam =>
-            cam.name?.toLowerCase().includes(lowerSearch) ||
-            cam.location?.toLowerCase().includes(lowerSearch)
+    // Infinite scroll observer
+    const observer = React.useRef()
+    const lastElementRef = React.useCallback(node => {
+        if (loadingMore) return
+        if (observer.current) observer.current.disconnect()
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                fetchOthers(offset)
+            }
+        })
+        if (node) observer.current.observe(node)
+    }, [loadingMore, hasMore, offset])
 
-        const sortedFavs = favoriteCameras.filter(filterFn).sort((a, b) => a.name.localeCompare(b.name))
-
-        let others = []
-        if (allLoaded || searchTerm.length > 0) {
-            others = allCameras.filter(cam => !cam.is_favorite && filterFn(cam)).sort((a, b) => a.name.localeCompare(b.name))
-        }
-
-        return {
-            filteredFavorites: sortedFavs,
-            filteredOthers: others
-        }
-    }, [favoriteCameras, allCameras, allLoaded, searchTerm])
-
-    const CameraCard = ({ camera }) => (
+    const CameraCard = React.memo(({ camera }) => (
         <motion.div
             layout
             initial={{ opacity: 0, scale: 0.9 }}
@@ -104,6 +121,7 @@ const CameraGrid = () => {
                 <img
                     src={camera.url}
                     alt={camera.name}
+                    loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => {
                         e.target.src = 'https://via.placeholder.com/400x300?text=Bild+saknas';
@@ -147,9 +165,9 @@ const CameraGrid = () => {
                 </div>
             </div>
         </motion.div>
-    )
+    ))
 
-    if (loading && favoriteCameras.length === 0 && allCameras.length === 0) {
+    if (loading && favorites.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                 <RefreshCw className="w-8 h-8 animate-spin mb-4" />
@@ -171,37 +189,39 @@ const CameraGrid = () => {
                     </p>
                 </div>
 
-                <div className="relative group min-w-[300px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Sök bland kameror..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
-                    />
+                <div className="flex items-center gap-4">
+                    <div className="relative group min-w-[300px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="Sök bland kameror..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                        />
+                    </div>
                 </div>
             </header>
 
-            {filteredFavorites.length === 0 && filteredOthers.length === 0 && (!allLoaded || searchTerm.length > 0) ? (
+            {!debouncedSearch && favorites.length === 0 && counts.total === 0 && !loading ? (
                 <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-12 text-center border border-dashed border-slate-200 dark:border-slate-800">
                     <Camera className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">Inga kameror hittades</h3>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2">Prova att söka på något annat eller kontrollera dina valda län i inställningar.</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2">Prova att kontrollera dina valda län i inställningar.</p>
                 </div>
             ) : (
                 <div className="space-y-10">
                     {/* Favorites Section */}
-                    {filteredFavorites.length > 0 && (
+                    {favorites.length > 0 && (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">Favoriter</h2>
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">Favoriter ({favorites.length})</h2>
                                 <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 <AnimatePresence mode="popLayout">
-                                    {filteredFavorites.map((camera) => (
+                                    {favorites.map((camera) => (
                                         <CameraCard key={camera.id} camera={camera} />
                                     ))}
                                 </AnimatePresence>
@@ -210,39 +230,69 @@ const CameraGrid = () => {
                     )}
 
                     {/* All / Other Cameras Section */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                            <Camera className="w-5 h-5 text-slate-400" />
-                            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">
-                                {favoriteCameras.length > 0 ? 'Övriga kameror' : 'Alla kameror'}
-                            </h2>
-                            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
-                        </div>
-
-                        {!allLoaded && searchTerm.length === 0 ? (
-                            <div className="flex flex-col items-center py-10 bg-white/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                                <p className="text-slate-500 mb-4 text-sm">Det finns ytterligare {otherCount} kameror i dina valda län.</p>
-                                <button
-                                    onClick={() => fetchCameras(true, true)}
-                                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-medium"
-                                >
-                                    Visa alla kameror
-                                </button>
-                            </div>
-                        ) : (
-                            filteredOthers.length === 0 && searchTerm ? (
-                                <p className="text-center py-10 text-slate-500 text-sm italic">Inga matchningar bland övriga kameror.</p>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    <AnimatePresence mode="popLayout">
-                                        {filteredOthers.map((camera) => (
-                                            <CameraCard key={camera.id} camera={camera} />
-                                        ))}
-                                    </AnimatePresence>
+                    {counts.others > 0 || (debouncedSearch && others.length > 0) ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 flex-1">
+                                    <Camera className="w-5 h-5 text-slate-400" />
+                                    <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">
+                                        {debouncedSearch ? `Sökresultat (${counts.others})` : `Övriga kameror (${counts.others})`}
+                                    </h2>
+                                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
                                 </div>
-                            )
-                        )}
-                    </div>
+
+                                {!debouncedSearch && counts.others > 0 && (
+                                    <button
+                                        onClick={() => setShowOthers(!showOthers)}
+                                        className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${showOthers
+                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                            : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20'
+                                            }`}
+                                    >
+                                        {showOthers ? 'Dölj övriga' : 'Visa övriga'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {(showOthers || debouncedSearch) ? (
+                                <div className="space-y-6">
+                                    {others.length === 0 && !loadingMore ? (
+                                        <p className="text-center py-10 text-slate-500 text-sm italic">Inga matchningar bland övriga kameror.</p>
+                                    ) : (
+                                        <>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                <AnimatePresence mode="popLayout">
+                                                    {others.map((camera, index) => (
+                                                        <div key={camera.id} ref={index === others.length - 1 ? lastElementRef : null}>
+                                                            <CameraCard camera={camera} />
+                                                        </div>
+                                                    ))}
+                                                </AnimatePresence>
+                                            </div>
+                                            {loadingMore && (
+                                                <div className="flex justify-center py-4">
+                                                    <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            ) : (
+                                counts.others > 0 && (
+                                    <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20">
+                                        <p className="text-slate-500 text-sm">
+                                            {counts.others} kameror är dolda. Klicka på "Visa övriga" eller börja söka för att ladda in dem.
+                                        </p>
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    ) : debouncedSearch && !loadingMore && others.length === 0 && (
+                        <div className="py-20 text-center">
+                            <Search className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
+                            <p className="text-slate-500">Inga kameror matchade din sökning.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
