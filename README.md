@@ -1,5 +1,10 @@
 # Trafikinfo Flux
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
+![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+
 Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata från det svenska Trafikverkets API. Systemet strömmar händelser (Situationer), lagrar dem i en lokal databas för historik och kan automatiskt pusha utvalda händelser till en MQTT-broker.
 
 ## Funktioner
