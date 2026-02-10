@@ -40,10 +40,19 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme })
             className="h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 relative z-20 shadow-xl dark:shadow-none"
         >
             {/* Logo Area */}
-            <div className="p-6 flex items-center justify-center overflow-hidden whitespace-nowrap">
-                <div className={`transition-all duration-300 ${isCollapsed ? 'w-10 h-10' : 'w-48'}`}>
+            <div className="p-6 flex flex-col items-center justify-center overflow-hidden whitespace-nowrap gap-4">
+                <div className={`transition-all duration-300 bg-white p-2 rounded-xl shadow-sm ${isCollapsed ? 'w-12 h-12' : 'w-48'}`}>
                     <img src="/logo.png" alt="Trafikinfo Flux" className="w-full h-full object-contain" />
                 </div>
+                {!isCollapsed && (
+                    <motion.h1
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-xl font-bold tracking-tight text-slate-900 dark:text-white"
+                    >
+                        Trafikinfo <span className="text-blue-600 dark:text-blue-500">Flux</span>
+                    </motion.h1>
+                )}
             </div>
 
             {/* Navigation */}
