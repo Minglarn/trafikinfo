@@ -516,8 +516,8 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
         } for v in versions
     ]
 
-@app.get("/api/cameras", response_model=List[dict])
-def get_cameras_api(db: Session = Depends(get_db)):
+@app.get("/api/cameras")
+def get_cameras_api(only_favorites: bool = False, db: Session = Depends(get_db)):
     # Get selected counties from settings
     county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
     selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
@@ -526,6 +526,19 @@ def get_cameras_api(db: Session = Depends(get_db)):
     if selected_counties:
         query = query.filter(Camera.county_no.in_(selected_counties))
         
+    if only_favorites:
+        favorites = query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
+        other_count = query.filter(Camera.is_favorite == 0).count()
+        return {
+            "favorites": [{
+                "id": c.id, "name": c.name, "description": c.description, "location": c.location,
+                "type": c.type, "url": c.photo_url, "fullsize_url": c.fullsize_url,
+                "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
+                "county_no": c.county_no, "is_favorite": True
+            } for c in favorites],
+            "other_count": other_count
+        }
+
     cams = query.order_by(Camera.is_favorite.desc(), Camera.name.asc()).all()
     return [{
         "id": c.id,

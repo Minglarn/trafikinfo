@@ -6,17 +6,36 @@ import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 
 const CameraGrid = () => {
-    const [cameras, setCameras] = useState([])
+    const [favoriteCameras, setFavoriteCameras] = useState([])
+    const [allCameras, setAllCameras] = useState([])
+    const [otherCount, setOtherCount] = useState(0)
+    const [allLoaded, setAllLoaded] = useState(false)
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedCamera, setSelectedCamera] = useState(null)
     const [refreshing, setRefreshing] = useState(false)
 
-    const fetchCameras = async (showLoading = true) => {
+    const fetchCameras = async (showLoading = true, forceAll = false) => {
         if (showLoading) setLoading(true)
         try {
-            const response = await axios.get('/api/cameras')
-            setCameras(response.data)
+            const isAllMode = allLoaded || forceAll || searchTerm.length > 0;
+            const response = await axios.get('/api/cameras', {
+                params: { only_favorites: !isAllMode }
+            })
+
+            if (isAllMode) {
+                const data = Array.isArray(response.data) ? response.data : (response.data.favorites || []);
+                setAllCameras(data)
+                setFavoriteCameras(data.filter(c => c.is_favorite))
+                setAllLoaded(true)
+            } else {
+                setFavoriteCameras(response.data.favorites || [])
+                setOtherCount(response.data.other_count || 0)
+                // Auto-load all if no favorites exist
+                if (response.data.favorites?.length === 0 && response.data.other_count > 0) {
+                    fetchCameras(false, true)
+                }
+            }
         } catch (error) {
             console.error('Failed to fetch cameras:', error)
         } finally {
@@ -34,25 +53,44 @@ const CameraGrid = () => {
     const toggleFavorite = async (id) => {
         try {
             const response = await axios.post(`/api/cameras/${id}/toggle-favorite`)
-            setCameras(cameras.map(cam =>
-                cam.id === id ? { ...cam, is_favorite: response.data.is_favorite } : cam
-            ))
+            const isFav = response.data.is_favorite;
+
+            // Update lists locally
+            setFavoriteCameras(prev => {
+                if (isFav) {
+                    const cam = allCameras.find(c => c.id === id);
+                    return cam ? [...prev, { ...cam, is_favorite: true }] : prev;
+                } else {
+                    return prev.filter(c => c.id !== id);
+                }
+            });
+
+            setAllCameras(prev => prev.map(cam =>
+                cam.id === id ? { ...cam, is_favorite: isFav } : cam
+            ));
         } catch (error) {
             console.error('Failed to toggle favorite:', error)
         }
     }
 
-    const { favoriteCameras, otherCameras } = useMemo(() => {
-        const filtered = cameras.filter(cam =>
-            cam.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            cam.location?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).sort((a, b) => a.name.localeCompare(b.name))
+    const { filteredFavorites, filteredOthers } = useMemo(() => {
+        const lowerSearch = searchTerm.toLowerCase()
+        const filterFn = cam =>
+            cam.name?.toLowerCase().includes(lowerSearch) ||
+            cam.location?.toLowerCase().includes(lowerSearch)
+
+        const sortedFavs = favoriteCameras.filter(filterFn).sort((a, b) => a.name.localeCompare(b.name))
+
+        let others = []
+        if (allLoaded || searchTerm.length > 0) {
+            others = allCameras.filter(cam => !cam.is_favorite && filterFn(cam)).sort((a, b) => a.name.localeCompare(b.name))
+        }
 
         return {
-            favoriteCameras: filtered.filter(cam => cam.is_favorite),
-            otherCameras: filtered.filter(cam => !cam.is_favorite)
+            filteredFavorites: sortedFavs,
+            filteredOthers: others
         }
-    }, [cameras, searchTerm])
+    }, [favoriteCameras, allCameras, allLoaded, searchTerm])
 
     const CameraCard = ({ camera }) => (
         <motion.div
@@ -111,7 +149,7 @@ const CameraGrid = () => {
         </motion.div>
     )
 
-    if (loading && cameras.length === 0) {
+    if (loading && favoriteCameras.length === 0 && allCameras.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-slate-500">
                 <RefreshCw className="w-8 h-8 animate-spin mb-4" />
@@ -145,7 +183,7 @@ const CameraGrid = () => {
                 </div>
             </header>
 
-            {favoriteCameras.length === 0 && otherCameras.length === 0 ? (
+            {filteredFavorites.length === 0 && filteredOthers.length === 0 && (!allLoaded || searchTerm.length > 0) ? (
                 <div className="bg-white dark:bg-slate-900/50 rounded-2xl p-12 text-center border border-dashed border-slate-200 dark:border-slate-800">
                     <Camera className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">Inga kameror hittades</h3>
@@ -154,7 +192,7 @@ const CameraGrid = () => {
             ) : (
                 <div className="space-y-10">
                     {/* Favorites Section */}
-                    {favoriteCameras.length > 0 && (
+                    {filteredFavorites.length > 0 && (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <Star className="w-5 h-5 text-yellow-400 fill-current" />
@@ -163,7 +201,7 @@ const CameraGrid = () => {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 <AnimatePresence mode="popLayout">
-                                    {favoriteCameras.map((camera) => (
+                                    {filteredFavorites.map((camera) => (
                                         <CameraCard key={camera.id} camera={camera} />
                                     ))}
                                 </AnimatePresence>
@@ -172,24 +210,39 @@ const CameraGrid = () => {
                     )}
 
                     {/* All / Other Cameras Section */}
-                    {otherCameras.length > 0 && (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <Camera className="w-5 h-5 text-slate-400" />
-                                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">
-                                    {favoriteCameras.length > 0 ? 'Övriga kameror' : 'Alla kameror'}
-                                </h2>
-                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                <AnimatePresence mode="popLayout">
-                                    {otherCameras.map((camera) => (
-                                        <CameraCard key={camera.id} camera={camera} />
-                                    ))}
-                                </AnimatePresence>
-                            </div>
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <Camera className="w-5 h-5 text-slate-400" />
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider text-sm">
+                                {favoriteCameras.length > 0 ? 'Övriga kameror' : 'Alla kameror'}
+                            </h2>
+                            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800/50" />
                         </div>
-                    )}
+
+                        {!allLoaded && searchTerm.length === 0 ? (
+                            <div className="flex flex-col items-center py-10 bg-white/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                                <p className="text-slate-500 mb-4 text-sm">Det finns ytterligare {otherCount} kameror i dina valda län.</p>
+                                <button
+                                    onClick={() => fetchCameras(true, true)}
+                                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all shadow-lg shadow-blue-500/20 font-medium"
+                                >
+                                    Visa alla kameror
+                                </button>
+                            </div>
+                        ) : (
+                            filteredOthers.length === 0 && searchTerm ? (
+                                <p className="text-center py-10 text-slate-500 text-sm italic">Inga matchningar bland övriga kameror.</p>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    <AnimatePresence mode="popLayout">
+                                        {filteredOthers.map((camera) => (
+                                            <CameraCard key={camera.id} camera={camera} />
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
+                            )
+                        )}
+                    </div>
                 </div>
             )}
 
