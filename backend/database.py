@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
@@ -33,6 +33,8 @@ class TrafficEvent(Base):
     end_time = Column(DateTime)
     temporary_limit = Column(String)
     traffic_restriction_type = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
 
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
@@ -61,7 +63,9 @@ def migrate_db():
         "start_time": "DATETIME",
         "end_time": "DATETIME",
         "temporary_limit": "VARCHAR",
-        "traffic_restriction_type": "VARCHAR"
+        "traffic_restriction_type": "VARCHAR",
+        "latitude": "FLOAT",
+        "longitude": "FLOAT"
     }
 
     with engine.connect() as conn:

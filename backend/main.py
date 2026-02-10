@@ -107,7 +107,9 @@ async def event_processor():
                     start_time=datetime.fromisoformat(ev['start_time']) if ev.get('start_time') else None,
                     end_time=datetime.fromisoformat(ev['end_time']) if ev.get('end_time') else None,
                     temporary_limit=ev.get('temporary_limit'),
-                    traffic_restriction_type=ev.get('traffic_restriction_type')
+                    traffic_restriction_type=ev.get('traffic_restriction_type'),
+                    latitude=ev.get('latitude'),
+                    longitude=ev.get('longitude')
                 )
                 db.add(new_event)
                 db.commit()
@@ -144,7 +146,9 @@ async def event_processor():
                     "start_time": new_event.start_time.isoformat() if new_event.start_time else None,
                     "end_time": new_event.end_time.isoformat() if new_event.end_time else None,
                     "temporary_limit": new_event.temporary_limit,
-                    "traffic_restriction_type": new_event.traffic_restriction_type
+                    "traffic_restriction_type": new_event.traffic_restriction_type,
+                    "latitude": new_event.latitude,
+                    "longitude": new_event.longitude
                 }
                 for queue in connected_clients:
                     await queue.put(event_data)
@@ -172,7 +176,7 @@ async def stream_events():
     return EventSourceResponse(event_generator())
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)):
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
     
     if hours:
@@ -180,7 +184,7 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         query = query.filter(TrafficEvent.created_at >= cutoff)
         
-    events = query.order_by(TrafficEvent.created_at.desc()).limit(limit).all()
+    events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
     return [
         {
             "id": e.id,
@@ -198,7 +202,9 @@ def get_events(limit: int = 50, hours: int = None, db: Session = Depends(get_db)
             "start_time": e.start_time,
             "end_time": e.end_time,
             "temporary_limit": e.temporary_limit,
-            "traffic_restriction_type": e.traffic_restriction_type
+            "traffic_restriction_type": e.traffic_restriction_type,
+            "latitude": e.latitude,
+            "longitude": e.longitude
         } for e in events
     ]
 

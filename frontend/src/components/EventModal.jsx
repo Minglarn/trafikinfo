@@ -1,7 +1,9 @@
+
 import React, { useEffect } from 'react'
 import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
+import EventMap from './EventMap'
 
 export default function EventModal({ event, onClose }) {
     // Close on escape key
@@ -69,14 +71,27 @@ export default function EventModal({ event, onClose }) {
                     {/* Scrollable Content */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                         {/* Description */}
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
-                            <h4 className="text-sm font-semibold text-slate-900 dark:text-gray-200 mb-2 flex items-center gap-2">
-                                <Info className="w-4 h-4 text-blue-500" />
-                                Beskrivning
-                            </h4>
-                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
-                                {event.description}
-                            </p>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700/50 space-y-4">
+                            <div>
+                                <h4 className="text-sm font-semibold text-slate-900 dark:text-gray-200 mb-2 flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-blue-500" />
+                                    Beskrivning
+                                </h4>
+                                <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm">
+                                    {event.description}
+                                </p>
+                            </div>
+
+                            {/* Map */}
+                            {event.latitude && event.longitude && (
+                                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                                    <EventMap
+                                        lat={event.latitude}
+                                        lng={event.longitude}
+                                        popupContent={event.location}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Details Grid */}

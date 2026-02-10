@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Share2, Clock, Filter, X } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import EventMap from './EventMap'
 
 const API_BASE = '/api'
 
@@ -34,11 +35,27 @@ export default function EventFeed() {
     const [events, setEvents] = useState([])
     const [loading, setLoading] = useState(true)
     const [isConnected, setIsConnected] = useState(false)
+    const [expandedMaps, setExpandedMaps] = useState(new Set())
 
-    // Filter state
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
     const [showFilters, setShowFilters] = useState(false)
+
+    // Pagination state
+    const [offset, setOffset] = useState(0)
+    const [hasMore, setHasMore] = useState(true)
+    const [isFetchingMore, setIsFetchingMore] = useState(false)
+    const observerTarget = React.useRef(null)
+    const LIMIT = 20
+
+    const toggleMap = (id) => {
+        setExpandedMaps(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
 
     const toggleMessageType = (type) => {
         setActiveMessageTypes(prev =>
@@ -71,18 +88,39 @@ export default function EventFeed() {
         })
     }, [events, activeMessageTypes, activeSeverities])
 
-    const fetchEvents = async () => {
+    const fetchEvents = async (reset = false) => {
         try {
-            const response = await axios.get(`${API_BASE}/events`)
-            setEvents(response.data)
+            const currentOffset = reset ? 0 : offset
+            if (!reset) setIsFetchingMore(true)
+
+            const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}`)
+            const newEvents = response.data
+
+            if (reset) {
+                setEvents(newEvents)
+                setOffset(LIMIT)
+            } else {
+                setEvents(prev => {
+                    // Filter out duplicates based on ID
+                    const existingIds = new Set(prev.map(e => e.id))
+                    const uniqueNewEvents = newEvents.filter(e => !existingIds.has(e.id))
+                    return [...prev, ...uniqueNewEvents]
+                })
+                setOffset(prev => prev + LIMIT)
+            }
+
+            setHasMore(newEvents.length === LIMIT)
             setLoading(false)
+            setIsFetchingMore(false)
         } catch (error) {
             console.error('Error fetching events:', error)
+            setLoading(false)
+            setIsFetchingMore(false)
         }
     }
 
     useEffect(() => {
-        fetchEvents()
+        fetchEvents(true) // Initial load with reset
 
         const eventSource = new EventSource(`${API_BASE}/stream`)
 
@@ -93,7 +131,9 @@ export default function EventFeed() {
         eventSource.onmessage = (event) => {
             try {
                 const newEvent = JSON.parse(event.data)
+                // Add new event to top and increment offset so we don't load a duplicate at the bottom
                 setEvents(prev => [newEvent, ...prev])
+                setOffset(prev => prev + 1)
             } catch (err) {
                 console.error('Error parsing SSE event:', err)
             }
@@ -109,6 +149,27 @@ export default function EventFeed() {
             eventSource.close()
         }
     }, [])
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !isFetchingMore && !loading) {
+                    fetchEvents(false)
+                }
+            },
+            { threshold: 1.0 }
+        )
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current)
+        }
+
+        return () => {
+            if (observerTarget.current) {
+                observer.unobserve(observerTarget.current)
+            }
+        }
+    }, [hasMore, isFetchingMore, loading, offset])
 
     if (loading) {
         return (
@@ -231,7 +292,7 @@ export default function EventFeed() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, x: -100 }}
-                            className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-5 rounded-2xl hover:border-slate-300 dark:hover:border-slate-600 transition-all group relative overflow-hidden shadow-sm dark:shadow-none"
+                            className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 transition-all group relative overflow-hidden shadow-sm dark:shadow-none"
                         >
                             {/* Severe Event Border */
                                 event.severity_code >= 4 && (
@@ -244,8 +305,8 @@ export default function EventFeed() {
                                     shadow-[0_0_10px_rgba(59,130,246,0.5)]`}></div>
                             )}
 
-                            <div className="flex flex-col md:flex-row gap-6">
-                                <div className="flex-1 space-y-3">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1 space-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600">
                                             {event.external_id}
@@ -253,7 +314,12 @@ export default function EventFeed() {
 
                                         {/* Road Number Badge */}
                                         {event.road_number && (
-                                            <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded border border-yellow-600 shadow-sm">
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm ${event.road_number.startsWith('Väg')
+                                                ? 'bg-blue-600 text-white border-blue-700'
+                                                : event.road_number.startsWith('E')
+                                                    ? 'bg-green-600 text-white border-green-700'
+                                                    : 'bg-yellow-500 text-black border-yellow-600'
+                                                }`}>
                                                 {event.road_number}
                                             </span>
                                         )}
@@ -262,6 +328,18 @@ export default function EventFeed() {
                                         {event.message_type && (
                                             <span className="bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
                                                 {event.message_type}
+                                            </span>
+                                        )}
+
+                                        {/* Restriction Badges */}
+                                        {event.temporary_limit && (
+                                            <span className="bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-red-200 dark:border-red-500/20">
+                                                {event.temporary_limit}
+                                            </span>
+                                        )}
+                                        {event.traffic_restriction_type && (
+                                            <span className="bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-orange-200 dark:border-orange-500/20">
+                                                {event.traffic_restriction_type}
                                             </span>
                                         )}
 
@@ -282,32 +360,18 @@ export default function EventFeed() {
                                             <span className="font-medium text-slate-700 dark:text-slate-300">{event.location || 'Platsinformation saknas'}</span>
                                         </div>
 
-                                        <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
-                                            <Info className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
-                                            <div className="space-y-1">
-                                                <p>{event.description}</p>
-
-                                                {/* Extra Details */}
-                                                {(event.temporary_limit || event.traffic_restriction_type) && (
-                                                    <div className="pt-2 flex flex-wrap gap-2">
-                                                        {event.temporary_limit && (
-                                                            <span className="text-xs bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-2 py-1 rounded border border-red-200 dark:border-red-500/20">
-                                                                {event.temporary_limit}
-                                                            </span>
-                                                        )}
-                                                        {event.traffic_restriction_type && (
-                                                            <span className="text-xs bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 px-2 py-1 rounded border border-orange-200 dark:border-orange-500/20">
-                                                                {event.traffic_restriction_type}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                        {event.description && (
+                                            <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700/50">
+                                                <Info className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                                                <div className="space-y-1">
+                                                    <p>{event.description}</p>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         {/* Validity Period */}
                                         {(event.start_time || event.end_time) && (
-                                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
+                                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                                 <span>Gäller:</span>
                                                 {event.start_time && <span className="text-slate-700 dark:text-slate-400">{format(new Date(event.start_time), 'd MMM HH:mm')}</span>}
                                                 <span>→</span>
@@ -337,17 +401,80 @@ export default function EventFeed() {
                                         )}
                                     </div>
 
-                                    <button className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-700 dark:text-white hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors border border-slate-200 dark:border-transparent">
-                                        <Share2 className="w-4 h-4" />
-                                        Push manuellt
-                                    </button>
+                                    <div className="flex flex-col gap-2 w-full md:w-48 mt-4 md:mt-0">
+                                        {/* Map / Location Preview */}
+                                        {event.latitude && event.longitude ? (
+                                            <div
+                                                className="relative h-20 w-full bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    toggleMap(event.id)
+                                                }}
+                                            >
+                                                <EventMap
+                                                    lat={event.latitude}
+                                                    lng={event.longitude}
+                                                    interactive={false}
+                                                />
+
+                                                {/* Hover Overlay */}
+                                                <div className="absolute inset-0 bg-black/5 group-hover/map:bg-black/10 transition-colors pointer-events-none flex items-center justify-center opacity-0 group-hover/map:opacity-100">
+                                                    <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">
+                                                        Klicka för att förstora
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* No Location Placeholder */
+                                            <div className="h-20 w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+                                                <MapPin className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-1" />
+                                                <span className="text-xs text-slate-400 dark:text-slate-500 italic">Plats ej känd</span>
+                                            </div>
+                                        )}
+
+
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Expanded Interactive Map (Full Width) */}
+                            <AnimatePresence>
+                                {expandedMaps.has(event.id) && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 300 }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner"
+                                    >
+                                        <div className="h-full" onClick={e => e.stopPropagation()}>
+                                            <EventMap
+                                                lat={event.latitude}
+                                                lng={event.longitude}
+                                                popupContent={event.location}
+                                                interactive={true}
+                                            />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </motion.div>
                     ))}
                 </AnimatePresence>
 
-                {events.length === 0 && (
+                {/* Loading sentinel */}
+                <div ref={observerTarget} className="h-10 flex items-center justify-center mt-4">
+                    {isFetchingMore && (
+                        <div className="flex items-center gap-2 text-slate-400">
+                            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-sm">Laddar fler händelser...</span>
+                        </div>
+                    )}
+                    {!hasMore && events.length > 0 && (
+                        <span className="text-xs text-slate-400">Inga fler händelser att visa</span>
+                    )}
+                </div>
+
+                {events.length === 0 && !loading && (
                     <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700">
                         <AlertTriangle className="w-10 h-10 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
                         <p className="text-slate-500">Inga aktiva händelser hittades för tillfället.</p>

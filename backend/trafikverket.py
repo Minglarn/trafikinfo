@@ -3,6 +3,7 @@ import logging
 import asyncio
 import xml.etree.ElementTree as ET
 from sse_starlette.sse import EventSourceResponse
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,25 @@ def parse_situation(json_data):
                 severity_code = devi.get('SeverityCode')
                 severity_text = devi.get('SeverityText')
 
+                # Parse Geometry (WGS84 typically "POINT (16.596 59.629)" or "LINESTRING (...)")
+                latitude = None
+                longitude = None
+                geo = devi.get('Geometry', {})
+                # Try to get WGS84 from Point first, then Line
+                wgs84 = None
+                if 'Point' in geo:
+                    wgs84 = geo['Point'].get('WGS84')
+                elif 'Line' in geo:
+                    wgs84 = geo['Line'].get('WGS84')
+
+                if wgs84:
+                    # Match first coordinate pair inside parentheses "(lon lat"
+                    # Works for both POINT (lon lat) and LINESTRING (lon lat, ...)
+                    match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                    if match:
+                        longitude = float(match.group(1))
+                        latitude = float(match.group(2))
+
                 event = {
                     "external_id": devi.get('Id'),
                     "title": title,
@@ -139,7 +159,9 @@ def parse_situation(json_data):
                     "start_time": start_time,
                     "end_time": end_time,
                     "temporary_limit": devi.get('TemporaryLimit'),
-                    "traffic_restriction_type": devi.get('TrafficRestrictionType')
+                    "traffic_restriction_type": devi.get('TrafficRestrictionType'),
+                    "latitude": latitude,
+                    "longitude": longitude
                 }
                 parsed_events.append(event)
         return parsed_events
