@@ -222,12 +222,17 @@ def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
     nearest = None
     min_dist = max_dist_km
     
-    # Helper to normalize for matching
-    def clean_str(s):
-        if not s: return ""
+    # Roadmap pattern to identify roads in names (e.g. E4, Rv73, Lv155)
+    road_pattern = re.compile(r'\b(E\d+|RV\d+|LV\d+|VÄG\d+|LÄN\d+)\b', re.I)
+
+    # Clean target road for matching (extract only alphanumeric, e.g. "E4" or "73")
+    def clean_target(s):
+        if not s: return None
+        # If it's just a number like "73", try to prefix commonly used labels if needed,
+        # but usually API gives "E4" or "222".
         return str(s).replace(" ", "").upper()
 
-    norm_target = clean_str(target_road)
+    norm_target = clean_target(target_road)
 
     for cam in cameras:
         # 1. Check distance first
@@ -235,16 +240,25 @@ def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
         if dist > max_dist_km:
             continue
 
-        # 2. Check Road Number match (if event has one)
-        # API doesn't have RoadNumber for cameras, so we search in the Camera Name.
+        # 2. Heuristic for road matching/prevention
+        cam_name = cam.get('name', '').upper()
+        
         if norm_target:
-            cam_name = clean_str(cam.get('name'))
-            # Heuristic: Check if strict road number is in the camera name.
-            # Example: target="E18", name="E18Ekolsundsbron" -> Match.
-            # Example: target="40", name="Rv40Landvetter" -> Match.
-            if norm_target not in cam_name:
-                continue
-
+            # Find all road numbers mentioned in the camera name
+            # Remove spaces in camera name parts to match "RV 40" as "RV40"
+            clean_cam_name = cam_name.replace(" ", "")
+            roads_in_cam = road_pattern.findall(clean_cam_name)
+            
+            if roads_in_cam:
+                # If camera mentions roads, but NOT our target road, skip it
+                # Example: Event on E4, camera mentions E18 -> Skip.
+                if norm_target not in [r.upper() for r in roads_in_cam]:
+                    continue
+            
+            # If camera name contains target road exactly, give it a slight priority/bonus
+            # (In this simple implementation, we just allow it as a valid candidate)
+        
+        # 3. Update nearest
         if dist < min_dist:
             min_dist = dist
             nearest = cam
