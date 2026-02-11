@@ -20,7 +20,7 @@ The payload is a JSON object.
 ### Integration Fields
 - `snapshot_url`: **Full absolute URL** to the locally saved camera image.
 - `event_url`: **Full absolute URL** to open the specific event in the PWA app.
-- `icon_url`: **Full absolute URL** to the locally proxied icon.
+- `icon_url`: **Full absolute URL** to the locally proxied icon (includes `.png` for compatibility).
 
 ### Camera Data
 - `camera_name`: Name of the primary camera.
