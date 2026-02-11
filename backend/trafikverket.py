@@ -270,7 +270,7 @@ async def get_cameras(api_key: str):
     url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
     query = f"""<REQUEST>
     <LOGIN authenticationkey='{api_key}' />
-    <QUERY objecttype='Camera' schemaversion='1.1'>
+    <QUERY objecttype='Camera' namespace='road.infrastructure' schemaversion='1.1'>
         <FILTER>
             <EQ name="Deleted" value="false" />
             <EQ name="Active" value="true" />
@@ -281,9 +281,12 @@ async def get_cameras(api_key: str):
         <INCLUDE>Type</INCLUDE>
         <INCLUDE>PhotoUrl</INCLUDE>
         <INCLUDE>PhotoUrlFullsize</INCLUDE>
+        <INCLUDE>PhotoUrlSketch</INCLUDE>
         <INCLUDE>PhotoTime</INCLUDE>
-        <INCLUDE>Geometry.WGS84</INCLUDE>
         <INCLUDE>HasFullSizePhoto</INCLUDE>
+        <INCLUDE>HasSketchImage</INCLUDE>
+        <INCLUDE>Geometry.WGS84</INCLUDE>
+        <INCLUDE>Direction</INCLUDE>
         <INCLUDE>CountyNo</INCLUDE>
         <INCLUDE>Location</INCLUDE>
     </QUERY>
