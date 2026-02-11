@@ -42,7 +42,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
     return (
         <motion.div
             animate={{ width: isCollapsed ? 80 : 250 }}
-            className="h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 relative z-20 shadow-xl dark:shadow-none"
+            className="hidden md:flex h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col transition-all duration-300 relative z-20 shadow-xl dark:shadow-none"
         >
             {/* Logo Area */}
             <div className="p-6 flex flex-col items-center justify-center overflow-hidden whitespace-nowrap gap-4">

@@ -7,6 +7,8 @@ import Settings from './components/Settings'
 import Statistics from './components/Statistics'
 import CameraGrid from './components/CameraGrid'
 import LoginModal from './components/LoginModal'
+import MobileHeader from './components/MobileHeader'
+import BottomNav from './components/BottomNav'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
@@ -59,6 +61,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden transition-colors duration-300">
+      {/* Mobile Top Header */}
+      <MobileHeader />
+
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
@@ -70,7 +75,7 @@ function AppContent() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 pt-16 pb-20 md:pt-4 md:pb-4 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
           <div className="max-w-7xl mx-auto h-full">
             {activeTab === 'feed' && <EventFeed />}
             {activeTab === 'cameras' && <CameraGrid />}
@@ -80,6 +85,9 @@ function AppContent() {
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <LoginModal
         isOpen={isLoginModalOpen}
