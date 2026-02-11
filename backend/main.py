@@ -1,4 +1,4 @@
-VERSION = "26.2.16"
+VERSION = "26.2.17"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera
 from mqtt_client import mqtt_client
-from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearest_camera
+from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras
 
 # Setup logging
 debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
@@ -288,12 +288,14 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
     
     # Prioritize explicit fullsize URL from API, otherwise try to guess it
     fullsize_url = explicit_fullsize_url
-    if not fullsize_url:
-        fullsize_url = url
-        if "api.trafikinfo.trafikverket.se" in url and not url.endswith("_fullsize.jpg"):
-            fullsize_url = url.replace(".jpg", "_fullsize.jpg")
-
-    filename = f"{event_id}_{int(datetime.now().timestamp())}.jpg"
+    filename = f"{event_id}_{int(datetime.now().timestamp())}"
+    if explicit_fullsize_url and "api.trafikinfo.trafikverket.se" in url:
+        # Just to differentiate in logs and potentially filename if we wanted
+        pass
+    
+    # Ensure filename is unique if called multiple times for same event
+    # We'll use the camera URL hash or just allow the caller to provide a more specific event_id
+    filename = f"{filename}.jpg"
     filepath = os.path.join(SNAPSHOTS_DIR, filename)
     
     try:
@@ -343,13 +345,33 @@ async def event_processor():
                 # Get camera radius setting
                 radius_setting = db.query(Settings).filter(Settings.key == "camera_radius_km").first()
                 max_dist = float(radius_setting.value) if radius_setting else 5.0
-
                 for ev in events:
-                    # Find nearest camera if event has coordinates
-                    nearest_cam = find_nearest_camera(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
-                    camera_url = nearest_cam.get('url') if nearest_cam else None
-                    camera_name = nearest_cam.get('name') if nearest_cam else None
-                    fullsize_url = nearest_cam.get('fullsize_url') if nearest_cam else None
+                    # Find nearby cameras
+                    nearby_cams = find_nearby_cameras(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
+                    
+                    primary_cam = nearby_cams[0] if nearby_cams else None
+                    camera_url = primary_cam.get('url') if primary_cam else None
+                    camera_name = primary_cam.get('name') if primary_cam else None
+                    fullsize_url = primary_cam.get('fullsize_url') if primary_cam else None
+                    
+                    # Process extra cameras
+                    extra_cams_data = []
+                    if len(nearby_cams) > 1:
+                        for idx, c in enumerate(nearby_cams[1:]):
+                            # We'll download snapshots for extra cameras too, but maybe later or on demand?
+                            # For "smidigast" experience, let's download them now.
+                            # We use a unique ID derived from event + index/camera_id
+                            cam_id_safe = str(c.get('id', idx)).replace(":", "_")
+                            c_snap = await download_camera_snapshot(c.get('url'), f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
+                            extra_cams_data.append({
+                                "id": c.get('id'),
+                                "name": c.get('name'),
+                                "url": c.get('url'),
+                                "fullsize_url": c.get('fullsize_url'),
+                                "snapshot": c_snap
+                            })
+
+                    extra_cameras_json = json.dumps(extra_cams_data) if extra_cams_data else None
 
                     # Check if event already exists
                     existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
@@ -389,7 +411,8 @@ async def event_processor():
                                 longitude=existing.longitude,
                                 camera_url=existing.camera_url,
                                 camera_name=existing.camera_name,
-                                camera_snapshot=existing.camera_snapshot
+                                camera_snapshot=existing.camera_snapshot,
+                                extra_cameras=existing.extra_cameras
                             )
                             db.add(history_version)
 
@@ -413,12 +436,15 @@ async def event_processor():
                         if ev.get('longitude') is not None:
                             existing.longitude = ev.get('longitude')
                         
-                        # Sync camera metadata for existing events (Only if we found a new one or don't have one)
+                        # Sync camera metadata for existing events (Only if we found a new ones)
                         if camera_url:
                             existing.camera_url = camera_url
                             existing.camera_name = camera_name
                             # Update snapshot if missing or if we have a new camera URL
                             existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                        
+                        if extra_cameras_json:
+                            existing.extra_cameras = extra_cameras_json
                         
                         db.commit()
                         new_event = existing
@@ -441,7 +467,8 @@ async def event_processor():
                             latitude=ev.get('latitude'),
                             longitude=ev.get('longitude'),
                             camera_url=camera_url,
-                            camera_name=camera_name
+                            camera_name=camera_name,
+                            extra_cameras=extra_cameras_json
                         )
                         db.add(new_event)
                         db.commit() 
@@ -462,6 +489,7 @@ async def event_processor():
                     mqtt_data['camera_url'] = new_event.camera_url
                     mqtt_data['camera_name'] = new_event.camera_name
                     mqtt_data['camera_snapshot'] = new_event.camera_snapshot
+                    mqtt_data['extra_cameras'] = new_event.extra_cameras
 
                     if mqtt_client.publish_event(mqtt_data):
                         new_event.pushed_to_mqtt = 1
@@ -491,7 +519,8 @@ async def event_processor():
                         "longitude": new_event.longitude,
                         "camera_url": new_event.camera_url,
                         "camera_name": new_event.camera_name,
-                        "camera_snapshot": new_event.camera_snapshot
+                        "camera_snapshot": new_event.camera_snapshot,
+                        "extra_cameras": json.loads(new_event.extra_cameras) if new_event.extra_cameras else []
                     }
                     for queue in connected_clients:
                         await queue.put(event_data)

@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.17] - 2026-02-11
+
+### Added
+- **PWA Support**: Native app installability, manifest, and service worker for offline/standalone use.
+- **Inline Preview Expansion**: Replaced camera modals with seamless inline expansion for both maps and cameras.
+- **Smart Camera Matching**: Proximity-first logic that matches nearby cameras even without road labels (e.g. at Salem/E4).
+- **Multi-Camera Support**: Events now display all nearby cameras (primary + extra vantage points) with a visual indicator and expanded list view.
+
+### Changed
+- **Direct Snapshots**: Unified camera/map expansion interactions for a cleaner feed UI.
+- **Performance**: Optimized service worker strategy (Network First) for faster asset loading.
+
+### Fixed
+- **Layout Integrity**: Restored side-by-side desktop view for camera and map previews.
+- **Stability**: Fixed a `ReferenceError` crash during event updates related to legacy modal state.
+- **PWA Manifest**: Fixed 401 Unauthorized error when fetching manifest under certain proxy setups.
+
 ## [26.2.13] - 2026-02-10
 
 ### Added

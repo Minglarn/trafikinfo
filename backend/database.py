@@ -39,6 +39,7 @@ class TrafficEvent(Base):
     camera_url = Column(String)
     camera_name = Column(String)
     camera_snapshot = Column(String)
+    extra_cameras = Column(Text) # JSON list of extra cameras
 
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
@@ -67,6 +68,7 @@ class TrafficEventVersion(Base):
     camera_url = Column(String)
     camera_name = Column(String)
     camera_snapshot = Column(String)
+    extra_cameras = Column(Text)
 
 class Camera(Base):
     __tablename__ = "cameras"
@@ -124,7 +126,8 @@ def migrate_db():
         "icon_id": "VARCHAR",
         "pushed_to_mqtt": "INTEGER",
         "external_id": "VARCHAR",
-        "event_type": "VARCHAR"
+        "event_type": "VARCHAR",
+        "extra_cameras": "TEXT"
     }
 
     with engine.connect() as conn:
@@ -135,3 +138,13 @@ def migrate_db():
                     conn.execute(text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
                 except Exception as e:
                     print(f"Error adding column {col_name}: {e}")
+        
+        # Also migrate versions table
+        v_columns = [c['name'] for c in inspector.get_columns("traffic_event_versions")]
+        for col_name, col_type in expected_columns.items():
+             if col_name not in v_columns and col_name not in ["pushed_to_mqtt"]:
+                print(f"Migrating versions: Adding missing column '{col_name}'")
+                try:
+                    conn.execute(text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
+                except Exception as e:
+                    print(f"Error adding column {col_name} to versions: {e}")

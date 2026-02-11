@@ -599,9 +599,16 @@ export default function EventFeed() {
                                             </div>
 
                                             {event.camera_name && (
-                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1 z-20">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                                    <span className="truncate">{event.camera_name}</span>
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center justify-between z-20">
+                                                    <div className="flex items-center gap-1 truncate">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                        <span className="truncate">{event.camera_name}</span>
+                                                    </div>
+                                                    {event.extra_cameras?.length > 0 && (
+                                                        <span className="ml-1 bg-blue-500/80 px-1 rounded flex-shrink-0 font-bold">
+                                                            +{event.extra_cameras.length}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -646,23 +653,66 @@ export default function EventFeed() {
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg bg-black/5 dark:bg-black/20"
+                                        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg bg-slate-100/50 dark:bg-black/20"
                                     >
-                                        <div className="relative group/expanded" onClick={e => e.stopPropagation()}>
-                                            <img
-                                                src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
-                                                alt={event.camera_name}
-                                                className="w-full h-auto object-contain max-h-[60vh] mx-auto"
-                                            />
-                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md p-3 text-center border-t border-white/10">
-                                                <h3 className="text-white text-sm font-medium">{event.camera_name}</h3>
-                                                <p className="text-[10px] text-slate-300">Trafikkamera ögonblicksbild</p>
+                                        <div className="p-4 flex flex-col gap-6" onClick={e => e.stopPropagation()}>
+                                            {/* Primary Camera */}
+                                            <div className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
+                                                <img
+                                                    src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                    alt={event.camera_name}
+                                                    className="w-full h-auto object-contain max-h-[60vh]"
+                                                />
+                                                <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{event.camera_name}</h3>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Primär vy</p>
+                                                        </div>
+                                                        <a
+                                                            href={event.camera_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300"
+                                                        >
+                                                            Öppna original
+                                                        </a>
+                                                    </div>
+                                                </div>
                                             </div>
+
+                                            {/* Extra Cameras */}
+                                            {event.extra_cameras?.map((extra, idx) => (
+                                                <div key={extra.id || idx} className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
+                                                    <img
+                                                        src={extra.snapshot ? `/api/snapshots/${extra.snapshot}` : extra.url}
+                                                        alt={extra.name}
+                                                        className="w-full h-auto object-contain max-h-[60vh]"
+                                                    />
+                                                    <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{extra.name}</h3>
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Alternativ vy</p>
+                                                            </div>
+                                                            <a
+                                                                href={extra.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300"
+                                                            >
+                                                                Öppna original
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+
                                             <button
                                                 onClick={() => toggleCamera(event.id)}
-                                                className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-colors"
+                                                className="w-full py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2"
                                             >
-                                                <X className="w-4 h-4" />
+                                                <X className="w-4 h-4" /> Stäng kameravyer
                                             </button>
                                         </div>
                                     </motion.div>

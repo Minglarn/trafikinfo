@@ -215,12 +215,11 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
+def find_nearby_cameras(lat, lon, cameras, target_road=None, max_dist_km=5.0, limit=5):
     if lat is None or lon is None or not cameras:
-        return None
+        return []
     
-    nearest = None
-    min_dist = max_dist_km
+    nearby = []
     
     # Roadmap pattern to identify roads in names (e.g. E4, Rv73, Lv155)
     road_pattern = re.compile(r'\b(E\d+|RV\d+|LV\d+|VÄG\d+|LÄN\d+)\b', re.I)
@@ -228,8 +227,6 @@ def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
     # Clean target road for matching (extract only alphanumeric, e.g. "E4" or "73")
     def clean_target(s):
         if not s: return None
-        # If it's just a number like "73", try to prefix commonly used labels if needed,
-        # but usually API gives "E4" or "222".
         return str(s).replace(" ", "").upper()
 
     norm_target = clean_target(target_road)
@@ -245,25 +242,24 @@ def find_nearest_camera(lat, lon, cameras, target_road=None, max_dist_km=5.0):
         
         if norm_target:
             # Find all road numbers mentioned in the camera name
-            # Remove spaces in camera name parts to match "RV 40" as "RV40"
             clean_cam_name = cam_name.replace(" ", "")
             roads_in_cam = road_pattern.findall(clean_cam_name)
             
             if roads_in_cam:
                 # If camera mentions roads, but NOT our target road, skip it
-                # Example: Event on E4, camera mentions E18 -> Skip.
                 if norm_target not in [r.upper() for r in roads_in_cam]:
                     continue
-            
-            # If camera name contains target road exactly, give it a slight priority/bonus
-            # (In this simple implementation, we just allow it as a valid candidate)
         
-        # 3. Update nearest
-        if dist < min_dist:
-            min_dist = dist
-            nearest = cam
+        # 3. Add to candidates
+        nearby.append({
+            **cam,
+            "match_dist": dist
+        })
     
-    return nearest
+    # Sort by distance
+    nearby.sort(key=lambda x: x["match_dist"])
+    
+    return nearby[:limit]
 
 async def get_cameras(api_key: str):
     """Fetch all traffic cameras from Trafikverket API."""
