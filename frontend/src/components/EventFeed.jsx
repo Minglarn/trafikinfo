@@ -37,11 +37,11 @@ export default function EventFeed() {
     const [loading, setLoading] = useState(true)
     const [isConnected, setIsConnected] = useState(false)
     const [expandedMaps, setExpandedMaps] = useState(new Set())
+    const [expandedCameras, setExpandedCameras] = useState(new Set())
 
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
     const [showFilters, setShowFilters] = useState(false)
-    const [selectedImage, setSelectedImage] = useState(null)
     const [activeTabs, setActiveTabs] = useState({}) // { eventId: 'current' | 'history' }
     const [eventHistory, setEventHistory] = useState({}) // { externalId: [] }
     const [fetchingHistory, setFetchingHistory] = useState({}) // { externalId: boolean }
@@ -75,7 +75,32 @@ export default function EventFeed() {
         setExpandedMaps(prev => {
             const next = new Set(prev)
             if (next.has(id)) next.delete(id)
-            else next.add(id)
+            else {
+                next.add(id)
+                // Close camera if map is opened
+                setExpandedCameras(cp => {
+                    const cn = new Set(cp)
+                    cn.delete(id)
+                    return cn
+                })
+            }
+            return next
+        })
+    }
+
+    const toggleCamera = (id) => {
+        setExpandedCameras(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else {
+                next.add(id)
+                // Close map if camera is opened
+                setExpandedMaps(mp => {
+                    const mn = new Set(mp)
+                    mn.delete(id)
+                    return mn
+                })
+            }
             return next
         })
     }
@@ -554,14 +579,11 @@ export default function EventFeed() {
                                     <div className="flex flex-row gap-2 w-full lg:w-auto mt-2 lg:mt-0 flex-shrink-0">
                                         {/* Camera Slot (Always visible) */}
                                         <div
-                                            className="relative w-1/2 lg:w-48 h-24 sm:h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in"
+                                            className={`relative w-1/2 lg:w-48 h-24 sm:h-32 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in ${expandedCameras.has(event.id) ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
                                             onClick={(e) => {
                                                 if (event.camera_url || event.camera_snapshot) {
                                                     e.stopPropagation();
-                                                    setSelectedImage({
-                                                        url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
-                                                        name: event.camera_name
-                                                    });
+                                                    toggleCamera(event.id)
                                                 }
                                             }}
                                         >
@@ -597,7 +619,7 @@ export default function EventFeed() {
                                         {/* Map / Location Preview */}
                                         {event.latitude && event.longitude ? (
                                             <div
-                                                className="relative w-1/2 lg:w-48 h-24 sm:h-32 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                                className={`relative w-1/2 lg:w-48 h-24 sm:h-32 rounded-lg overflow-hidden border transition-all duration-300 group/map cursor-pointer ${expandedMaps.has(event.id) ? 'border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'}`}
                                                 onClick={(e) => {
                                                     e.stopPropagation()
                                                     toggleMap(event.id)
@@ -627,27 +649,58 @@ export default function EventFeed() {
                                 </div>
                             </div>
 
-                            {/* Expanded Interactive Map (Full Width) */}
-                            < AnimatePresence >
-                                {
-                                    expandedMaps.has(event.id) && (
-                                        <motion.div
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: 300 }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner"
-                                        >
-                                            <div className="h-full" onClick={e => e.stopPropagation()}>
-                                                <EventMap
-                                                    lat={event.latitude}
-                                                    lng={event.longitude}
-                                                    popupContent={event.location}
-                                                    interactive={true}
-                                                />
+                            {/* Expanded Views (Camera / Map) */}
+                            <AnimatePresence>
+                                {expandedCameras.has(event.id) && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg bg-black/5 dark:bg-black/20"
+                                    >
+                                        <div className="relative group/expanded" onClick={e => e.stopPropagation()}>
+                                            <img
+                                                src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                alt={event.camera_name}
+                                                className="w-full h-auto object-contain max-h-[60vh] mx-auto"
+                                            />
+                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md p-3 text-center border-t border-white/10">
+                                                <h3 className="text-white text-sm font-medium">{event.camera_name}</h3>
+                                                <p className="text-[10px] text-slate-300">Trafikkamera ögonblicksbild</p>
                                             </div>
-                                        </motion.div>
-                                    )
-                                }
+                                            <button
+                                                onClick={() => toggleCamera(event.id)}
+                                                className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {expandedMaps.has(event.id) && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 350 }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg"
+                                    >
+                                        <div className="h-full relative" onClick={e => e.stopPropagation()}>
+                                            <EventMap
+                                                lat={event.latitude}
+                                                lng={event.longitude}
+                                                popupContent={event.location}
+                                                interactive={true}
+                                            />
+                                            <button
+                                                onClick={() => toggleMap(event.id)}
+                                                className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm transition-colors z-[1000]"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </AnimatePresence>
                         </motion.div>
                     ))}
@@ -676,33 +729,6 @@ export default function EventFeed() {
                 }
             </div >
 
-            {/* Image Modal */}
-            {
-                selectedImage && (
-                    <div
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
-                        onClick={() => setSelectedImage(null)}
-                    >
-                        <div
-                            className="relative max-w-4xl w-full max-h-full flex flex-col items-center animate-in zoom-in-95 duration-300"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-
-                            <div className="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                                <img
-                                    src={selectedImage.url}
-                                    alt={selectedImage.name}
-                                    className="max-w-full max-h-[75vh] object-contain"
-                                />
-                                <div className="p-4 bg-slate-900/90 backdrop-blur-sm border-t border-white/5 text-center">
-                                    <h3 className="text-white font-medium">{selectedImage.name}</h3>
-                                    <p className="text-xs text-slate-400 mt-0.5">Trafikkamera ögonblicksbild (Full storlek)</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
         </div >
     )
 }
