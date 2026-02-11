@@ -47,6 +47,23 @@ DEFAULTS = {
     "retention_days": "30"
 }
 
+MDI_ICON_MAP = {
+    "roadwork": "mdi:cone",
+    "trafficMessage": "mdi:alert",
+    "accident": "mdi:car-emergency",
+    "ferry": "mdi:ferry",
+    "obstacle": "mdi:sign-caution",
+    "weather": "mdi:weather-partly-cloudy",
+    "bridge": "mdi:bridge",
+    "tunnel": "mdi:tunnel",
+    "fire": "mdi:fire",
+    "animal": "mdi:animal",
+    "roadwork_ongoing": "mdi:cone",
+    "road_closed": "mdi:road-variant-off",
+    "wind": "mdi:wind-power",
+    "ice": "mdi:snowflake"
+}
+
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
@@ -582,6 +599,8 @@ async def event_processor():
                         mqtt_data['icon_url'] = local_icon_url
                         # Public fallback for users behind Basic Auth
                         mqtt_data['external_icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
+                        # MDI Icon mapping for Home Assistant
+                        mqtt_data['mdi_icon'] = MDI_ICON_MAP.get(ev['icon_id'], "mdi:alert-circle")
                     
                     # 2. Sanitize Cameras: Use local snapshots/proxies
                     # Use data from the DB to ensure consistency

@@ -90,6 +90,7 @@ Payloaden innehåller nu färdiga länkar för notiser:
   "longitude": 11.9000,
   "icon_url": "http://192.168.1.50:7081/api/icons/trafficMessage.png",
   "external_icon_url": "https://api.trafikinfo.trafikverket.se/v1/icons/trafficMessage?type=png32x32",
+  "mdi_icon": "mdi:alert",
   "camera_name": "Älvsborgsbron Norra söderut",
   "camera_snapshot": "GUIDc5f8...jpg",
   "snapshot_url": "http://192.168.1.50:7081/api/snapshots/GUIDc5f8...jpg",
@@ -120,7 +121,7 @@ action:
         image: "{{ trigger.payload_json.snapshot_url }}" # Ändra till external_camera_url om du har Basic Auth
         clickAction: "{{ trigger.payload_json.event_url }}"
         tag: "{{ trigger.payload_json.external_id }}"
-        icon_url: "{{ trigger.payload_json.external_icon_url }}" # Använd external_icon_url för att slippa logga in
+        icon_url: "{{ trigger.payload_json.mdi_icon }}" # Använd mdi_icon för native HA-stöd (slipp Basic Auth)
 ```
 
 > [!TIP]
