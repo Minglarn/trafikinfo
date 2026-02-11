@@ -543,6 +543,21 @@ export default function EventFeed() {
                                                                 )}
                                                                 <div className="mt-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100/50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
                                                                     {version.description?.split(' | ').map((d, i) => <p key={i} className="leading-relaxed">{d}</p>)}
+
+                                                                    {version.camera_snapshot && (
+                                                                        <div className="mt-3 relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-video max-w-sm">
+                                                                            <img
+                                                                                src={`/api/snapshots/${version.camera_snapshot}`}
+                                                                                alt="Historisk bild"
+                                                                                className="w-full h-full object-cover cursor-zoom-in"
+                                                                                onClick={() => window.open(`/api/snapshots/${version.camera_snapshot}`, '_blank')}
+                                                                            />
+                                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm px-2 py-1 text-[8px] text-white flex items-center gap-1">
+                                                                                <Camera className="w-2 h-2" />
+                                                                                <span>Bild från denna tidpunkt</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>

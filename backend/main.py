@@ -503,16 +503,36 @@ async def event_processor():
                             existing.camera_url = camera_url
                             existing.camera_name = camera_name
                             
-                            # Update snapshot if missing or if we have a new camera URL
-                            # (But only download if we actually need it)
-                            if not existing.camera_snapshot:
+                        # Sync camera metadata for existing events
+                        if needs_camera_sync: # Only update if we actually searched for new cameras
+                            if primary_cam:
+                                # Download snapshot
+                                snapshot_file = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                                
+                                existing.camera_url = camera_url
+                                existing.camera_name = camera_name
+                                existing.camera_snapshot = snapshot_file
+                                existing.extra_cameras = extra_cameras_json
+                            else:
+                                # If we don't find a camera this time, KEEP the old ones if they exist
+                                # This prevents "No image available" when an update has no nearby cameras
+                                # We explicitly DO NOT set existing.camera_snapshot = None here anymore
+                                # unless it was already None and we still have no camera.
+                                pass # Keep existing camera_url, camera_name, camera_snapshot, extra_cameras
+                        else:
+                            # If needs_camera_sync was false, we already loaded existing camera data
+                            # into camera_url, camera_name, extra_cameras_json.
+                            # We only need to download a snapshot if it's missing.
+                            if existing.camera_url and not existing.camera_snapshot:
                                 # We need fullsize_url here, which might be None if we skipped find_nearby_cameras.
                                 # However, download_camera_snapshot handles None fullsize_url by falling back to url.
-                                existing.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
-                        
-                        if extra_cameras_json:
-                            existing.extra_cameras = extra_cameras_json
-                        
+                                existing.camera_snapshot = await download_camera_snapshot(existing.camera_url, ev['external_id'], fullsize_url) # fullsize_url might be None here, but download_camera_snapshot handles it.
+                            # extra_cameras_json is already set to existing.extra_cameras if needs_camera_sync is false.
+                            # No need to update existing.extra_cameras here unless it was modified.
+                            # The logic above ensures extra_cameras_json is either new or existing.
+                            if extra_cameras_json: # This covers cases where existing.extra_cameras was updated (e.g., missing snapshots)
+                                existing.extra_cameras = extra_cameras_json
+
                         db.commit()
                         new_event = existing
                     else:
