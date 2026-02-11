@@ -70,13 +70,30 @@ Varje gång en ny händelse detekteras publiceras ett JSON-objekt på ämnet `tr
 
 ```json
 {
-  "external_id": "GUID...",
-  "title": "Olycka på E4...",
-  "description": "Tre bilar involverade...",
-  "severity_text": "Stor påverkan",
-  "snapshot_url": "http://192.168.1.50:7081/api/snapshots/image.jpg",
-  "event_url": "http://192.168.1.50:7081/?event_id=GUID...",
-  "icon_url": "http://192.168.1.50:7081/api/icons/trafficMessage"
+  "external_id": "GUIDc5f8b455-690d-41bf-9ee3-26ee2b778791",
+  "title": "Räddningsinsats på Älvsborgsbron...",
+  "description": null,
+  "location": "E6.20 från Bräckemotet till Rödastensmotet...",
+  "icon_id": "trafficMessage",
+  "event_type": "Situation",
+  "timestamp": "2026-02-11T19:06:17.480+01:00",
+  "message_type": "Hinder på vägbanan, Vägen avstängd",
+  "severity_code": 5,
+  "severity_text": "Mycket stor påverkan",
+  "road_number": "E6",
+  "start_time": "2026-02-11T19:05:03.000+01:00",
+  "end_time": "2026-02-11T19:45:00.000+01:00",
+  "temporary_limit": null,
+  "traffic_restriction_type": null,
+  "latitude": 57.6932,
+  "longitude": 11.9000,
+  "icon_url": "http://192.168.1.50:7081/api/icons/trafficMessage",
+  "camera_name": "Älvsborgsbron Norra söderut",
+  "camera_snapshot": "GUIDc5f8...jpg",
+  "snapshot_url": "http://192.168.1.50:7081/api/snapshots/GUIDc5f8...jpg",
+  "event_url": "http://192.168.1.50:7081/?event_id=GUIDc5f8...",
+  "external_camera_url": "https://api.trafikinfo.trafikverket.se/...",
+  "extra_cameras": "[{\"id\": \"...\", \"name\": \"...\", \"snapshot\": \"...\", \"snapshot_url\": \"...\"}]"
 }
 ```
 
