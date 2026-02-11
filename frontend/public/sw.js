@@ -31,8 +31,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Network first for HTML and dynamic assets to avoid hash mismatch
-    if (event.request.mode === 'navigate' || event.request.url.includes('/assets/')) {
+    // Network first for HTML, assets and manifest to avoid stale/auth issues
+    if (event.request.mode === 'navigate' ||
+        event.request.url.includes('/assets/') ||
+        event.request.url.includes('manifest.json')) {
         event.respondWith(
             fetch(event.request)
                 .catch(() => caches.match(event.request))

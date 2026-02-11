@@ -577,7 +577,8 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
             "traffic_restriction_type": v.traffic_restriction_type,
             "latitude": v.latitude,
             "longitude": v.longitude,
-            "camera_snapshot": v.camera_snapshot
+            "camera_snapshot": v.camera_snapshot,
+            "extra_cameras": json.loads(v.extra_cameras) if v.extra_cameras else []
         } for v in versions
     ]
 
@@ -703,6 +704,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "camera_url": e.camera_url,
             "camera_name": e.camera_name,
             "camera_snapshot": e.camera_snapshot,
+            "extra_cameras": json.loads(e.extra_cameras) if e.extra_cameras else [],
             "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
         } for e in events
     ]
