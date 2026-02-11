@@ -280,6 +280,7 @@ async def get_cameras(api_key: str):
         <INCLUDE>Description</INCLUDE>
         <INCLUDE>Type</INCLUDE>
         <INCLUDE>PhotoUrl</INCLUDE>
+        <INCLUDE>FullSizePhotoUrl</INCLUDE>
         <INCLUDE>PhotoTime</INCLUDE>
         <INCLUDE>Geometry.WGS84</INCLUDE>
         <INCLUDE>HasFullSizePhoto</INCLUDE>
@@ -303,8 +304,14 @@ async def get_cameras(api_key: str):
                     match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
                     if match:
                         photo_url = res.get('PhotoUrl')
-                        has_fullsize = res.get('HasFullSizePhoto', False)
-                        fullsize_url = f"{photo_url}?type=fullsize" if has_fullsize and photo_url else None
+                        fullsize_url = res.get('FullSizePhotoUrl')
+                        
+                        if not fullsize_url and res.get('HasFullSizePhoto', False) and photo_url:
+                            # Robustly append type=fullsize
+                            if "?" in photo_url:
+                                fullsize_url = f"{photo_url}&type=fullsize"
+                            else:
+                                fullsize_url = f"{photo_url}?type=fullsize"
                         
                         # CountyNo can be a list, we just take the first one or 0 if empty
                         counties = res.get('CountyNo', [])

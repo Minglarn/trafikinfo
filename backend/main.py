@@ -311,30 +311,40 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Try fullsize first
+            logger.debug(f"Attempting to download fullsize image from {fullsize_url}")
             response = await client.get(fullsize_url)
             
             # Check if fullsize is valid (200 OK AND sufficiently large)
             is_valid_fullsize = False
             if response.status_code == 200:
+                # 3KB is a very safe floor for "any" image, 
+                # but thumbnails are usually 2-5KB and fullsize are 30KB+.
+                # We'll stick to 5KB as a "is this really fullsize" indicator.
                 if len(response.content) >= 5000:
                     is_valid_fullsize = True
                 else:
-                    logger.warning(f"Fullsize snapshot {fullsize_url} is too small ({len(response.content)} bytes).")
+                    logger.warning(f"Snapshot from {fullsize_url} is unexpectedly small ({len(response.content)} bytes).")
+            else:
+                logger.error(f"Failed to download from {fullsize_url}: Status {response.status_code}")
             
             # Fallback to original URL if fullsize failed or was too small
             if not is_valid_fullsize and fullsize_url != url:
-                logger.info(f"Falling back to original URL: {url}")
+                logger.info(f"Falling back to base URL: {url}")
                 response = await client.get(url)
 
             if response.status_code == 200:
-                # Minimum size check to avoid corrupted/partial downloads (e.g. 5KB)
-                if len(response.content) < 5000:
-                    logger.warning(f"Downloaded snapshot for {event_id} is too small ({len(response.content)} bytes), rejecting.")
+                content_size = len(response.content)
+                if content_size < 1500:
+                    logger.error(f"Downloaded image for {event_id} is way too small ({content_size} bytes). Likely an error message or corrupt file. Skipping.")
                     return None
-                    
+                
+                if content_size < 5000:
+                    logger.warning(f"Downloaded snapshot for {event_id} is fairly small ({content_size} bytes). Might be a thumbnail.")
+                
                 with open(filepath, "wb") as f:
                     f.write(response.content)
-                logger.info(f"Saved snapshot for event {event_id} to {filename} (Size: {len(response.content)} bytes)")
+                
+                logger.info(f"Saved snapshot to {filepath} ({content_size} bytes)")
                 return filename
             else:
                 logger.warning(f"Failed to download snapshot from {url}: {response.status_code}")
