@@ -275,7 +275,8 @@ async def periodic_camera_sync():
                     "name": c.name,
                     "latitude": c.latitude,
                     "longitude": c.longitude,
-                    "url": c.photo_url
+                    "url": c.photo_url,
+                    "fullsize_url": c.fullsize_url
                 } for c in current_cameras]
                 
                 logger.debug(f"Synced {len(current_cameras)} cameras to DB and global cache")
@@ -322,16 +323,17 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
                 # We'll stick to 5KB as a "is this really fullsize" indicator.
                 if len(response.content) >= 5000:
                     is_valid_fullsize = True
-                else:
-                    logger.warning(f"Snapshot from {fullsize_url} is unexpectedly small ({len(response.content)} bytes).")
+                is_valid_fullsize = len(response.content) >= 30000  # High-res should be 30KB+ (usually 100KB+)
+                if not is_valid_fullsize:
+                    logger.warning(f"Snapshot from {fullsize_url} is unexpectedly small ({len(response.content)} bytes), below 30KB threshold for fullsize.")
             else:
                 logger.error(f"Failed to download from {fullsize_url}: Status {response.status_code}")
             
             # Fallback to original URL if fullsize failed or was too small
             if not is_valid_fullsize and fullsize_url != url:
-                logger.info(f"Falling back to base URL: {url}")
+                logger.info(f"Fullsize image too small ({len(response.content)} bytes) or failed, falling back to base URL: {url}")
                 response = await client.get(url)
-
+            
             if response.status_code == 200:
                 content_size = len(response.content)
                 if content_size < 1500:

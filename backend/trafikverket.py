@@ -307,15 +307,23 @@ async def get_cameras(api_key: str):
                     match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
                     if match:
                         photo_url = res.get('PhotoUrl')
-                        # Prioritize PhotoUrlFullsize from API
                         fullsize_url = res.get('PhotoUrlFullsize')
+
+                        # If we have a photo_url and the API says there's a fullsize version,
+                        # we ensure we have the ?type=fullsize parameter, even if PhotoUrlFullsize
+                        # was provided but didn't have it (Trafikverket often returns the same
+                        # base URL for both unless forced).
+                        if res.get('HasFullSizePhoto', False) and photo_url:
+                            # If fullsize_url is not set or doesn't contain 'type=fullsize'
+                            if not fullsize_url or "type=fullsize" not in fullsize_url:
+                                if "?" in photo_url:
+                                    fullsize_url = f"{photo_url}&type=fullsize"
+                                else:
+                                    fullsize_url = f"{photo_url}?type=fullsize"
                         
-                        # Fallback ONLY if explicit field is missing but flag says it exists
-                        if not fullsize_url and res.get('HasFullSizePhoto', False) and photo_url:
-                            if "?" in photo_url:
-                                fullsize_url = f"{photo_url}&type=fullsize"
-                            else:
-                                fullsize_url = f"{photo_url}?type=fullsize"
+                        # Ensure we have all necessary fields for the internal Camera model
+                        if not photo_url:
+                            continue
                         
                         # CountyNo can be a list, we just take the first one or 0 if empty
                         counties = res.get('CountyNo', [])
