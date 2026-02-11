@@ -346,35 +346,73 @@ async def event_processor():
                 radius_setting = db.query(Settings).filter(Settings.key == "camera_radius_km").first()
                 max_dist = float(radius_setting.value) if radius_setting else 5.0
                 for ev in events:
-                    # Find nearby cameras
-                    nearby_cams = find_nearby_cameras(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
-                    
-                    primary_cam = nearby_cams[0] if nearby_cams else None
-                    camera_url = primary_cam.get('url') if primary_cam else None
-                    camera_name = primary_cam.get('name') if primary_cam else None
-                    fullsize_url = primary_cam.get('fullsize_url') if primary_cam else None
-                    
-                    # Process extra cameras
-                    extra_cams_data = []
-                    if len(nearby_cams) > 1:
-                        for idx, c in enumerate(nearby_cams[1:]):
-                            # We'll download snapshots for extra cameras too, but maybe later or on demand?
-                            # For "smidigast" experience, let's download them now.
-                            # We use a unique ID derived from event + index/camera_id
-                            cam_id_safe = str(c.get('id', idx)).replace(":", "_")
-                            c_snap = await download_camera_snapshot(c.get('url'), f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
-                            extra_cams_data.append({
-                                "id": c.get('id'),
-                                "name": c.get('name'),
-                                "url": c.get('url'),
-                                "fullsize_url": c.get('fullsize_url'),
-                                "snapshot": c_snap
-                            })
-
-                    extra_cameras_json = json.dumps(extra_cams_data) if extra_cams_data else None
-
-                    # Check if event already exists
+                    # Check if event already exists to decide if we need to fetch cameras
                     existing = db.query(TrafficEvent).filter(TrafficEvent.external_id == ev['external_id']).first()
+                    
+                    camera_url = None
+                    camera_name = None
+                    fullsize_url = None
+                    extra_cameras_json = None
+                    
+                    # Logic to determine if we should fetch/download cameras
+                    # 1. New event
+                    # 2. Existing event but no extra_cameras yet
+                    # 3. Location changed significantly?
+                    needs_camera_sync = False
+                    if not existing:
+                        needs_camera_sync = True
+                    else:
+                        loc_changed = False
+                        if ev.get('latitude') is not None and existing.latitude != ev.get('latitude'):
+                            loc_changed = True
+                        if ev.get('longitude') is not None and existing.longitude != ev.get('longitude'):
+                            loc_changed = True
+                        
+                        # Check if we have missing snapshots in extra cameras
+                        has_missing_extra = False
+                        if existing.extra_cameras:
+                            try:
+                                extra_c_list = json.loads(existing.extra_cameras)
+                                if any(not c.get('snapshot') for c in extra_c_list):
+                                    has_missing_extra = True
+                            except:
+                                has_missing_extra = True
+
+                        if not existing.extra_cameras or has_missing_extra or loc_changed:
+                            needs_camera_sync = True
+
+                    if needs_camera_sync:
+                        # Find nearby cameras
+                        nearby_cams = find_nearby_cameras(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
+                        
+                        primary_cam = nearby_cams[0] if nearby_cams else None
+                        camera_url = primary_cam.get('url') if primary_cam else None
+                        camera_name = primary_cam.get('name') if primary_cam else None
+                        fullsize_url = primary_cam.get('fullsize_url') if primary_cam else None
+                        
+                        # Process extra cameras
+                        extra_cams_data = []
+                        if len(nearby_cams) > 1:
+                            for idx, c in enumerate(nearby_cams[1:]):
+                                # Ensure we have a safe ID for the filename
+                                cam_id_safe = str(c.get('id', idx)).replace(":", "_")
+                                c_snap = await download_camera_snapshot(c.get('url'), f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
+                                extra_cams_data.append({
+                                    "id": c.get('id'),
+                                    "name": c.get('name'),
+                                    "url": c.get('url'),
+                                    "fullsize_url": c.get('fullsize_url'),
+                                    "snapshot": c_snap
+                                })
+
+                        extra_cameras_json = json.dumps(extra_cams_data) if extra_cams_data else None
+                    else:
+                        # Use existing camera data
+                        camera_url = existing.camera_url
+                        camera_name = existing.camera_name
+                        extra_cameras_json = existing.extra_cameras
+                        # We still need fullsize_url if we want to update the primary snapshot later
+                        # but if we have existing.camera_snapshot, it won't be called.
                     
                     if existing:
                         # Check if anything significant changed before updating
@@ -440,8 +478,13 @@ async def event_processor():
                         if camera_url:
                             existing.camera_url = camera_url
                             existing.camera_name = camera_name
+                            
                             # Update snapshot if missing or if we have a new camera URL
-                            existing.camera_snapshot = existing.camera_snapshot or await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
+                            # (But only download if we actually need it)
+                            if not existing.camera_snapshot:
+                                # We need fullsize_url here, which might be None if we skipped find_nearby_cameras.
+                                # However, download_camera_snapshot handles None fullsize_url by falling back to url.
+                                existing.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
                         
                         if extra_cameras_json:
                             existing.extra_cameras = extra_cameras_json
