@@ -1,0 +1,18 @@
+{
+    "short_name": "Flux",
+    "name": "Trafikinfo Flux",
+    "icons": [
+        {
+            "src": "logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": "/",
+    "background_color": "#0f172a",
+    "display": "standalone",
+    "scope": "/",
+    "theme_color": "#2563eb",
+    "description": "Realtidsövervakning av svenska vägar och trafikshändelser."
+}

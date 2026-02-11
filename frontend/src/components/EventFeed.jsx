@@ -551,7 +551,7 @@ export default function EventFeed() {
                                 </div>
 
                                 <div className="flex flex-col lg:flex-row justify-between items-stretch gap-4 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700/50 pt-4 lg:pt-0 lg:pl-6 max-w-full overflow-hidden">
-                                    <div className="flex flex-row lg:flex-col gap-2 w-full lg:w-48 mt-2 lg:mt-0 flex-shrink-0">
+                                    <div className="flex flex-row gap-2 w-full lg:w-auto mt-2 lg:mt-0 flex-shrink-0">
                                         {/* Camera Slot (Always visible) */}
                                         <div
                                             className="relative w-1/2 lg:w-48 h-24 sm:h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in"
