@@ -580,6 +580,8 @@ async def event_processor():
                         icon_id_with_ext = f"{ev['icon_id']}.png"
                         local_icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
                         mqtt_data['icon_url'] = local_icon_url
+                        # Public fallback for users behind Basic Auth
+                        mqtt_data['external_icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
                     
                     # 2. Sanitize Cameras: Use local snapshots/proxies
                     # Use data from the DB to ensure consistency

@@ -21,6 +21,7 @@ The payload is a JSON object.
 - `snapshot_url`: **Full absolute URL** to the locally saved camera image.
 - `event_url`: **Full absolute URL** to open the specific event in the PWA app.
 - `icon_url`: **Full absolute URL** to the locally proxied icon (includes `.png` for compatibility).
+- `external_icon_url`: **Original Trafikverket URL** (public, no auth required).
 
 ### Camera Data
 - `camera_name`: Name of the primary camera.
