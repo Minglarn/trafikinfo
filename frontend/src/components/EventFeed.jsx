@@ -594,19 +594,27 @@ export default function EventFeed() {
                                                 <span className="text-[10px] italic lg:block hidden">Ingen bild</span>
                                             </div>
 
+                                            {/* Camera Name Overlay */}
                                             {event.camera_name && (
-                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center justify-between z-20">
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 z-20">
                                                     <div className="flex items-center gap-1 truncate">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                                                         <span className="truncate">{event.camera_name}</span>
                                                     </div>
-                                                    {event.extra_cameras?.length > 0 && (
-                                                        <span className="ml-1 bg-blue-500/80 px-1 rounded flex-shrink-0 font-bold">
-                                                            +{event.extra_cameras.length}
-                                                        </span>
-                                                    )}
                                                 </div>
                                             )}
+
+                                            {/* Extra Cameras Badge (Top Right) */}
+                                            {(() => {
+                                                const validExtras = event.extra_cameras?.filter(c => c.snapshot) || [];
+                                                if (validExtras.length === 0) return null;
+                                                return (
+                                                    <div className="absolute top-2 right-2 z-30 flex items-center gap-1.5 bg-blue-600/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg backdrop-blur-sm border border-white/20">
+                                                        <Camera className="w-3 h-3" />
+                                                        <span>+{validExtras.length}</span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
 
                                         {/* Map / Location Preview */}
