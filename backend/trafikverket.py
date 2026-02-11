@@ -270,7 +270,7 @@ async def get_cameras(api_key: str):
     url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
     query = f"""<REQUEST>
     <LOGIN authenticationkey='{api_key}' />
-    <QUERY objecttype='Camera' schemaversion='1.0'>
+    <QUERY objecttype='Camera' schemaversion='1.2'>
         <FILTER>
             <EQ name="Deleted" value="false" />
             <EQ name="Active" value="true" />
