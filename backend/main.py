@@ -668,7 +668,7 @@ async def event_processor():
                             mqtt_data['extra_cameras'] = None
 
                     # 4. Region & Timeout
-                    mqtt_data['region'] = COUNTY_MAP.get(new_event.county_no, \"Okänd region\")
+                    mqtt_data['region'] = COUNTY_MAP.get(new_event.county_no, "Okänd region")
                     
                     if new_event.end_time:
                         now = datetime.now()
