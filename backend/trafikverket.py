@@ -280,7 +280,7 @@ async def get_cameras(api_key: str):
         <INCLUDE>Description</INCLUDE>
         <INCLUDE>Type</INCLUDE>
         <INCLUDE>PhotoUrl</INCLUDE>
-        <INCLUDE>FullSizePhotoUrl</INCLUDE>
+        <INCLUDE>PhotoUrlFullsize</INCLUDE>
         <INCLUDE>PhotoTime</INCLUDE>
         <INCLUDE>Geometry.WGS84</INCLUDE>
         <INCLUDE>HasFullSizePhoto</INCLUDE>
@@ -304,10 +304,11 @@ async def get_cameras(api_key: str):
                     match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
                     if match:
                         photo_url = res.get('PhotoUrl')
-                        fullsize_url = res.get('FullSizePhotoUrl')
+                        # Prioritize PhotoUrlFullsize from API
+                        fullsize_url = res.get('PhotoUrlFullsize')
                         
+                        # Fallback ONLY if explicit field is missing but flag says it exists
                         if not fullsize_url and res.get('HasFullSizePhoto', False) and photo_url:
-                            # Robustly append type=fullsize
                             if "?" in photo_url:
                                 fullsize_url = f"{photo_url}&type=fullsize"
                             else:
