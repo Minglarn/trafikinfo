@@ -46,16 +46,14 @@ app = FastAPI(title="Trafikinfo API")
 class LoginRequest(BaseModel):
     password: str
 
-def get_current_admin(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
+def get_current_admin(x_admin_token: str = Header(None)):
+    if not x_admin_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authentication header"
+            detail="Saknar admin-token"
         )
     
-    token = authorization.split(" ")[1]
-    
-    if token != ADMIN_PASSWORD:
+    if x_admin_token != ADMIN_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ogiltigt lösenord"

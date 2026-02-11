@@ -19,14 +19,14 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async (token) => {
         try {
             await axios.get('/api/auth/check', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'X-Admin-Token': token }
             });
             setIsLoggedIn(true);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            axios.defaults.headers.common['X-Admin-Token'] = token;
         } catch (error) {
             console.error('Auth verification failed', error);
             localStorage.removeItem('admin_token');
-            delete axios.defaults.headers.common['Authorization'];
+            delete axios.defaults.headers.common['X-Admin-Token'];
             setIsLoggedIn(false);
         } finally {
             setIsLoading(false);
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
             const response = await axios.post('/api/auth/login', { password });
             const { token } = response.data;
             localStorage.setItem('admin_token', token);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            axios.defaults.headers.common['X-Admin-Token'] = token;
             setIsLoggedIn(true);
             return { success: true };
         } catch (error) {
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('admin_token');
-        delete axios.defaults.headers.common['Authorization'];
+        delete axios.defaults.headers.common['X-Admin-Token'];
         setIsLoggedIn(false);
     };
 
