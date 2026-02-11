@@ -647,7 +647,6 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
     query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
     
     if hours:
-        from datetime import datetime, timedelta
         cutoff = datetime.now() - timedelta(hours=hours)
         query = query.filter(TrafficEvent.created_at >= cutoff)
         
@@ -680,24 +679,41 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
     ]
 
 @app.get("/api/stats")
-def get_stats(hours: int = 24, db: Session = Depends(get_db)):
-    from datetime import datetime, timedelta
-    cutoff = datetime.now() - timedelta(hours=hours)
+def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db)):
+    from datetime import datetime, timedelta, time
+    
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+            start_time = datetime.combine(target_date, time.min)
+            end_time = datetime.combine(target_date, time.max)
+        except ValueError:
+            return JSONResponse(status_code=400, content={"message": "Invalid date format. Use YYYY-MM-DD"})
+    elif hours:
+        start_time = datetime.now() - timedelta(hours=hours)
+        end_time = datetime.now()
+    else:
+        # Default to Today from midnight
+        start_time = datetime.combine(datetime.now().date(), time.min)
+        end_time = datetime.now()
     
     # Base query for time range
-    base_query = db.query(TrafficEvent).filter(TrafficEvent.created_at >= cutoff)
+    base_query = db.query(TrafficEvent).filter(
+        TrafficEvent.created_at >= start_time,
+        TrafficEvent.created_at <= end_time
+    )
     
     # Total count
     total_events = base_query.count()
     
     # Count by Message Type
     type_counts = db.query(TrafficEvent.message_type, func.count(TrafficEvent.id))\
-        .filter(TrafficEvent.created_at >= cutoff)\
+        .filter(TrafficEvent.created_at >= start_time, TrafficEvent.created_at <= end_time)\
         .group_by(TrafficEvent.message_type).all()
         
     # Count by Severity
     severity_counts = db.query(TrafficEvent.severity_text, func.count(TrafficEvent.id))\
-        .filter(TrafficEvent.created_at >= cutoff)\
+        .filter(TrafficEvent.created_at >= start_time, TrafficEvent.created_at <= end_time)\
         .group_by(TrafficEvent.severity_text).all()
         
     # Events over time (grouped by hour)
@@ -714,7 +730,8 @@ def get_stats(hours: int = 24, db: Session = Depends(get_db)):
         "total": total_events,
         "by_type": [{"name": t[0] or "Okänd", "value": t[1]} for t in type_counts],
         "by_severity": [{"name": s[0] or "Okänd", "value": s[1]} for s in severity_counts],
-        "timeline": sorted_timeline
+        "timeline": sorted_timeline,
+        "date": date or datetime.now().strftime("%Y-%m-%d")
     }
 
 @app.post("/api/settings")

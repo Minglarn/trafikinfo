@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
-import { Activity, AlertTriangle, TrendingUp, Truck, Users } from 'lucide-react'
+import { Activity, AlertTriangle, TrendingUp, Truck, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { format, subDays, addDays, isToday, parseISO } from 'date-fns'
+import { sv } from 'date-fns/locale'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d']
 const SEVERITY_COLORS = {
@@ -15,13 +17,14 @@ const SEVERITY_COLORS = {
 export default function Statistics() {
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
-    const [timeRange, setTimeRange] = useState(24) // hours
+    const [selectedDate, setSelectedDate] = useState(new Date())
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true)
             try {
-                const res = await axios.get(`/api/stats?hours=${timeRange}`)
+                const dateStr = format(selectedDate, 'yyyy-MM-dd')
+                const res = await axios.get(`/api/stats?date=${dateStr}`)
                 setData(res.data)
             } catch (error) {
                 console.error("Error fetching stats:", error)
@@ -30,7 +33,15 @@ export default function Statistics() {
             }
         }
         fetchData()
-    }, [timeRange])
+    }, [selectedDate])
+
+    const goToPreviousDay = () => setSelectedDate(prev => subDays(prev, 1))
+    const goToNextDay = () => {
+        if (!isToday(selectedDate)) {
+            setSelectedDate(prev => addDays(prev, 1))
+        }
+    }
+    const goToToday = () => setSelectedDate(new Date())
 
     if (loading) {
         return (
@@ -53,22 +64,46 @@ export default function Statistics() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Trafikstatistik</h2>
-                    <p className="text-slate-500 dark:text-slate-400">Översikt över händelser senaste {timeRange} timmarna</p>
+                    <p className="text-slate-500 dark:text-slate-400">
+                        {isToday(selectedDate) ? 'Översikt för idag' : `Statistik för ${format(selectedDate, 'd MMMM yyyy', { locale: sv })}`}
+                    </p>
                 </div>
 
-                <div className="flex bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                    {[24, 168, 720].map((hours) => (
+                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <button
+                        onClick={goToPreviousDay}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-600 dark:text-slate-400"
+                        title="Föregående dag"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    <div className="px-4 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg flex items-center gap-2 min-w-[160px] justify-center">
+                        <Calendar className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                            {isToday(selectedDate) ? 'Idag' : format(selectedDate, 'yyyy-MM-dd')}
+                        </span>
+                    </div>
+
+                    <button
+                        onClick={goToNextDay}
+                        disabled={isToday(selectedDate)}
+                        className={`p-2 rounded-xl transition-colors ${isToday(selectedDate)
+                            ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                        title="Nästa dag"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    {!isToday(selectedDate) && (
                         <button
-                            key={hours}
-                            onClick={() => setTimeRange(hours)}
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${timeRange === hours
-                                ? 'bg-blue-600 text-white shadow-sm'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                }`}
+                            onClick={goToToday}
+                            className="ml-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
                         >
-                            {hours === 24 ? '24h' : hours === 168 ? '7d' : '30d'}
+                            Tillbaka till idag
                         </button>
-                    ))}
+                    )}
                 </div>
             </div>
 
