@@ -2,7 +2,7 @@ VERSION = "26.2.17"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import asyncio
 import os
@@ -597,19 +597,89 @@ async def stream_events():
     from sse_starlette.sse import EventSourceResponse
     return EventSourceResponse(event_generator())
 
+@app.get("/api/events")
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
+    query = db.query(TrafficEvent)
+    
+    # Filter out expired events: end_time is null OR end_time is in the future
+    now = datetime.now()
+    query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+    
+    if hours:
+        cutoff = datetime.now() - timedelta(hours=hours)
+        query = query.filter(TrafficEvent.created_at >= cutoff)
+        
+    events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
+    
+    result = []
+    for e in events:
+        # Sanitize extra cameras: remove external URLs
+        extra_cams = []
+        if e.extra_cameras:
+            try:
+                raw_extra = json.loads(e.extra_cameras)
+                for c in raw_extra:
+                    extra_cams.append({
+                        "id": c.get("id"),
+                        "name": c.get("name"),
+                        "snapshot": c.get("snapshot")
+                    })
+            except:
+                pass
+
+        result.append({
+            "id": e.id,
+            "external_id": e.external_id,
+            "title": e.title,
+            "description": e.description,
+            "location": e.location,
+            "icon_url": f"/api/icons/{e.icon_id}" if e.icon_id else None,
+            "created_at": e.created_at,
+            "pushed_to_mqtt": bool(e.pushed_to_mqtt),
+            "message_type": e.message_type,
+            "severity_code": e.severity_code,
+            "severity_text": e.severity_text,
+            "road_number": e.road_number,
+            "start_time": e.start_time,
+            "end_time": e.end_time,
+            "temporary_limit": e.temporary_limit,
+            "traffic_restriction_type": e.traffic_restriction_type,
+            "latitude": e.latitude,
+            "longitude": e.longitude,
+            "camera_snapshot": e.camera_snapshot,
+            "extra_cameras": extra_cams,
+            "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
+        })
+    return result
+
 @app.get("/api/events/{external_id}/history")
 async def get_event_history(external_id: str, db: Session = Depends(get_db)):
     versions = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == external_id).order_by(TrafficEventVersion.version_timestamp.desc()).all()
-    # Format versions similarly to events for the frontend
-    return [
-        {
+    
+    result = []
+    for v in versions:
+        # Sanitize extra cameras: remove external URLs
+        extra_cams = []
+        if v.extra_cameras:
+            try:
+                raw_extra = json.loads(v.extra_cameras)
+                for c in raw_extra:
+                    extra_cams.append({
+                        "id": c.get("id"),
+                        "name": c.get("name"),
+                        "snapshot": c.get("snapshot")
+                    })
+            except:
+                pass
+
+        result.append({
             "id": v.id,
             "external_id": v.external_id,
             "version_timestamp": v.version_timestamp,
             "title": v.title,
             "description": v.description,
             "location": v.location,
-            "icon_url": f"https://api.trafikinfo.trafikverket.se/v1/icons/{v.icon_id}?type=png32x32" if v.icon_id else None,
+            "icon_url": f"/api/icons/{v.icon_id}" if v.icon_id else None,
             "message_type": v.message_type,
             "severity_code": v.severity_code,
             "severity_text": v.severity_text,
@@ -621,9 +691,9 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
             "latitude": v.latitude,
             "longitude": v.longitude,
             "camera_snapshot": v.camera_snapshot,
-            "extra_cameras": json.loads(v.extra_cameras) if v.extra_cameras else []
-        } for v in versions
-    ]
+            "extra_cameras": extra_cams
+        })
+    return result
 
 @app.get("/api/cameras")
 @app.get("/api/cameras")
@@ -663,7 +733,8 @@ def get_cameras_api(
         return {
             "favorites": [{
                 "id": c.id, "name": c.name, "description": c.description, "location": c.location,
-                "type": c.type, "url": c.photo_url, "fullsize_url": c.fullsize_url,
+                "type": c.type, 
+                "proxy_url": f"/api/cameras/{c.id}/image",
                 "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
                 "county_no": c.county_no, "is_favorite": True
             } for c in favorites],
@@ -688,8 +759,7 @@ def get_cameras_api(
             "description": c.description,
             "location": c.location,
             "type": c.type,
-            "url": c.photo_url,
-            "fullsize_url": c.fullsize_url,
+            "proxy_url": f"/api/cameras/{c.id}/image",
             "photo_time": c.photo_time,
             "latitude": c.latitude,
             "longitude": c.longitude,
@@ -711,6 +781,45 @@ def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db), admin=
     db.commit()
     return {"id": cam.id, "is_favorite": bool(cam.is_favorite)}
 
+@app.get("/api/icons/{icon_id}")
+async def proxy_icon(icon_id: str):
+    url = f"https://api.trafikinfo.trafikverket.se/v1/icons/{icon_id}?type=png32x32"
+    async def stream_icon():
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            try:
+                async with client.stream("GET", url) as response:
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
+            except Exception as e:
+                logger.error(f"Error proxying icon {icon_id}: {e}")
+                yield b""
+    return StreamingResponse(stream_icon(), media_type="image/png")
+
+@app.get("/api/cameras/{camera_id}/image")
+async def proxy_camera_image(camera_id: str, fullsize: bool = False, db: Session = Depends(get_db)):
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    url = camera.fullsize_url if (fullsize and camera.fullsize_url) else camera.photo_url
+    if not url:
+        raise HTTPException(status_code=404, detail="No image URL available")
+        
+    async def stream_image():
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                async with client.stream("GET", url) as response:
+                    if response.status_code != 200:
+                        yield b""
+                        return
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
+            except Exception as e:
+                logger.error(f"Error proxying camera {camera_id}: {e}")
+                yield b""
+
+    return StreamingResponse(stream_image(), media_type="image/jpeg")
+
 @app.get("/api/events", response_model=List[dict])
 def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
@@ -724,14 +833,30 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
         query = query.filter(TrafficEvent.created_at >= cutoff)
         
     events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
-    return [
-        {
+    
+    result = []
+    for e in events:
+        # Sanitize extra cameras: remove external URLs
+        extra_cams = []
+        if e.extra_cameras:
+            try:
+                raw_extra = json.loads(e.extra_cameras)
+                for c in raw_extra:
+                    extra_cams.append({
+                        "id": c.get("id"),
+                        "name": c.get("name"),
+                        "snapshot": c.get("snapshot")
+                    })
+            except:
+                pass
+
+        result.append({
             "id": e.id,
             "external_id": e.external_id,
             "title": e.title,
             "description": e.description,
             "location": e.location,
-            "icon_url": f"https://api.trafikinfo.trafikverket.se/v1/icons/{e.icon_id}?type=png32x32" if e.icon_id else None,
+            "icon_url": f"/api/icons/{e.icon_id}" if e.icon_id else None,
             "created_at": e.created_at,
             "pushed_to_mqtt": bool(e.pushed_to_mqtt),
             "message_type": e.message_type,
@@ -744,13 +869,11 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "traffic_restriction_type": e.traffic_restriction_type,
             "latitude": e.latitude,
             "longitude": e.longitude,
-            "camera_url": e.camera_url,
-            "camera_name": e.camera_name,
             "camera_snapshot": e.camera_snapshot,
-            "extra_cameras": json.loads(e.extra_cameras) if e.extra_cameras else [],
+            "extra_cameras": extra_cams,
             "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
-        } for e in events
-    ]
+        })
+    return result
 
 @app.get("/api/stats")
 def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db)):

@@ -577,17 +577,13 @@ export default function EventFeed() {
                                                 }
                                             }}
                                         >
-                                            {(event.camera_url || event.camera_snapshot) ? (
+                                            {event.camera_snapshot ? (
                                                 <img
-                                                    src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                    src={`/api/snapshots/${event.camera_snapshot}`}
                                                     alt={event.camera_name || 'Trafikkamera'}
                                                     className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
                                                     onError={(e) => {
-                                                        if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
-                                                            e.target.src = event.camera_url;
-                                                        } else {
-                                                            e.target.style.opacity = '0';
-                                                        }
+                                                        e.target.style.opacity = '0';
                                                     }}
                                                 />
                                             ) : null}
@@ -659,7 +655,7 @@ export default function EventFeed() {
                                             {/* Primary Camera */}
                                             <div className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
                                                 <img
-                                                    src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                    src={`/api/snapshots/${event.camera_snapshot}`}
                                                     alt={event.camera_name}
                                                     className="w-full h-auto object-contain max-h-[60vh]"
                                                 />
@@ -670,12 +666,12 @@ export default function EventFeed() {
                                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Primär vy</p>
                                                         </div>
                                                         <a
-                                                            href={event.camera_url}
+                                                            href={`/api/snapshots/${event.camera_snapshot}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300"
+                                                            className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
                                                         >
-                                                            Öppna original
+                                                            Visa fullstorlek
                                                         </a>
                                                     </div>
                                                 </div>
@@ -695,14 +691,16 @@ export default function EventFeed() {
                                                                 <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{extra.name}</h3>
                                                                 <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Alternativ vy</p>
                                                             </div>
-                                                            <a
-                                                                href={extra.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300"
-                                                            >
-                                                                Öppna original
-                                                            </a>
+                                                            {extra.snapshot && (
+                                                                <a
+                                                                    href={`/api/snapshots/${extra.snapshot}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
+                                                                >
+                                                                    Visa fullstorlek
+                                                                </a>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
