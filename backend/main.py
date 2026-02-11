@@ -23,9 +23,18 @@ debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure snapshots directory exists
+# Filter out frequent /api/status logs
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage().find("/api/status") == -1
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
+# Ensure data directories exist
 SNAPSHOTS_DIR = os.path.join(os.getcwd(), "data", "snapshots")
+ICONS_DIR = os.path.join(os.getcwd(), "data", "icons")
 os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+os.makedirs(ICONS_DIR, exist_ok=True)
 
 # Defaults for fresh install
 DEFAULTS = {
@@ -75,8 +84,9 @@ async def login(request: LoginRequest):
 async def check_auth(admin=Depends(get_current_admin)):
     return {"status": "ok", "user": admin}
 
-# Serve snapshots
+# Serve localized media
 app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")
+app.mount("/api/icons-local", StaticFiles(directory=ICONS_DIR), name="icons")
 
 app.add_middleware(
     CORSMiddleware,
@@ -785,17 +795,26 @@ def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db), admin=
 
 @app.get("/api/icons/{icon_id}")
 async def proxy_icon(icon_id: str):
+    icon_filename = f"{icon_id}.png"
+    icon_path = os.path.join(ICONS_DIR, icon_filename)
+    
+    # Return local if exists
+    if os.path.exists(icon_path):
+        return FileResponse(icon_path, media_type="image/png")
+        
+    # Otherwise fetch and save
     url = f"https://api.trafikinfo.trafikverket.se/v1/icons/{icon_id}?type=png32x32"
-    async def stream_icon():
+    try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            try:
-                async with client.stream("GET", url) as response:
-                    async for chunk in response.aiter_bytes():
-                        yield chunk
-            except Exception as e:
-                logger.error(f"Error proxying icon {icon_id}: {e}")
-                yield b""
-    return StreamingResponse(stream_icon(), media_type="image/png")
+            response = await client.get(url)
+            if response.status_code == 200:
+                with open(icon_path, "wb") as f:
+                    f.write(response.content)
+                return FileResponse(icon_path, media_type="image/png")
+    except Exception as e:
+        logger.error(f"Error proxying icon {icon_id}: {e}")
+        
+    raise HTTPException(status_code=404, detail="Icon not found")
 
 @app.get("/api/cameras/{camera_id}/image")
 async def proxy_camera_image(camera_id: str, fullsize: bool = False, db: Session = Depends(get_db)):
