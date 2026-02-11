@@ -653,29 +653,34 @@ export default function EventFeed() {
                                     >
                                         <div className="p-4 flex flex-col gap-6" onClick={e => e.stopPropagation()}>
                                             {/* Primary Camera */}
-                                            <div className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
-                                                <img
-                                                    src={`/api/snapshots/${event.camera_snapshot}`}
-                                                    alt={event.camera_name}
-                                                    className="w-full h-auto object-contain max-h-[60vh]"
-                                                />
-                                                <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
-                                                    <div className="flex justify-between items-center">
-                                                        <div>
-                                                            <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{event.camera_name}</h3>
-                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Primär vy</p>
+                                            {event.camera_snapshot && (
+                                                <div className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
+                                                    <img
+                                                        src={`/api/snapshots/${event.camera_snapshot}`}
+                                                        alt={event.camera_name}
+                                                        className="w-full h-auto object-contain max-h-[60vh]"
+                                                        onError={(e) => {
+                                                            e.target.style.opacity = '0';
+                                                        }}
+                                                    />
+                                                    <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{event.camera_name}</h3>
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Primär vy</p>
+                                                            </div>
+                                                            <a
+                                                                href={`/api/snapshots/${event.camera_snapshot}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
+                                                            >
+                                                                Visa fullstorlek
+                                                            </a>
                                                         </div>
-                                                        <a
-                                                            href={`/api/snapshots/${event.camera_snapshot}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
-                                                        >
-                                                            Visa fullstorlek
-                                                        </a>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            )}
 
                                             {/* Extra Cameras */}
                                             {event.extra_cameras?.map((extra, idx) => (

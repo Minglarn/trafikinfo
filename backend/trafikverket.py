@@ -232,7 +232,11 @@ def find_nearby_cameras(lat, lon, cameras, target_road=None, max_dist_km=5.0, li
     norm_target = clean_target(target_road)
 
     for cam in cameras:
-        # 1. Check distance first
+        # 1. Check distance and URL validity
+        cam_url = cam.get('url')
+        if not cam_url:
+            continue
+            
         dist = calculate_distance(lat, lon, cam.get('latitude'), cam.get('longitude'))
         if dist > max_dist_km:
             continue

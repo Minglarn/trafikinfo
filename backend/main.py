@@ -287,7 +287,7 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
         return None
     
     # Prioritize explicit fullsize URL from API, otherwise try to guess it
-    fullsize_url = explicit_fullsize_url
+    fullsize_url = explicit_fullsize_url or url
     filename = f"{event_id}_{int(datetime.now().timestamp())}"
     if explicit_fullsize_url and "api.trafikinfo.trafikverket.se" in url:
         # Just to differentiate in logs and potentially filename if we wanted
@@ -394,14 +394,16 @@ async def event_processor():
                         extra_cams_data = []
                         if len(nearby_cams) > 1:
                             for idx, c in enumerate(nearby_cams[1:]):
+                                cam_url = c.get('url')
+                                if not cam_url:
+                                    continue
+                                    
                                 # Ensure we have a safe ID for the filename
                                 cam_id_safe = str(c.get('id', idx)).replace(":", "_")
-                                c_snap = await download_camera_snapshot(c.get('url'), f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
+                                c_snap = await download_camera_snapshot(cam_url, f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
                                 extra_cams_data.append({
                                     "id": c.get('id'),
                                     "name": c.get('name'),
-                                    "url": c.get('url'),
-                                    "fullsize_url": c.get('fullsize_url'),
                                     "snapshot": c_snap
                                 })
 
