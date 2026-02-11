@@ -680,11 +680,13 @@ export default function EventFeed() {
                                             {/* Extra Cameras */}
                                             {event.extra_cameras?.map((extra, idx) => (
                                                 <div key={extra.id || idx} className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
-                                                    <img
-                                                        src={extra.snapshot ? `/api/snapshots/${extra.snapshot}` : extra.url}
-                                                        alt={extra.name}
-                                                        className="w-full h-auto object-contain max-h-[60vh]"
-                                                    />
+                                                    {extra.snapshot && (
+                                                        <img
+                                                            src={`/api/snapshots/${extra.snapshot}`}
+                                                            alt={extra.name}
+                                                            className="w-full h-auto object-contain max-h-[60vh]"
+                                                        />
+                                                    )}
                                                     <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
                                                         <div className="flex justify-between items-center">
                                                             <div>
