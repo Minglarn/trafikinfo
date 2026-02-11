@@ -13,6 +13,7 @@ import BottomNav from './components/BottomNav'
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+  const [initialEventId, setInitialEventId] = useState(null)
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -47,6 +48,32 @@ function AppContent() {
     return () => clearInterval(interval)
   }, [activeTab])
 
+  // Report Base URL and handle Deep Links
+  React.useEffect(() => {
+    // 1. Report base_url to backend
+    const reportBaseUrl = async () => {
+      try {
+        await fetch('/api/report-base-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: window.location.origin })
+        });
+      } catch (err) {
+        console.error('Failed to report base_url:', err);
+      }
+    };
+    reportBaseUrl();
+
+    // 2. Check for deep link event_id
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get('event_id');
+    if (eventId) {
+      setInitialEventId(eventId);
+      // Optional: Clean up URL after capturing
+      // window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // Apply theme class to html element
   React.useEffect(() => {
     const root = window.document.documentElement
@@ -77,7 +104,7 @@ function AppContent() {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 pt-16 pb-20 md:pt-4 md:pb-4 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
           <div className="max-w-7xl mx-auto h-full">
-            {activeTab === 'feed' && <EventFeed />}
+            {activeTab === 'feed' && <EventFeed initialEventId={initialEventId} onClearInitialEvent={() => setInitialEventId(null)} />}
             {activeTab === 'cameras' && <CameraGrid />}
             {activeTab === 'statistics' && <Statistics />}
             {activeTab === 'history' && <HistoryBoard />}

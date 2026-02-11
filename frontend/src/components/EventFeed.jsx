@@ -32,8 +32,11 @@ const SEVERITY_COLORS = {
     'Mycket stor påverkan': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
 }
 
-export default function EventFeed() {
+import EventModal from './EventModal'
+
+export default function EventFeed({ initialEventId, onClearInitialEvent }) {
     const [events, setEvents] = useState([])
+    const [selectedEvent, setSelectedEvent] = useState(null)
     const [loading, setLoading] = useState(true)
     const [isConnected, setIsConnected] = useState(false)
     const [expandedMaps, setExpandedMaps] = useState(new Set())
@@ -226,6 +229,39 @@ export default function EventFeed() {
             eventSource.close()
         }
     }, [])
+
+    useEffect(() => {
+        // Handle deep linking from props
+        if (initialEventId && events.length > 0) {
+            const openDeepLink = async () => {
+                // First check if we already have it in the feed
+                const localMatch = events.find(e => e.external_id === initialEventId);
+                if (localMatch) {
+                    setSelectedEvent(localMatch);
+                    if (onClearInitialEvent) onClearInitialEvent();
+                    return;
+                }
+
+                // Otherwise fetch it directly from backend (might be an older händelse)
+                try {
+                    const response = await axios.get(`${API_BASE}/events`);
+                    // The backend /api/events returns a list. Let's see if it's there.
+                    const match = response.data.find(e => e.external_id === initialEventId);
+                    if (match) {
+                        setSelectedEvent(match);
+                        if (onClearInitialEvent) onClearInitialEvent();
+                    } else {
+                        console.warn('Deep link event not found in current feed');
+                        // Optional: Clear if not found to avoid infinite retry if we ever add more deps
+                        if (onClearInitialEvent) onClearInitialEvent();
+                    }
+                } catch (err) {
+                    console.error('Failed to resolve deep link:', err);
+                }
+            };
+            openDeepLink();
+        }
+    }, [initialEventId, events, onClearInitialEvent]);
 
     // Automatic Cleanup of expired events
     useEffect(() => {
@@ -797,6 +833,11 @@ export default function EventFeed() {
                 }
             </div >
 
+            {/* Event Modal for detailed view (used for deep linking and general interaction) */}
+            <EventModal
+                event={selectedEvent}
+                onClose={() => setSelectedEvent(null)}
+            />
         </div >
     )
 }

@@ -61,6 +61,50 @@ docker-compose up -d
 5. Välj vilka län du vill bevaka.
 6. Tryck på **Spara inställningar**.
 
+## 🏠 Home Assistant & MQTT
+
+Trafikinfo Flux kan skicka realtidsaviseringar till Home Assistant via MQTT.
+
+### MQTT Payload
+Varje gång en ny händelse detekteras publiceras ett JSON-objekt på ämnet `trafikinfo/events` (standard). Payloaden innehåller nu färdiga länkar för notiser:
+
+```json
+{
+  "external_id": "GUID...",
+  "title": "Olycka på E4...",
+  "description": "Tre bilar involverade...",
+  "severity_text": "Stor påverkan",
+  "snapshot_url": "http://192.168.1.50:7081/api/snapshots/image.jpg",
+  "event_url": "http://192.168.1.50:7081/?event_id=GUID...",
+  "icon_url": "http://192.168.1.50:7081/api/icons/trafficMessage"
+}
+```
+
+### Exempel på Automation i Home Assistant
+
+Använd följande YAML för att få snygga notiser med bild i din telefon när något händer:
+
+```yaml
+alias: "Trafikavisering: Olycka"
+trigger:
+  - platform: mqtt
+    topic: "trafikinfo/events"
+condition:
+  - condition: template
+    value_template: "{{ trigger.payload_json.severity_code >= 3 }}"
+action:
+  - service: notify.mobile_app_din_telefon
+    data:
+      title: "⚠️ {{ trigger.payload_json.title }}"
+      message: "{{ trigger.payload_json.location }}"
+      data:
+        image: "{{ trigger.payload_json.snapshot_url }}"
+        clickAction: "{{ trigger.payload_json.event_url }}"
+        tag: "{{ trigger.payload_json.external_id }}"
+```
+
+> [!TIP]
+> Appen rapporterar automatiskt sin adress (`base_url`) till servern när du öppnar PWA-gränssnittet. Detta gör att länkarna i MQTT-notiserna alltid pekar rätt.
 
 ## Teknikstack
 

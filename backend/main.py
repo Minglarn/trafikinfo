@@ -569,14 +569,55 @@ async def event_processor():
                     
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
-                    if ev.get('icon_id'):
-                        mqtt_data['icon_url'] = f"https://api.trafikinfo.trafikverket.se/v1/icons/{ev['icon_id']}?type=png32x32"
                     
-                    # Use data from the DB to ensure consistency (especially camera/snapshot)
-                    mqtt_data['camera_url'] = new_event.camera_url
+                    # Fetch base_url for absolute links
+                    base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
+                    base_url = base_url_setting.value if base_url_setting else ""
+
+                    # 1. Sanitize Icon: Use local proxy instead of Trafikverket URL
+                    if ev.get('icon_id'):
+                        local_icon_url = f"{base_url}/api/icons/{ev['icon_id']}" if base_url else f"/api/icons/{ev['icon_id']}"
+                        mqtt_data['icon_url'] = local_icon_url
+                    
+                    # 2. Sanitize Cameras: Use local snapshots/proxies
+                    # Use data from the DB to ensure consistency
                     mqtt_data['camera_name'] = new_event.camera_name
                     mqtt_data['camera_snapshot'] = new_event.camera_snapshot
-                    mqtt_data['extra_cameras'] = new_event.extra_cameras
+                    
+                    # Provide absolute snapshot URL for Home Assistant
+                    if new_event.camera_snapshot and base_url:
+                        mqtt_data['snapshot_url'] = f"{base_url}/api/snapshots/{new_event.camera_snapshot}"
+                    else:
+                        mqtt_data['snapshot_url'] = None
+                        
+                    # Provide Deep link to the PWA app
+                    if base_url:
+                        mqtt_data['event_url'] = f"{base_url}/?event_id={new_event.external_id}"
+                    else:
+                        mqtt_data['event_url'] = None
+
+                    # Sanitize/Rename Trafikverket camera URL to avoid external leaks
+                    mqtt_data['external_camera_url'] = new_event.camera_url
+                    if 'camera_url' in mqtt_data:
+                        del mqtt_data['camera_url']
+                    
+                    # Sanitize extra cameras
+                    if new_event.extra_cameras:
+                        try:
+                            extra_list = json.loads(new_event.extra_cameras)
+                            sanitized_extra = []
+                            for c in extra_list:
+                                c_data = {
+                                    "id": c.get("id"),
+                                    "name": c.get("name"),
+                                    "snapshot": c.get("snapshot")
+                                }
+                                if c.get("snapshot") and base_url:
+                                    c_data["snapshot_url"] = f"{base_url}/api/snapshots/{c.get('snapshot')}"
+                                sanitized_extra.append(c_data)
+                            mqtt_data['extra_cameras'] = json.dumps(sanitized_extra)
+                        except:
+                            mqtt_data['extra_cameras'] = None
 
                     if mqtt_client.publish_event(mqtt_data):
                         new_event.pushed_to_mqtt = 1
@@ -1028,6 +1069,27 @@ async def update_settings(settings: dict, db: Session = Depends(get_db), admin=D
     except Exception as e:
         logger.error(f"Error updating settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/report-base-url")
+async def report_base_url(payload: dict, db: Session = Depends(get_db)):
+    """Automatically update the base_url from frontend origin."""
+    base_url = payload.get("base_url")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="Missing base_url")
+        
+    # Store in Settings
+    existing = db.query(Settings).filter(Settings.key == "base_url").first()
+    if existing:
+        if existing.value != base_url:
+            logger.info(f"Updating base_url: {existing.value} -> {base_url}")
+            existing.value = base_url
+            db.commit()
+    else:
+        logger.info(f"Setting initial base_url: {base_url}")
+        db.add(Settings(key="base_url", value=base_url))
+        db.commit()
+        
+    return {"status": "ok", "base_url": base_url}
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):
