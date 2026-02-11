@@ -193,7 +193,8 @@ def parse_situation(json_data):
                 "temporary_limit": first_devi.get('TemporaryLimit'),
                 "traffic_restriction_type": ", ".join(merged_restrictions) if merged_restrictions else None,
                 "latitude": latitude,
-                "longitude": longitude
+                "longitude": longitude,
+                "county_no": first_devi.get('CountyNo', [0])[0] if isinstance(first_devi.get('CountyNo'), list) else first_devi.get('CountyNo', 0)
             }
             parsed_events.append(event)
         return parsed_events

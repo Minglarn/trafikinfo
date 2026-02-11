@@ -81,6 +81,8 @@ Payloaden innehåller nu färdiga länkar för notiser:
   "message_type": "Hinder på vägbanan, Vägen avstängd",
   "severity_code": 5,
   "severity_text": "Mycket stor påverkan",
+  "region": "Södermanland",
+  "timeout": 2400,
   "road_number": "E6",
   "start_time": "2026-02-11T19:05:03.000+01:00",
   "end_time": "2026-02-11T19:45:00.000+01:00",

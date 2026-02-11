@@ -64,6 +64,30 @@ MDI_ICON_MAP = {
     "ice": "mdi:snowflake"
 }
 
+COUNTY_MAP = {
+    1: "Stockholm",
+    3: "Uppsala",
+    4: "Södermanland",
+    5: "Östergötland",
+    6: "Jönköping",
+    7: "Kronoberg",
+    8: "Kalmar",
+    9: "Gotland",
+    10: "Blekinge",
+    12: "Skåne",
+    13: "Halland",
+    14: "Västra Götaland",
+    17: "Värmland",
+    18: "Örebro",
+    19: "Västmanland",
+    20: "Dalarna",
+    21: "Gävleborg",
+    22: "Västernorrland",
+    23: "Jämtland",
+    24: "Västerbotten",
+    25: "Norrbotten"
+}
+
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
@@ -570,6 +594,7 @@ async def event_processor():
                             traffic_restriction_type=ev.get('traffic_restriction_type'),
                             latitude=ev.get('latitude'),
                             longitude=ev.get('longitude'),
+                            county_no=ev.get('county_no', 0),
                             camera_url=camera_url,
                             camera_name=camera_name,
                             extra_cameras=extra_cameras_json
@@ -641,6 +666,18 @@ async def event_processor():
                             mqtt_data['extra_cameras'] = json.dumps(sanitized_extra)
                         except:
                             mqtt_data['extra_cameras'] = None
+
+                    # 4. Region & Timeout
+                    mqtt_data['region'] = COUNTY_MAP.get(new_event.county_no, \"Okänd region\")
+                    
+                    if new_event.end_time:
+                        now = datetime.now()
+                        # Use naive comparison since both are naive (likely) or ensure both are same
+                        # TrafficEvent.end_time is stored as naive in SQLite
+                        diff = (new_event.end_time - now).total_seconds()
+                        mqtt_data['timeout'] = int(max(0, diff))
+                    else:
+                        mqtt_data['timeout'] = 0
 
                     if mqtt_client.publish_event(mqtt_data):
                         new_event.pushed_to_mqtt = 1

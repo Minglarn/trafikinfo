@@ -16,6 +16,8 @@ The payload is a JSON object.
 - `severity_text`: "Ingen påverkan", "Stor påverkan", etc.
 - `event_type`: "Situation" or "MeasuredData".
 - `timestamp`: Generation time.
+- `region`: Swedish county name (e.g. "Södermanland").
+- `timeout`: Seconds until estimated completion (e.g. `3600`).
 
 ### Integration Fields
 - `snapshot_url`: **Full absolute URL** to the locally saved camera image.

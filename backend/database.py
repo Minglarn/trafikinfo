@@ -35,6 +35,7 @@ class TrafficEvent(Base):
     traffic_restriction_type = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
+    county_no = Column(Integer)
     
     camera_url = Column(String)
     camera_name = Column(String)
@@ -65,6 +66,7 @@ class TrafficEventVersion(Base):
     traffic_restriction_type = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
+    county_no = Column(Integer)
     camera_url = Column(String)
     camera_name = Column(String)
     camera_snapshot = Column(String)
@@ -127,7 +129,8 @@ def migrate_db():
         "pushed_to_mqtt": "INTEGER",
         "external_id": "VARCHAR",
         "event_type": "VARCHAR",
-        "extra_cameras": "TEXT"
+        "extra_cameras": "TEXT",
+        "county_no": "INTEGER"
     }
 
     with engine.connect() as conn:
