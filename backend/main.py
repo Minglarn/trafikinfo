@@ -575,8 +575,10 @@ async def event_processor():
                     base_url = base_url_setting.value if base_url_setting else ""
 
                     # 1. Sanitize Icon: Use local proxy instead of Trafikverket URL
+                    # Append .png for Home Assistant compatibility
                     if ev.get('icon_id'):
-                        local_icon_url = f"{base_url}/api/icons/{ev['icon_id']}" if base_url else f"/api/icons/{ev['icon_id']}"
+                        icon_id_with_ext = f"{ev['icon_id']}.png"
+                        local_icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
                         mqtt_data['icon_url'] = local_icon_url
                     
                     # 2. Sanitize Cameras: Use local snapshots/proxies
@@ -868,6 +870,10 @@ def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db), admin=
 
 @app.get("/api/icons/{icon_id}")
 async def proxy_icon(icon_id: str):
+    # Handle requests with .png extension (Home Assistant requirement)
+    if icon_id.endswith(".png"):
+        icon_id = icon_id[:-4]
+        
     icon_filename = f"{icon_id}.png"
     icon_path = os.path.join(ICONS_DIR, icon_filename)
     
