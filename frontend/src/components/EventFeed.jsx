@@ -498,158 +498,159 @@ export default function EventFeed() {
                                                 )}
                                             </div>
                                         </div>
-                                <div className="space-y-4 py-2">
-                                    {eventHistory[event.external_id]?.length > 0 ? (
-                                        <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
-                                            {eventHistory[event.external_id].map((version, vidx) => (
-                                                <div key={vidx} className="relative">
-                                                    <div className="absolute -left-[24px] top-1.5 w-[13px] h-[13px] rounded-full bg-blue-500 border-2 border-white dark:border-slate-800 z-10 shadow-sm"></div>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                                Uppdatering {format(new Date(version.version_timestamp), 'd MMM HH:mm:ss')}
-                                                            </span>
-                                                            {version.severity_text && (
-                                                                <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${SEVERITY_COLORS[version.severity_text] || ''}`}>
-                                                                    {version.severity_text}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                                            {version.icon_url && <img src={version.icon_url} alt="" className="w-5 h-5" />}
-                                                            {version.title}
-                                                        </p>
-                                                        {version.location && (
-                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 ml-1">
-                                                                <MapPin className="w-3 h-3" />
-                                                                <span>{version.location}</span>
+                                    ) : (
+                                        <div className="space-y-4 py-2">
+                                            {eventHistory[event.external_id]?.length > 0 ? (
+                                                <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
+                                                    {eventHistory[event.external_id].map((version, vidx) => (
+                                                        <div key={vidx} className="relative">
+                                                            <div className="absolute -left-[24px] top-1.5 w-[13px] h-[13px] rounded-full bg-blue-500 border-2 border-white dark:border-slate-800 z-10 shadow-sm"></div>
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                        Uppdatering {format(new Date(version.version_timestamp), 'd MMM HH:mm:ss')}
+                                                                    </span>
+                                                                    {version.severity_text && (
+                                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${SEVERITY_COLORS[version.severity_text] || ''}`}>
+                                                                            {version.severity_text}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                                                    {version.icon_url && <img src={version.icon_url} alt="" className="w-5 h-5" />}
+                                                                    {version.title}
+                                                                </p>
+                                                                {version.location && (
+                                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 ml-1">
+                                                                        <MapPin className="w-3 h-3" />
+                                                                        <span>{version.location}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100/50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
+                                                                    {version.description?.split(' | ').map((d, i) => <p key={i} className="leading-relaxed">{d}</p>)}
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100/50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-                                                            {version.description?.split(' | ').map((d, i) => <p key={i} className="leading-relaxed">{d}</p>)}
                                                         </div>
+                                                    ))}
+                                                    <div className="text-[10px] text-slate-400 italic pt-2">
+                                                        * Endast ändringar sparas i historiken
                                                     </div>
                                                 </div>
-                                            ))}
-                                            {/* Latest state indicator at the top of history (history is descending) */}
-                                            <div className="text-[10px] text-slate-400 italic pt-2">
-                                                * Endast ändringar sparas i historiken
-                                            </div>
+                                            ) : (
+                                                <div className="text-center py-8 px-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                                                    <HistoryIcon className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700 opacity-50" />
+                                                    <p className="text-slate-500 text-sm font-medium">Ingen historik än</p>
+                                                    <p className="text-slate-400 text-xs mt-1">
+                                                        Denna händelse är ny och har inte uppdaterats sedan den först rapporterades.
+                                                        Historik sparas så fort informationen ändras.
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="text-center py-8 px-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
-                                            <HistoryIcon className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700 opacity-50" />
-                                            <p className="text-slate-500 text-sm font-medium">Ingen historik än</p>
-                                            <p className="text-slate-400 text-xs mt-1">
-                                                Denna händelse är ny och har inte uppdaterats sedan den först rapporterades.
-                                                Historik sparas så fort informationen ändras.
-                                            </p>
-                                        </div>
-                                    )}
                                     )}
                                 </div>
 
-                            <div className="flex md:flex-row justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6">
-                                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0 flex-1">
-                                    {/* Camera Slot (Always visible) */}
-                                    <div
-                                        className={`relative w-full md:w-48 h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url || event.camera_snapshot ? 'cursor-zoom-in' : 'cursor-default'}`}
-                                        onClick={(e) => {
-                                            if (event.camera_url || event.camera_snapshot) {
-                                                e.stopPropagation();
-                                                setSelectedImage({
-                                                    url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
-                                                    name: event.camera_name
-                                                });
-                                            }
-                                        }}
-                                    >
-                                        {(event.camera_url || event.camera_snapshot) ? (
-                                            <img
-                                                src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
-                                                alt={event.camera_name || 'Trafikkamera'}
-                                                className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
-                                                onError={(e) => {
-                                                    if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
-                                                        e.target.src = event.camera_url;
-                                                    } else {
-                                                        e.target.style.opacity = '0';
-                                                    }
-                                                }}
-                                            />
-                                        ) : null}
-
-                                        {/* Placeholder shown if no camera or image fails */}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
-                                            <Camera className="w-8 h-8 mb-1 opacity-20" />
-                                            <span className="text-[10px] italic">Ingen bild tillgänglig</span>
-                                        </div>
-
-                                        {event.camera_name && (
-                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1 z-20">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                                <span className="truncate">{event.camera_name}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Map / Location Preview */}
-                                    {event.latitude && event.longitude ? (
+                                <div className="flex md:flex-row justify-between items-center md:items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6">
+                                    <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0 flex-1">
+                                        {/* Camera Slot (Always visible) */}
                                         <div
-                                            className="relative flex-1 min-h-[128px] md:w-64 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                            className={`relative w-full md:w-48 h-32 bg-slate-200 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group/camera flex items-center justify-center flex-shrink-0 ${event.camera_url || event.camera_snapshot ? 'cursor-zoom-in' : 'cursor-default'}`}
                                             onClick={(e) => {
-                                                e.stopPropagation()
-                                                toggleMap(event.id)
+                                                if (event.camera_url || event.camera_snapshot) {
+                                                    e.stopPropagation();
+                                                    setSelectedImage({
+                                                        url: event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url,
+                                                        name: event.camera_name
+                                                    });
+                                                }
                                             }}
                                         >
-                                            <EventMap
-                                                lat={event.latitude}
-                                                lng={event.longitude}
-                                                interactive={false}
-                                            />
+                                            {(event.camera_url || event.camera_snapshot) ? (
+                                                <img
+                                                    src={event.camera_snapshot ? `/api/snapshots/${event.camera_snapshot}` : event.camera_url}
+                                                    alt={event.camera_name || 'Trafikkamera'}
+                                                    className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
+                                                    onError={(e) => {
+                                                        if (event.camera_snapshot && e.target.src.includes('/api/snapshots/')) {
+                                                            e.target.src = event.camera_url;
+                                                        } else {
+                                                            e.target.style.opacity = '0';
+                                                        }
+                                                    }}
+                                                />
+                                            ) : null}
 
-                                            {/* Hover Overlay */}
-                                            <div className="absolute inset-0 bg-black/5 group-hover/map:bg-black/10 transition-colors pointer-events-none flex items-center justify-center opacity-0 group-hover/map:opacity-100">
-                                                <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">
-                                                    Klicka för att förstora
-                                                </span>
+                                            {/* Placeholder shown if no camera or image fails */}
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                                                <Camera className="w-8 h-8 mb-1 opacity-20" />
+                                                <span className="text-[10px] italic">Ingen bild tillgänglig</span>
                                             </div>
+
+                                            {event.camera_name && (
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 flex items-center gap-1 z-20">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                    <span className="truncate">{event.camera_name}</span>
+                                                </div>
+                                            )}
                                         </div>
-                                    ) : (
-                                        /* No Location Placeholder */
-                                        <div className="flex-1 min-h-[100px] w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
-                                            <MapPin className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-1" />
-                                            <span className="text-xs text-slate-400 dark:text-slate-500 italic">Plats ej känd</span>
-                                        </div>
-                                    )}
+
+                                        {/* Map / Location Preview */}
+                                        {event.latitude && event.longitude ? (
+                                            <div
+                                                className="relative flex-1 min-h-[128px] md:w-64 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 group/map cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    toggleMap(event.id)
+                                                }}
+                                            >
+                                                <EventMap
+                                                    lat={event.latitude}
+                                                    lng={event.longitude}
+                                                    interactive={false}
+                                                />
+
+                                                {/* Hover Overlay */}
+                                                <div className="absolute inset-0 bg-black/5 group-hover/map:bg-black/10 transition-colors pointer-events-none flex items-center justify-center opacity-0 group-hover/map:opacity-100">
+                                                    <span className="text-xs font-bold text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">
+                                                        Klicka för att förstora
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* No Location Placeholder */
+                                            <div className="flex-1 min-h-[100px] w-full bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center">
+                                                <MapPin className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-1" />
+                                                <span className="text-xs text-slate-400 dark:text-slate-500 italic">Plats ej känd</span>
+                                            </div>
+                                        )}
 
 
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                                {/* Expanded Interactive Map (Full Width) */}
-                                < AnimatePresence >
-                                    {
-                                        expandedMaps.has(event.id) && (
-                                            <motion.div
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 300 }}
-                                                exit={{ opacity: 0, height: 0 }}
-                                                className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner"
-                                            >
-                                                <div className="h-full" onClick={e => e.stopPropagation()}>
-                                                    <EventMap
-                                                        lat={event.latitude}
-                                                        lng={event.longitude}
-                                                        popupContent={event.location}
-                                                        interactive={true}
-                                                    />
-                                                </div>
-                                            </motion.div>
-                                        )
-                                    }
-                                </AnimatePresence>
+                            {/* Expanded Interactive Map (Full Width) */}
+                            < AnimatePresence >
+                                {
+                                    expandedMaps.has(event.id) && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 300 }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner"
+                                        >
+                                            <div className="h-full" onClick={e => e.stopPropagation()}>
+                                                <EventMap
+                                                    lat={event.latitude}
+                                                    lng={event.longitude}
+                                                    popupContent={event.location}
+                                                    interactive={true}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )
+                                }
+                            </AnimatePresence>
                         </motion.div>
                     ))}
                 </AnimatePresence>
