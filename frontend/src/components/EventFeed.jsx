@@ -172,6 +172,11 @@ export default function EventFeed() {
                 const newEvent = JSON.parse(event.data)
 
                 setEvents(prev => {
+                    // Check if new event is already expired
+                    if (newEvent.end_time && new Date(newEvent.end_time) < new Date()) {
+                        return prev;
+                    }
+
                     const index = prev.findIndex(e => e.external_id === newEvent.external_id)
                     if (index !== -1) {
                         // Update existing event while preserving local state if needed
@@ -205,6 +210,26 @@ export default function EventFeed() {
         return () => {
             eventSource.close()
         }
+    }, [])
+
+    // Automatic Cleanup of expired events
+    useEffect(() => {
+        const cleanupInterval = setInterval(() => {
+            const now = new Date()
+            setEvents(prev => {
+                const expiredIds = prev
+                    .filter(e => e.end_time && new Date(e.end_time) < now)
+                    .map(e => e.id)
+
+                if (expiredIds.length > 0) {
+                    console.log(`Cleaning up ${expiredIds.length} expired events`)
+                    return prev.filter(e => !expiredIds.includes(e.id))
+                }
+                return prev
+            })
+        }, 60000) // Every minute
+
+        return () => clearInterval(cleanupInterval)
     }, [])
 
     useEffect(() => {

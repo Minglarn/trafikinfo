@@ -642,6 +642,10 @@ def toggle_camera_favorite(camera_id: str, db: Session = Depends(get_db), admin=
 def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
     
+    # Filter out expired events: end_time is null OR end_time is in the future
+    now = datetime.now()
+    query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+    
     if hours:
         from datetime import datetime, timedelta
         cutoff = datetime.now() - timedelta(hours=hours)
