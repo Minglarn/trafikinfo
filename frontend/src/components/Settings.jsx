@@ -6,7 +6,9 @@ import { useAuth } from '../context/AuthContext'
 const API_BASE = '/api'
 
 const SWEDISH_COUNTIES = [
+    { id: '0', name: 'Alla län' },
     { id: '1', name: 'Stockholms län' },
+    { id: '2', name: 'Stockholms län (Legacy)' },
     { id: '3', name: 'Uppsala län' },
     { id: '4', name: 'Södermanlands län' },
     { id: '5', name: 'Östergötlands län' },

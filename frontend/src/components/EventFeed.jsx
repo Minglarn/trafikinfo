@@ -49,10 +49,13 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
     const [activeTabs, setActiveTabs] = useState({}) // { eventId: 'current' | 'history' }
     const [eventHistory, setEventHistory] = useState({}) // { externalId: [] }
     const [fetchingHistory, setFetchingHistory] = useState({}) // { externalId: boolean }
+    const [configuredCounties, setConfiguredCounties] = useState([])
 
     // Constants for Counties
     const COUNTIES = [
+        { id: 0, name: 'Alla län' },
         { id: 1, name: 'Stockholm' },
+        { id: 2, name: 'Stockholm' }, // Handle legacy ID 2 as Stockholm
         { id: 3, name: 'Uppsala' },
         { id: 4, name: 'Södermanland' },
         { id: 5, name: 'Östergötland' },
@@ -211,6 +214,21 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
         }
     }
 
+    const fetchConfiguredCounties = async () => {
+        try {
+            const response = await axios.get(`${API_BASE}/settings`)
+            if (response.data.selected_counties) {
+                const ids = response.data.selected_counties.split(',').map(id => parseInt(id.trim()))
+                setConfiguredCounties(ids)
+            }
+        } catch (error) {
+            console.error('Failed to fetch settings for counties:', error)
+        }
+    }
+
+    useEffect(() => {
+        fetchConfiguredCounties()
+    }, [])
 
 
     useEffect(() => {
@@ -440,7 +458,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                             <div>
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
                                 <div className="flex flex-wrap gap-2">
-                                    {COUNTIES.map(county => (
+                                    {COUNTIES.filter(c => configuredCounties.length === 0 || configuredCounties.includes(c.id)).map(county => (
                                         <button
                                             key={county.id}
                                             onClick={() => toggleCounty(county.id)}
