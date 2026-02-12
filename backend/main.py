@@ -1,4 +1,4 @@
-VERSION = "26.2.31"
+VERSION = "26.2.32"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -97,7 +97,7 @@ COUNTY_MAP = {
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-app = FastAPI(title="Trafikinfo API", version="26.2.31")
+app = FastAPI(title="Trafikinfo API", version="26.2.32")
 
 class LoginRequest(BaseModel):
     password: str
@@ -872,6 +872,7 @@ async def road_condition_processor():
                         existing.measure = rc['measure']
                         existing.warning = rc['warning']
                         existing.cause = rc.get('cause') 
+                        existing.location_text = rc.get('location_text')
                         existing.icon_id = rc.get('icon_id') 
                         existing.road_number = rc.get('road_number')
                         existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
@@ -893,6 +894,7 @@ async def road_condition_processor():
                             measure=rc['measure'],
                             warning=rc['warning'],
                             cause=rc.get('cause'), 
+                            location_text=rc.get('location_text'),
                             icon_id=rc.get('icon_id'), 
                             road_number=rc.get('road_number'),
                             start_time=datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
@@ -930,6 +932,7 @@ async def road_condition_processor():
                         "measure": final_rc.measure,
                         "warning": final_rc.warning,
                         "cause": final_rc.cause,
+                        "location_text": final_rc.location_text,
                         "icon_id": final_rc.icon_id,
                         "icon_url": icon_url,
                         "road_number": final_rc.road_number,
@@ -1308,6 +1311,7 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
         "measure": c.measure,
         "warning": c.warning,
         "cause": c.cause,
+        "location_text": c.location_text,
         "road_number": c.road_number,
         "start_time": c.start_time,
         "end_time": c.end_time,

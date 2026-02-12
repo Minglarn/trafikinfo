@@ -342,10 +342,13 @@ function RoadConditions() {
                                                             )}
 
                                                             {/* Location next to road number */}
-                                                            {rc.camera_name && (
+                                                            {(rc.camera_name || rc.location_text) && (
                                                                 <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-medium">
                                                                     <MapPin className="w-3.5 h-3.5" />
-                                                                    <span>{rc.camera_name}</span>
+                                                                    <span>{rc.location_text || rc.camera_name}</span>
+                                                                    {rc.location_text && rc.camera_name && rc.location_text !== rc.camera_name && (
+                                                                        <span className="text-xs opacity-60 ml-1 hidden sm:inline">({rc.camera_name})</span>
+                                                                    )}
                                                                 </div>
                                                             )}
 

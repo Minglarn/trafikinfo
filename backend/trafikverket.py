@@ -268,11 +268,20 @@ def parse_road_condition(json_data):
                 }
                 condition_text = code_map.get(condition_code, "Okänt")
 
-            # Measures (Åtgärd) & Warnings & Cause & Icon
-            measures = rc.get('Measure', [])
-            warnings = rc.get('Warning', [])
-            causes = rc.get('Cause', [])
-            icon_id = rc.get('IconId')
+            # Measures (Åtgärd) & Warnings & Cause & Icon & LocationText
+            # Check nested TrafficInfo as well
+            traffic_info = rc.get('TrafficInfo', {})
+            # Handle potential list wrapper for TrafficInfo
+            if isinstance(traffic_info, list) and traffic_info:
+                traffic_info = traffic_info[0]
+            elif not isinstance(traffic_info, dict):
+                traffic_info = {}
+
+            measures = rc.get('Measure') or traffic_info.get('Measure', [])
+            warnings = rc.get('Warning') or traffic_info.get('Warning', [])
+            causes = rc.get('Cause') or traffic_info.get('Cause', [])
+            location_text = rc.get('LocationText') or traffic_info.get('LocationText')
+            icon_id = rc.get('IconId') or traffic_info.get('IconId')
             
             start_time = rc.get('StartTime')
             end_time = rc.get('EndTime')
@@ -299,6 +308,7 @@ def parse_road_condition(json_data):
                 "measure": ", ".join(measures) if measures else None,
                 "warning": ", ".join(warnings) if warnings else None,
                 "cause": ", ".join(causes) if causes else None,
+                "location_text": location_text,
                 "icon_id": icon_id,
                 "road_number": rc.get('RoadNumber'),
                 "start_time": start_time,
