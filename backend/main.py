@@ -1,4 +1,4 @@
-VERSION = "26.2.28"
+VERSION = "26.2.29"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,9 +14,9 @@ from datetime import datetime, timedelta, time
 from sqlalchemy import func
 from pydantic import BaseModel
 
-from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition
 from mqtt_client import mqtt_client
-from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras
+from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras, parse_road_condition
 
 # Setup logging
 debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
@@ -148,8 +148,12 @@ stream_task = None
 processor_task = None
 refresh_task = None
 camera_sync_task = None
+camera_sync_task = None
 init_cameras_task = None
 tv_stream = None
+rc_stream = None
+rc_stream_task = None
+rc_processor_task = None
 cameras = []
 
 def get_db():
@@ -215,8 +219,9 @@ async def startup_event():
 async def shutdown_event():
     logger.info("Shutdown requested, stopping background tasks...")
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream
+    global rc_stream_task, rc_processor_task, rc_stream
     
-    tasks = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task] if t]
+    tasks = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task, rc_stream_task, rc_processor_task] if t]
     if tasks:
         for task in tasks:
             task.cancel()
@@ -224,20 +229,40 @@ async def shutdown_event():
     
     if tv_stream:
         tv_stream.stop_streaming()
+    if rc_stream:
+        rc_stream.stop_streaming()
     logger.info("Shutdown complete")
 
 def start_worker(api_key: str, county_ids: list = None):
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream, cameras
+    global rc_stream, rc_stream_task, rc_processor_task
     
     # Cancel all existing tasks cleanly
-    tasks_to_cancel = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task] if t]
+    tasks_to_cancel = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task, rc_stream_task, rc_processor_task] if t]
     for t in tasks_to_cancel:
         t.cancel()
     
     if tv_stream:
         tv_stream.stop_streaming()
+    if rc_stream:
+        rc_stream.stop_streaming()
     
     tv_stream = TrafikverketStream(api_key)
+    
+    # Start two streams: one for Situation (default) and one for RoadCondition
+    # Note: TrafikverketStream as written supports one connection. We might need two instances or update it.
+    # For now, let's instantiate two streams if we want both.
+    # But wait, the `event_processor` consumes one stream.
+    # Let's modify `start_worker` to start a separate task for road conditions if we want them live.
+    # Or, we can just have one stream if the API supported multiple object types in one query (it usually doesn't for SSE filter).
+    
+    # Actually, simpler: Let's run a second stream for RoadConditions.
+    
+    # Actually, simpler: Let's run a second stream for RoadConditions.
+    rc_stream = TrafikverketStream(api_key)
+    rc_stream_task = asyncio.create_task(rc_stream.start_streaming(county_ids=county_ids, object_type="RoadCondition"))
+    rc_processor_task = asyncio.create_task(road_condition_processor())
+
     stream_task = asyncio.create_task(tv_stream.start_streaming(county_ids=county_ids))
     
     # Initialize cameras and start background refresh
@@ -737,6 +762,100 @@ async def event_processor():
     except Exception as e:
     	logger.error(f"Event processor error: {e}")
 
+async def road_condition_processor():
+    global rc_stream, cameras
+    try:
+        async for raw_data in rc_stream.get_events():
+            conditions = parse_road_condition(raw_data)
+            
+            db = SessionLocal()
+            try:
+                # Get camera radius setting
+                radius_setting = db.query(Settings).filter(Settings.key == "camera_radius_km").first()
+                max_dist = float(radius_setting.value) if radius_setting else 5.0
+
+                for rc in conditions:
+                    # Sync with DB
+                    existing = db.query(RoadCondition).filter(RoadCondition.id == rc['id']).first()
+                    
+                    camera_url = None
+                    camera_name = None
+                    camera_snapshot = None
+                    
+                    # Camera matching logic (same as events)
+                    needs_camera_sync = False
+                    if not existing:
+                        needs_camera_sync = True
+                    else:
+                        # Re-check if location changed
+                        if (rc.get('latitude') and existing.latitude != rc.get('latitude')) or \
+                           (rc.get('longitude') and existing.longitude != rc.get('longitude')):
+                            needs_camera_sync = True
+                            
+                    if needs_camera_sync:
+                         nearby_cams = find_nearby_cameras(rc.get('latitude'), rc.get('longitude'), cameras, target_road=rc.get('road_number'), max_dist_km=max_dist)
+                         if nearby_cams:
+                             primary = nearby_cams[0]
+                             camera_url = primary.get('url')
+                             camera_name = primary.get('name')
+                             
+                             # Download snapshot
+                             if camera_url:
+                                 # Unique filename for road conditions to avoid collision/overwrites if needed, 
+                                 # but actually we want fresh ones.
+                                 # We can reuse the download_camera_snapshot logic
+                                 fullsize_url = primary.get('fullsize_url')
+                                 # Suffix with timestamp in logic, so just pass a stable ID base
+                                 # For RoadConditions, maybe we update snapshot every time?
+                                 # Let's clean up old ones or just keep latest.
+                                 # For now, download new:
+                                 camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{rc['id']}", fullsize_url)
+
+                    if existing:
+                        existing.condition_code = rc['condition_code']
+                        existing.condition_text = rc['condition_text']
+                        existing.measure = rc['measure']
+                        existing.warning = rc['warning']
+                        existing.road_number = rc.get('road_number')
+                        existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
+                        existing.end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None
+                        existing.timestamp = datetime.now()
+                        
+                        if needs_camera_sync and camera_url:
+                            existing.camera_url = camera_url
+                            existing.camera_name = camera_name
+                            existing.camera_snapshot = camera_snapshot
+                    else:
+                        new_rc = RoadCondition(
+                            id=rc['id'],
+                            condition_code=rc['condition_code'],
+                            condition_text=rc['condition_text'],
+                            measure=rc['measure'],
+                            warning=rc['warning'],
+                            road_number=rc.get('road_number'),
+                            start_time=datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
+                            end_time=datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None,
+                            latitude=rc.get('latitude'),
+                            longitude=rc.get('longitude'),
+                            county_no=rc.get('county_no'),
+                            timestamp=datetime.now(),
+                            camera_url=camera_url,
+                            camera_name=camera_name,
+                            camera_snapshot=camera_snapshot
+                        )
+                        db.add(new_rc)
+                    
+                    db.commit()
+            except Exception as e:
+                logger.error(f"Error processing road condition: {e}")
+            finally:
+                db.close()
+
+    except asyncio.CancelledError:
+        logger.debug("RoadCondition processor cancelled")
+    except Exception as e:
+        logger.error(f"RoadCondition processor error: {e}")
+
 # Global list of connected SSE clients
 connected_clients = []
 
@@ -1037,6 +1156,39 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             "history_count": history_counts.get(e.external_id, 0)
         })
     return result
+
+@app.get("/api/road-conditions")
+def get_road_conditions(county_no: int = None, db: Session = Depends(get_db)):
+    query = db.query(RoadCondition)
+    
+    # Filter by configured counties by default for consistency
+    county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+    selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
+    
+    if county_no:
+        query = query.filter(RoadCondition.county_no == county_no)
+    elif selected_counties:
+        query = query.filter(RoadCondition.county_no.in_(selected_counties))
+        
+    conditions = query.all()
+    
+    return [{
+        "id": c.id,
+        "condition_code": c.condition_code,
+        "condition_text": c.condition_text,
+        "measure": c.measure,
+        "warning": c.warning,
+        "road_number": c.road_number,
+        "start_time": c.start_time,
+        "end_time": c.end_time,
+        "latitude": c.latitude,
+        "longitude": c.longitude,
+        "county_no": c.county_no,
+        "timestamp": c.timestamp,
+        "camera_snapshot": c.camera_snapshot,
+        "camera_name": c.camera_name,
+        "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None
+    } for c in conditions]
 
 @app.get("/api/stats")
 def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db)):

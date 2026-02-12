@@ -1,18 +1,19 @@
 import React from 'react'
-import { Activity, Camera, BarChart2, History, Settings } from 'lucide-react'
+import { Activity, Camera, BarChart2, History, Settings, Snowflake } from 'lucide-react'
 
 const BottomNav = ({ activeTab, setActiveTab }) => {
-    const navItems = [
-        { id: 'feed', label: 'Flöde', icon: Activity },
-        { id: 'cameras', label: 'Kamera', icon: Camera },
-        { id: 'statistics', label: 'Stats', icon: BarChart2 },
-        { id: 'history', label: 'Logg', icon: History },
-        { id: 'settings', label: 'Inst.', icon: Settings },
+    const tabs = [
+        { id: 'feed', icon: Activity, label: 'Realtid' },
+        { id: 'road-conditions', icon: Snowflake, label: 'Väglag' },
+        { id: 'cameras', icon: Camera, label: 'Kamera' },
+        { id: 'statistics', icon: BarChart2, label: 'Statistik' },
+        { id: 'history', icon: History, label: 'Historik' },
+        { id: 'settings', icon: Settings, label: 'Inställn.' },
     ]
 
     return (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-2 py-1 z-50 flex justify-around items-center h-16 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-            {navItems.map((item) => {
+            {tabs.map((item) => {
                 const Icon = item.icon
                 const isActive = activeTab === item.id
 

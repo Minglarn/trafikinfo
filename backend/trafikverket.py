@@ -17,20 +17,35 @@ class TrafikverketStream:
         self.last_error = None
         self.queue = asyncio.Queue()
 
-    async def get_sse_url(self, object_type: str = "Situation", county_ids: list = None):
+        
+
+    async def get_sse_url(self, county_ids: list = None, object_type: str = "Situation"):
+        # Determine schema version, namespace, and filter field
+        schema_version = "1.5"
+        namespace = ""
+        filter_field = "Deviation.CountyNo"
+        
+        if object_type == "RoadCondition":
+            schema_version = "1.3"
+            namespace = "Road.TrafficInfo"
+            filter_field = "CountyNo"
+
         filter_block = ""
         if county_ids:
-            # Build <OR><EQ name="Deviation.CountyNo" value="X" />...</OR>
-            conditions = "".join([f'<EQ name="Deviation.CountyNo" value="{cid}" />' for cid in county_ids])
-            filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
-        else:
-            # Default fallback if nothing selected
-            filter_block = ""
+            # Filter out '0' (Alla län) just in case it's passed
+            valid_ids = [cid for cid in county_ids if str(cid) != "0"]
+            
+            if valid_ids:
+                # Build <OR><EQ name="Field" value="X" />...</OR>
+                conditions = "".join([f'<EQ name="{filter_field}" value="{cid}" />' for cid in valid_ids])
+                filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
+        
+        namespace_attr = f" namespace='{namespace}'" if namespace else ""
 
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='{object_type}' schemaversion='1.5' sseurl='true'>
+            <QUERY objecttype='{object_type}' schemaversion='{schema_version}' sseurl='true'{namespace_attr}>
                 {filter_block}
             </QUERY>
         </REQUEST>
@@ -51,10 +66,10 @@ class TrafikverketStream:
                 logger.error(f"Failed to get SSE URL: {e}")
                 return None
 
-    async def start_streaming(self, county_ids: list = None):
+    async def start_streaming(self, county_ids: list = None, object_type: str = "Situation"):
         self.running = True
         while self.running:
-            sse_url = await self.get_sse_url(county_ids=county_ids)
+            sse_url = await self.get_sse_url(county_ids=county_ids, object_type=object_type)
             if not sse_url:
                 await asyncio.sleep(10)
                 continue
@@ -199,7 +214,80 @@ def parse_situation(json_data):
             parsed_events.append(event)
         return parsed_events
     except Exception as e:
+        return parsed_events
+    except Exception as e:
         logger.error(f"Error parsing situation: {e}")
+        return []
+
+def parse_road_condition(json_data):
+    try:
+        import json
+        payload = json.loads(json_data)
+        
+        # Structure: RESPONSE -> RESULT -> RoadCondition
+        results = payload.get('RESPONSE', {}).get('RESULT', [{}])[0].get('RoadCondition', [])
+        
+        parsed_conditions = []
+        
+        for rc in results:
+            # Basic fields
+            rc_id = rc.get('Id')
+            condition_code = rc.get('ConditionCode')
+            condition_info = rc.get('ConditionInfo', [])
+            condition_text = condition_info[0] if condition_info else None
+            
+            # Map ConditionCode to text if missing
+            if not condition_text and condition_code:
+                code_map = {
+                    1: "Normalt",
+                    2: "Besvärligt (risk för)",
+                    3: "Mycket besvärligt",
+                    4: "Is- och snövägbana"
+                }
+                condition_text = code_map.get(condition_code, "Okänt")
+
+            # Measures (Åtgärd) & Warnings
+            measures = rc.get('Measure', [])
+            warnings = rc.get('Warning', [])
+            
+            start_time = rc.get('StartTime')
+            end_time = rc.get('EndTime')
+            timestamp = rc.get('ModifiedTime')
+            
+            # Geometry
+            latitude = None
+            longitude = None
+            wgs84 = rc.get('Geometry', {}).get('WGS84')
+            if wgs84:
+                match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                if match:
+                    longitude = float(match.group(1))
+                    latitude = float(match.group(2))
+
+            # County
+            counties = rc.get('CountyNo', [])
+            county_no = counties[0] if counties and isinstance(counties, list) else (counties if isinstance(counties, int) else 0)
+
+            condition = {
+                "id": rc_id,
+                "condition_code": condition_code,
+                "condition_text": condition_text,
+                "measure": ", ".join(measures) if measures else None,
+                "warning": ", ".join(warnings) if warnings else None,
+                "road_number": rc.get('RoadNumber'),
+                "start_time": start_time,
+                "end_time": end_time,
+                "latitude": latitude,
+                "longitude": longitude,
+                "county_no": county_no,
+                "timestamp": timestamp
+            }
+            parsed_conditions.append(condition)
+            
+        return parsed_conditions
+
+    except Exception as e:
+        logger.error(f"Error parsing road condition: {e}")
         return []
 
 import math

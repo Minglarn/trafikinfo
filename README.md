@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.11-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.29-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -14,6 +14,7 @@ Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata 
 ## Funktioner
 
 - **SSE Streaming**: Direktuppkoppling mot Trafikverket för händelser i realtid.
+- **Väglag**: Realtidsinformation om väglag (halka, snö, mm) kopplat till kameror.
 - **Kartvisualisering**: Interaktiva kartor för att se exakt var händelser sker.
 - **Mobilanpassad**: Fullt responsiv design med smidig **Bottom Navigation** för mobilen.
 - **Statistik & Analys**: Dashboard som visar trender och fördelning per kalenderdag.

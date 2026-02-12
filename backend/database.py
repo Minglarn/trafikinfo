@@ -89,6 +89,27 @@ class Camera(Base):
     county_no = Column(Integer) # Primary county
     is_favorite = Column(Integer, default=0) # 0/1
 
+class RoadCondition(Base):
+    __tablename__ = "road_conditions"
+
+    id = Column(String, primary_key=True, index=True) # Trafikverket ID
+    condition_code = Column(Integer)
+    condition_text = Column(String)
+    measure = Column(String)
+    warning = Column(String)
+    road_number = Column(String)
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    county_no = Column(Integer)
+    timestamp = Column(DateTime) # ModifiedTime or created_at
+    
+    camera_url = Column(String)
+    camera_name = Column(String)
+    camera_snapshot = Column(String)
+
+
 class Settings(Base):
     __tablename__ = "settings"
 
@@ -105,6 +126,8 @@ def init_db():
     inspector = inspect(engine)
     if "cameras" not in inspector.get_table_names():
         Camera.__table__.create(bind=engine)
+    if "road_conditions" not in inspector.get_table_names():
+        RoadCondition.__table__.create(bind=engine)
 
 def migrate_db():
     from sqlalchemy import inspect, text

@@ -9,6 +9,7 @@ import CameraGrid from './components/CameraGrid'
 import LoginModal from './components/LoginModal'
 import MobileHeader from './components/MobileHeader'
 import BottomNav from './components/BottomNav'
+import RoadConditions from './components/RoadConditions'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
@@ -105,6 +106,7 @@ function AppContent() {
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 pt-16 pb-20 md:pt-4 md:pb-4 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
           <div className="max-w-7xl mx-auto h-full">
             {activeTab === 'feed' && <EventFeed initialEventId={initialEventId} onClearInitialEvent={() => setInitialEventId(null)} />}
+            {activeTab === 'road-conditions' && <RoadConditions />}
             {activeTab === 'cameras' && <CameraGrid />}
             {activeTab === 'statistics' && <Statistics />}
             {activeTab === 'history' && <HistoryBoard />}
