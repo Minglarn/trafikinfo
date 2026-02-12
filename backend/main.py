@@ -1,4 +1,4 @@
-VERSION = "26.2.17"
+VERSION = "26.2.18"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +10,7 @@ import json
 import logging
 import httpx
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from sqlalchemy import func
 from pydantic import BaseModel
 
@@ -742,60 +742,6 @@ async def stream_events():
     from sse_starlette.sse import EventSourceResponse
     return EventSourceResponse(event_generator())
 
-@app.get("/api/events")
-def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
-    query = db.query(TrafficEvent)
-    
-    # Filter out expired events: end_time is null OR end_time is in the future
-    now = datetime.now()
-    query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
-    
-    if hours:
-        cutoff = datetime.now() - timedelta(hours=hours)
-        query = query.filter(TrafficEvent.created_at >= cutoff)
-        
-    events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
-    
-    result = []
-    for e in events:
-        # Sanitize extra cameras: remove external URLs
-        extra_cams = []
-        if e.extra_cameras:
-            try:
-                raw_extra = json.loads(e.extra_cameras)
-                for c in raw_extra:
-                    extra_cams.append({
-                        "id": c.get("id"),
-                        "name": c.get("name"),
-                        "snapshot": c.get("snapshot")
-                    })
-            except:
-                pass
-
-        result.append({
-            "id": e.id,
-            "external_id": e.external_id,
-            "title": e.title,
-            "description": e.description,
-            "location": e.location,
-            "icon_url": f"/api/icons/{e.icon_id}" if e.icon_id else None,
-            "created_at": e.created_at,
-            "pushed_to_mqtt": bool(e.pushed_to_mqtt),
-            "message_type": e.message_type,
-            "severity_code": e.severity_code,
-            "severity_text": e.severity_text,
-            "road_number": e.road_number,
-            "start_time": e.start_time,
-            "end_time": e.end_time,
-            "temporary_limit": e.temporary_limit,
-            "traffic_restriction_type": e.traffic_restriction_type,
-            "latitude": e.latitude,
-            "longitude": e.longitude,
-            "camera_snapshot": e.camera_snapshot,
-            "extra_cameras": extra_cams,
-            "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
-        })
-    return result
 
 @app.get("/api/events/{external_id}/history")
 async def get_event_history(external_id: str, db: Session = Depends(get_db)):
@@ -954,14 +900,19 @@ async def proxy_icon(icon_id: str):
     raise HTTPException(status_code=404, detail="Icon not found")
 
 @app.get("/api/cameras/{camera_id}/image")
-async def proxy_camera_image(camera_id: str, fullsize: bool = False, db: Session = Depends(get_db)):
-    camera = db.query(Camera).filter(Camera.id == camera_id).first()
-    if not camera:
-        raise HTTPException(status_code=404, detail="Camera not found")
-    
-    url = camera.fullsize_url if (fullsize and camera.fullsize_url) else camera.photo_url
-    if not url:
-        raise HTTPException(status_code=404, detail="No image URL available")
+async def proxy_camera_image(camera_id: str, fullsize: bool = False):
+    # Manually manage DB session to avoid holding connection during stream
+    db = SessionLocal()
+    try:
+        camera = db.query(Camera).filter(Camera.id == camera_id).first()
+        if not camera:
+            raise HTTPException(status_code=404, detail="Camera not found")
+        
+        url = camera.fullsize_url if (fullsize and camera.fullsize_url) else camera.photo_url
+        if not url:
+            raise HTTPException(status_code=404, detail="No image URL available")
+    finally:
+        db.close()
         
     async def stream_image():
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -979,19 +930,42 @@ async def proxy_camera_image(camera_id: str, fullsize: bool = False, db: Session
     return StreamingResponse(stream_image(), media_type="image/jpeg")
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session = Depends(get_db)):
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
     
-    # Filter out expired events: end_time is null OR end_time is in the future
-    now = datetime.now()
-    query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
-    
-    if hours:
-        cutoff = datetime.now() - timedelta(hours=hours)
-        query = query.filter(TrafficEvent.created_at >= cutoff)
+    if date:
+        logger.info(f"Filtering events by date: {date}")
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d")
+            day_start = datetime.combine(target_date.date(), time.min)
+            day_end = datetime.combine(target_date.date(), time.max)
+            logger.info(f"Day range for filter: {day_start} to {day_end}")
+            
+            # Match get_stats logic: filter by created_at
+            # This includes BOTH active and expired events created on this day
+            query = query.filter(TrafficEvent.created_at >= day_start, TrafficEvent.created_at <= day_end)
+        except ValueError as e:
+            logger.error(f"Invalid date format: {date}. Error: {e}")
+    else:
+        # Filter out expired events for the main feed
+        now = datetime.now()
+        query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+        
+        if hours:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            query = query.filter(TrafficEvent.created_at >= cutoff)
         
     events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
     
+    # Batch fetch history counts to avoid N+1 queries
+    external_ids = [e.external_id for e in events]
+    history_counts = {}
+    if external_ids:
+        h_counts = db.query(TrafficEventVersion.external_id, func.count(TrafficEventVersion.id))\
+                    .filter(TrafficEventVersion.external_id.in_(external_ids))\
+                    .group_by(TrafficEventVersion.external_id).all()
+        history_counts = {ext_id: count for ext_id, count in h_counts}
+
     result = []
     for e in events:
         # Sanitize extra cameras: remove external URLs
@@ -1029,7 +1003,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, db: Session 
             "longitude": e.longitude,
             "camera_snapshot": e.camera_snapshot,
             "extra_cameras": extra_cams,
-            "history_count": db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == e.external_id).count()
+            "history_count": history_counts.get(e.external_id, 0)
         })
     return result
 

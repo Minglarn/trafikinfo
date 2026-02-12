@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Activity, AlertTriangle, TrendingUp, Truck, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { format, subDays, addDays, isToday, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
+import EventModal from './EventModal'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d']
 const SEVERITY_COLORS = {
@@ -18,14 +19,20 @@ export default function Statistics() {
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [selectedDate, setSelectedDate] = useState(new Date())
+    const [events, setEvents] = useState([])
+    const [selectedEvent, setSelectedEvent] = useState(null)
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true)
             try {
                 const dateStr = format(selectedDate, 'yyyy-MM-dd')
-                const res = await axios.get(`/api/stats?date=${dateStr}`)
-                setData(res.data)
+                const [statsRes, eventsRes] = await Promise.all([
+                    axios.get(`/api/stats?date=${dateStr}`),
+                    axios.get(`/api/events?limit=200&date=${dateStr}`)
+                ])
+                setData(statsRes.data)
+                setEvents(eventsRes.data)
             } catch (error) {
                 console.error("Error fetching stats:", error)
             } finally {
@@ -219,7 +226,65 @@ export default function Statistics() {
                         </ResponsiveContainer>
                     </div>
                 </div>
+
+                {/* Event List */}
+                <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mt-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-blue-500" />
+                            Händelselista för dagen
+                        </h3>
+                        <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700">
+                            {events.length} händelser
+                        </span>
+                    </div>
+
+                    <div className="space-y-3">
+                        {events.map(event => (
+                            <div
+                                key={event.id}
+                                onClick={() => setSelectedEvent(event)}
+                                className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900/30 transition-all cursor-pointer group shadow-sm"
+                            >
+                                {event.icon_url && (
+                                    <div className="w-10 h-10 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 flex-shrink-0 group-hover:scale-110 transition-transform">
+                                        <img src={event.icon_url} alt="" className="w-full h-full object-contain" />
+                                    </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                            {format(new Date(event.created_at), 'HH:mm')}
+                                        </span>
+                                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                            {event.title}
+                                        </h4>
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                        {event.location}
+                                    </p>
+                                </div>
+                                <div className="flex-shrink-0">
+                                    <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" />
+                                </div>
+                            </div>
+                        ))}
+                        {events.length === 0 && (
+                            <div className="py-12 text-center text-slate-400 italic text-sm">
+                                Inga händelser registrerade denna dag.
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
+
+            {/* Event Modal */}
+            {selectedEvent && (
+                <EventModal
+                    event={selectedEvent}
+                    onClose={() => setSelectedEvent(null)}
+                />
+            )}
         </div>
     )
 }
