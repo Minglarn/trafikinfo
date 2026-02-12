@@ -693,6 +693,9 @@ async def event_processor():
                     else:
                         new_event.pushed_to_mqtt = 0
                     db.commit()
+
+                    # Fetch history count
+                    history_count = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == new_event.external_id).count()
                     
                     # Broadcast to connected frontend clients
                     event_data = {
@@ -718,7 +721,8 @@ async def event_processor():
                         "camera_url": new_event.camera_url,
                         "camera_name": new_event.camera_name,
                         "camera_snapshot": new_event.camera_snapshot,
-                        "extra_cameras": json.loads(new_event.extra_cameras) if new_event.extra_cameras else []
+                        "extra_cameras": json.loads(new_event.extra_cameras) if new_event.extra_cameras else [],
+                        "history_count": history_count
                     }
                     for queue in connected_clients:
                         await queue.put(event_data)
