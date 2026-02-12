@@ -9,6 +9,11 @@ function RoadConditions() {
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
 
+    // Pagination
+    const [offset, setOffset] = useState(0)
+    const [hasMore, setHasMore] = useState(true)
+    const [isFetchingMore, setIsFetchingMore] = useState(false)
+
     // Filtering state
     const [selectedCounty, setSelectedCounty] = useState('Alla')
     const [roadFilter, setRoadFilter] = useState('')
@@ -38,25 +43,47 @@ function RoadConditions() {
     }
 
     useEffect(() => {
-        fetchConditions()
-        const interval = setInterval(fetchConditions, 60000) // Refresh every minute
-        return () => clearInterval(interval)
-    }, [])
+        // Initial fetch or re-fetch when county changes
+        setOffset(0)
+        setHasMore(true)
+        fetchConditions(true)
+    }, [selectedCounty]) // Re-fetch when county changes
 
-    const fetchConditions = async () => {
+    const fetchConditions = async (reset = false) => {
         try {
-            const response = await fetch('/api/road-conditions')
+            if (!reset) setIsFetchingMore(true)
+            const currentOffset = reset ? 0 : offset
+            const LIMIT = 50
+
+            // Construct URL
+            let url = `/api/road-conditions?limit=${LIMIT}&offset=${currentOffset}`
+            if (selectedCounty !== 'Alla') {
+                url += `&county_no=${selectedCounty}`
+            }
+
+            const response = await fetch(url)
             if (!response.ok) throw new Error('Failed to fetch road conditions')
             const data = await response.json()
-            // Sort by timestamp desc to show newest first
-            const sorted = data.sort((a, b) => {
-                return new Date(b.timestamp) - new Date(a.timestamp)
-            })
-            setConditions(sorted)
+
+            if (reset) {
+                setConditions(data)
+                setOffset(LIMIT)
+            } else {
+                setConditions(prev => {
+                    const existingIds = new Set(prev.map(c => c.id))
+                    const newItems = data.filter(c => !existingIds.has(c.id))
+                    return [...prev, ...newItems]
+                })
+                setOffset(prev => prev + LIMIT)
+            }
+
+            setHasMore(data.length === LIMIT)
             setLoading(false)
+            setIsFetchingMore(false)
         } catch (err) {
             setError(err.message)
             setLoading(false)
+            setIsFetchingMore(false)
         }
     }
 
@@ -148,7 +175,7 @@ function RoadConditions() {
                     <Snowflake className="w-6 h-6 text-blue-500" />
                     Väglag
                     <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
-                        {activeConditions.length} rapporter
+                        {conditions.length} visade rapporter
                         {selectedCounty !== 'Alla' && ` i ${COUNTIES[selectedCounty] || 'Valt län'}`}
                     </span>
                 </h2>
@@ -183,211 +210,237 @@ function RoadConditions() {
                     <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Det ser ut att vara lugnt ute på vägarna</p>
                 </div>
             ) : (
-                activeConditions.map((rc) => {
-                    const isMapOpen = expandedMaps.has(rc.id)
-                    const isCameraOpen = expandedCameras.has(rc.id)
+                <div>
+                    {activeConditions.map((rc) => {
+                        const isMapOpen = expandedMaps.has(rc.id)
+                        const isCameraOpen = expandedCameras.has(rc.id)
 
-                    return (
-                        <div
-                            key={rc.id}
-                            className={`rounded-xl shadow-sm overflow-hidden transition-all duration-300 ${getConditionStyle(rc.condition_code)}`}
-                        >
-                            <div className="p-4 sm:p-5">
-                                <div className="flex flex-col md:flex-row gap-4">
-                                    {/* Left Side: Content */}
-                                    <div className="flex-1 min-w-0 space-y-3">
-                                        {/* Header Row */}
-                                        <div className="flex items-start gap-3">
-                                            <div className={`p-2 rounded-full shadow-sm shrink-0 ${getConditionBadgeColor(rc.condition_code)}`}>
-                                                {rc.icon_url ? (
-                                                    <img src={rc.icon_url} alt="" className="w-5 h-5 object-contain" />
-                                                ) : (
-                                                    getIcon(rc.condition_code)
-                                                )}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg uppercase">
-                                                        {rc.condition_text || 'Okänt väglag'}
-                                                    </h3>
-                                                    <div className="flex flex-col items-end gap-0.5">
-                                                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 whitespace-nowrap shrink-0 mt-0.5">
-                                                            <Clock className="w-3.5 h-3.5" />
-                                                            <span>
-                                                                {new Date(rc.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        </div>
-                                                        {rc.end_time && (
-                                                            <span className="text-[10px] text-slate-400">
-                                                                Till {new Date(rc.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                        return (
+                            <div
+                                key={rc.id}
+                                className={`rounded-xl shadow-sm overflow-hidden transition-all duration-300 ${getConditionStyle(rc.condition_code)}`}
+                            >
+                                <div className="p-4 sm:p-5">
+                                    <div className="flex flex-col md:flex-row gap-4">
+                                        {/* Left Side: Content */}
+                                        <div className="flex-1 min-w-0 space-y-3">
+                                            {/* Header Row */}
+                                            <div className="flex items-start gap-3">
+                                                <div className={`p-2 rounded-full shadow-sm shrink-0 ${getConditionBadgeColor(rc.condition_code)}`}>
+                                                    {rc.icon_url ? (
+                                                        <img src={rc.icon_url} alt="" className="w-5 h-5 object-contain" />
+                                                    ) : (
+                                                        getIcon(rc.condition_code)
+                                                    )}
                                                 </div>
 
-                                                {/* Road Badge & Location */}
-                                                {(rc.road_number || rc.camera_name) && (
-                                                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                        {rc.road_number && (
-                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${rc.road_number.startsWith('E')
-                                                                ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow'
-                                                                : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted'
-                                                                }`}>
-                                                                {rc.road_number.replace(/^Väg\s+/, '')}
-                                                            </span>
-                                                        )}
-
-                                                        {/* Location next to road number */}
-                                                        {rc.camera_name && (
-                                                            <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-medium">
-                                                                <MapPin className="w-3.5 h-3.5" />
-                                                                <span>{rc.camera_name}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg uppercase">
+                                                            {rc.condition_text || 'Okänt väglag'}
+                                                        </h3>
+                                                        <div className="flex flex-col items-end gap-0.5">
+                                                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 whitespace-nowrap shrink-0 mt-0.5">
+                                                                <Clock className="w-3.5 h-3.5" />
+                                                                <span>
+                                                                    {new Date(rc.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
                                                             </div>
-                                                        )}
+                                                            {rc.end_time && (
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    Till {new Date(rc.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
 
-                                                        {/* County Badge */}
-                                                        {rc.county_no && (
-                                                            <span className="text-[10px] items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hidden sm:flex">
-                                                                {COUNTIES[rc.county_no] || `Län ${rc.county_no}`}
-                                                            </span>
-                                                        )}
+                                                    {/* Road Badge & Location */}
+                                                    {(rc.road_number || rc.camera_name) && (
+                                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                            {rc.road_number && (
+                                                                <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${rc.road_number.startsWith('E')
+                                                                    ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow'
+                                                                    : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted'
+                                                                    }`}>
+                                                                    {rc.road_number.replace(/^Väg\s+/, '')}
+                                                                </span>
+                                                            )}
+
+                                                            {/* Location next to road number */}
+                                                            {rc.camera_name && (
+                                                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                                                    <MapPin className="w-3.5 h-3.5" />
+                                                                    <span>{rc.camera_name}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {/* County Badge */}
+                                                            {rc.county_no && (
+                                                                <span className="text-[10px] items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hidden sm:flex">
+                                                                    {COUNTIES[rc.county_no] || `Län ${rc.county_no}`}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Description Content */}
+                                            <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed pl-1 pt-1">
+
+                                                {/* ORSAK (Cause) */}
+                                                {rc.cause && (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Orsak</span>
+                                                        <span className="font-medium text-slate-800 dark:text-slate-200">{rc.cause}</span>
                                                     </div>
                                                 )}
+
+                                                {/* VARNING (Warning) */}
+                                                {rc.warning && (
+                                                    <div className={`p-3 rounded-lg border flex items-start gap-3 ${rc.warning.toLowerCase().includes('halka')
+                                                        ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+                                                        : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200'
+                                                        }`}>
+                                                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                                                        <div>
+                                                            <span className="block text-[10px] uppercase tracking-wider font-bold opacity-75 mb-0.5">Varning</span>
+                                                            <span className="font-bold">{rc.warning}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* ÅTGÄRD (Measure) */}
+                                                {rc.measure && (
+                                                    <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 py-0.5">
+                                                        <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Åtgärd</span>
+                                                        <span className="text-slate-700 dark:text-slate-300">{rc.measure}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* (Location moved to header) */}
                                             </div>
                                         </div>
 
-                                        {/* Description Content */}
-                                        <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed pl-1 pt-1">
-
-                                            {/* ORSAK (Cause) */}
-                                            {rc.cause && (
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Orsak</span>
-                                                    <span className="font-medium text-slate-800 dark:text-slate-200">{rc.cause}</span>
+                                        {/* Right Side: Camera & Map Side-by-Side */}
+                                        <div className="flex flex-col lg:flex-row justify-between items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 max-w-full overflow-hidden shrink-0">
+                                            <div className="flex flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0">
+                                                {/* Camera Slot */}
+                                                <div
+                                                    className={`relative w-1/2 md:w-40 h-24 sm:h-28 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in ${isCameraOpen ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+                                                    onClick={(e) => {
+                                                        if (rc.camera_snapshot) {
+                                                            e.stopPropagation();
+                                                            toggleCamera(rc.id)
+                                                        }
+                                                    }}
+                                                >
+                                                    {rc.camera_snapshot ? (
+                                                        <img
+                                                            src={rc.snapshot_url}
+                                                            alt={rc.camera_name || 'Väglagskamera'}
+                                                            className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
+                                                        />
+                                                    ) : (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                                                            <Camera className="w-8 h-8 mb-1 opacity-20" />
+                                                            <span className="text-[10px] italic lg:block hidden">Ingen bild</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
 
-                                            {/* VARNING (Warning) */}
-                                            {rc.warning && (
-                                                <div className={`p-3 rounded-lg border flex items-start gap-3 ${rc.warning.toLowerCase().includes('halka')
-                                                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
-                                                    : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200'
-                                                    }`}>
-                                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-                                                    <div>
-                                                        <span className="block text-[10px] uppercase tracking-wider font-bold opacity-75 mb-0.5">Varning</span>
-                                                        <span className="font-bold">{rc.warning}</span>
+                                                {/* Map Slot */}
+                                                <div
+                                                    className={`relative w-1/2 md:w-40 h-24 sm:h-28 rounded-lg overflow-hidden border transition-all duration-300 group/map cursor-pointer ${isMapOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        toggleMap(rc.id)
+                                                    }}
+                                                >
+                                                    {rc.latitude && rc.longitude ? (
+                                                        <EventMap
+                                                            lat={rc.latitude}
+                                                            lng={rc.longitude}
+                                                            interactive={false}
+                                                        />
+                                                    ) : (
+                                                        <div className="h-full flex items-center justify-center text-slate-400">
+                                                            <MapPin className="w-6 h-6 opacity-20" />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Overlay hint */}
+                                                    <div className="absolute inset-0 bg-black/5 group-hover/map:bg-black/10 transition-colors pointer-events-none flex items-center justify-center opacity-0 group-hover/map:opacity-100 z-20">
+                                                        <span className="text-[10px] font-bold text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">
+                                                            Förstora
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )}
-
-                                            {/* ÅTGÄRD (Measure) */}
-                                            {rc.measure && (
-                                                <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 py-0.5">
-                                                    <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Åtgärd</span>
-                                                    <span className="text-slate-700 dark:text-slate-300">{rc.measure}</span>
-                                                </div>
-                                            )}
-
-                                            {/* (Location moved to header) */}
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Right Side: Camera & Map Side-by-Side */}
-                                    <div className="flex flex-col lg:flex-row justify-between items-stretch gap-4 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700/50 pt-4 md:pt-0 md:pl-6 max-w-full overflow-hidden shrink-0">
-                                        <div className="flex flex-row gap-2 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0">
-                                            {/* Camera Slot */}
-                                            <div
-                                                className={`relative w-1/2 md:w-40 h-24 sm:h-28 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in ${isCameraOpen ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
-                                                onClick={(e) => {
-                                                    if (rc.camera_snapshot) {
-                                                        e.stopPropagation();
-                                                        toggleCamera(rc.id)
-                                                    }
-                                                }}
-                                            >
-                                                {rc.camera_snapshot ? (
-                                                    <img
-                                                        src={rc.snapshot_url}
-                                                        alt={rc.camera_name || 'Väglagskamera'}
-                                                        className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
-                                                    />
-                                                ) : (
-                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
-                                                        <Camera className="w-8 h-8 mb-1 opacity-20" />
-                                                        <span className="text-[10px] italic lg:block hidden">Ingen bild</span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                    {/* Expanded Map Area */}
+                                    {isMapOpen && rc.latitude && rc.longitude && (
+                                        <div className="h-80 w-full relative z-0 border-t border-slate-200 dark:border-slate-700">
+                                            <EventMap
+                                                lat={rc.latitude}
+                                                lng={rc.longitude}
+                                                popupContent={`${rc.condition_text || ''} ${rc.warning || ''}`}
+                                                interactive={true}
+                                            />
+                                        </div>
+                                    )}
 
-                                            {/* Map Slot */}
-                                            <div
-                                                className={`relative w-1/2 md:w-40 h-24 sm:h-28 rounded-lg overflow-hidden border transition-all duration-300 group/map cursor-pointer ${isMapOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : 'bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600'}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    toggleMap(rc.id)
-                                                }}
-                                            >
-                                                {rc.latitude && rc.longitude ? (
-                                                    <EventMap
-                                                        lat={rc.latitude}
-                                                        lng={rc.longitude}
-                                                        interactive={false}
-                                                    />
-                                                ) : (
-                                                    <div className="h-full flex items-center justify-center text-slate-400">
-                                                        <MapPin className="w-6 h-6 opacity-20" />
-                                                    </div>
-                                                )}
-
-                                                {/* Overlay hint */}
-                                                <div className="absolute inset-0 bg-black/5 group-hover/map:bg-black/10 transition-colors pointer-events-none flex items-center justify-center opacity-0 group-hover/map:opacity-100 z-20">
-                                                    <span className="text-[10px] font-bold text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">
-                                                        Förstora
-                                                    </span>
-                                                </div>
+                                    {/* Expanded Camera Area */}
+                                    {isCameraOpen && rc.camera_snapshot && (
+                                        <div className="relative bg-black aspect-video sm:aspect-[21/9] border-t border-slate-200 dark:border-slate-700">
+                                            <img
+                                                src={rc.snapshot_url}
+                                                alt={rc.camera_name || "Väglagskamera"}
+                                                className="w-full h-full object-contain"
+                                                loading="lazy"
+                                            />
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+                                                <p className="text-white text-xs font-medium flex items-center gap-2">
+                                                    <Camera className="w-3 h-3" />
+                                                    {rc.camera_name || `Kamera vid väg ${rc.road_number}`}
+                                                </p>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
+                        )
+                    })}
+                </div>
+            )}
 
-                            {/* Expanded Map Area */}
-                            {isMapOpen && rc.latitude && rc.longitude && (
-                                <div className="h-80 w-full relative z-0 border-t border-slate-200 dark:border-slate-700">
-                                    <EventMap
-                                        lat={rc.latitude}
-                                        lng={rc.longitude}
-                                        popupContent={`${rc.condition_text || ''} ${rc.warning || ''}`}
-                                        interactive={true}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Expanded Camera Area */}
-                            {isCameraOpen && rc.camera_snapshot && (
-                                <div className="relative bg-black aspect-video sm:aspect-[21/9] border-t border-slate-200 dark:border-slate-700">
-                                    <img
-                                        src={rc.snapshot_url}
-                                        alt={rc.camera_name || "Väglagskamera"}
-                                        className="w-full h-full object-contain"
-                                        loading="lazy"
-                                    />
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                                        <p className="text-white text-xs font-medium flex items-center gap-2">
-                                            <Camera className="w-3 h-3" />
-                                            {rc.camera_name || `Kamera vid väg ${rc.road_number}`}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )
-                })
+            {/* Load More Button */}
+            {hasMore && !loading && (
+                <div className="flex justify-center mt-8">
+                    <button
+                        onClick={() => fetchConditions(false)}
+                        disabled={isFetchingMore}
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                    >
+                        {isFetchingMore ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Laddar...
+                            </>
+                        ) : (
+                            <>
+                                <ChevronDown className="w-4 h-4" />
+                                Ladda fler rapporter
+                            </>
+                        )}
+                    </button>
+                </div>
             )}
         </div>
     )
 }
 
 export default RoadConditions
+

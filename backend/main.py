@@ -1258,7 +1258,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
     return result
 
 @app.get("/api/road-conditions")
-def get_road_conditions(county_no: int = None, db: Session = Depends(get_db)):
+def get_road_conditions(county_no: int = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     query = db.query(RoadCondition)
     
     # Filter by configured counties by default for consistency
@@ -1270,7 +1270,7 @@ def get_road_conditions(county_no: int = None, db: Session = Depends(get_db)):
     elif selected_counties:
         query = query.filter(RoadCondition.county_no.in_(selected_counties))
         
-    conditions = query.all()
+    conditions = query.order_by(RoadCondition.timestamp.desc()).offset(offset).limit(limit).all()
     
     return [{
         "id": c.id,
