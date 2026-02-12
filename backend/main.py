@@ -91,7 +91,7 @@ COUNTY_MAP = {
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-app = FastAPI(title="Trafikinfo API")
+app = FastAPI(title="Trafikinfo API", version="26.2.20")
 
 class LoginRequest(BaseModel):
     password: str
@@ -481,14 +481,17 @@ async def event_processor():
                     
                     if existing:
                         # Check if anything significant changed before updating
-                        # We compare: title, description, location, severity_code, message_type
+                        # We compare: title, description, location, severity_code, message_type, times
                         has_changed = (
                             existing.title != ev['title'] or
                             existing.description != ev['description'] or
                             existing.location != ev['location'] or
                             existing.severity_code != ev.get('severity_code') or
                             existing.message_type != ev.get('message_type') or
-                            existing.temporary_limit != ev.get('temporary_limit')
+                            existing.temporary_limit != ev.get('temporary_limit') or
+                            existing.traffic_restriction_type != ev.get('traffic_restriction_type') or
+                            (ev.get('start_time') and existing.start_time != datetime.fromisoformat(ev['start_time'])) or
+                            (ev.get('end_time') and existing.end_time != datetime.fromisoformat(ev['end_time']))
                         )
 
                         if has_changed:
@@ -539,6 +542,9 @@ async def event_processor():
                         if ev.get('longitude') is not None:
                             existing.longitude = ev.get('longitude')
                         
+                        if has_changed:
+                            existing.updated_at = datetime.now()
+
                         # Sync camera metadata for existing events (Only if we found a new ones)
                         if camera_url:
                             existing.camera_url = camera_url
@@ -694,6 +700,7 @@ async def event_processor():
                         "location": new_event.location,
                         "icon_url": mqtt_data.get('icon_url'),
                         "created_at": new_event.created_at.isoformat(),
+                        "updated_at": new_event.updated_at.isoformat() if new_event.updated_at else new_event.created_at.isoformat(),
                         "pushed_to_mqtt": bool(new_event.pushed_to_mqtt),
                         "message_type": new_event.message_type,
                         "severity_code": new_event.severity_code,
@@ -961,7 +968,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             cutoff = datetime.now() - timedelta(hours=hours)
             query = query.filter(TrafficEvent.created_at >= cutoff)
         
-    events = query.order_by(TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
+    events = query.order_by(TrafficEvent.updated_at.desc(), TrafficEvent.created_at.desc()).offset(offset).limit(limit).all()
     
     # Batch fetch history counts to avoid N+1 queries
     external_ids = [e.external_id for e in events]
@@ -996,6 +1003,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             "location": e.location,
             "icon_url": f"/api/icons/{e.icon_id}" if e.icon_id else None,
             "created_at": e.created_at,
+            "updated_at": e.updated_at,
             "pushed_to_mqtt": bool(e.pushed_to_mqtt),
             "message_type": e.message_type,
             "severity_code": e.severity_code,

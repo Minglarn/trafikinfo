@@ -196,16 +196,17 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                     }
 
                     const index = prev.findIndex(e => e.external_id === newEvent.external_id)
+                    let newEvents = [...prev]
+
                     if (index !== -1) {
-                        // Update existing event while preserving local state if needed
-                        const updatedEvents = [...prev]
-                        updatedEvents[index] = { ...updatedEvents[index], ...newEvent }
-                        return updatedEvents
+                        // Remove existing event so we can move it to top
+                        newEvents.splice(index, 1)
                     } else {
-                        // New event - add to top
                         setOffset(o => o + 1)
-                        return [newEvent, ...prev]
                     }
+
+                    // Add new/updated event to top
+                    return [newEvent, ...newEvents]
                 })
 
                 // Play sound if enabled
@@ -504,9 +505,16 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                             </span>
                                         ))}
 
-                                        <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto">
+                                        <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
+                                            title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${format(new Date(event.updated_at), 'yyyy-MM-dd HH:mm')}` : `Skapad: ${format(new Date(event.created_at), 'yyyy-MM-dd HH:mm')}`}>
                                             <Clock className="w-3 h-3" />
-                                            {format(new Date(event.created_at), 'HH:mm')}
+                                            {event.updated_at && event.updated_at !== event.created_at ? (
+                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                    {format(new Date(event.updated_at), 'HH:mm')}
+                                                </span>
+                                            ) : (
+                                                <span>{format(new Date(event.created_at), 'HH:mm')}</span>
+                                            )}
                                         </span>
                                     </div>
 

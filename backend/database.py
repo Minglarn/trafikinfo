@@ -23,6 +23,7 @@ class TrafficEvent(Base):
     location = Column(String)
     icon_id = Column(String) # Trafikverket IconId
     created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     
     # Enriched fields
     message_type = Column(String) # e.g. "Vägarbete"
@@ -130,7 +131,8 @@ def migrate_db():
         "external_id": "VARCHAR",
         "event_type": "VARCHAR",
         "extra_cameras": "TEXT",
-        "county_no": "INTEGER"
+        "county_no": "INTEGER",
+        "updated_at": "DATETIME"
     }
 
     with engine.connect() as conn:
@@ -139,13 +141,19 @@ def migrate_db():
                 print(f"Migrating database: Adding missing column '{col_name}'")
                 try:
                     conn.execute(text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
+                    
+                    # Backfill updated_at with created_at if just added
+                    if col_name == "updated_at":
+                        print("Backfilling updated_at with created_at...")
+                        conn.execute(text("UPDATE traffic_events SET updated_at = created_at WHERE updated_at IS NULL"))
+                        conn.commit()
                 except Exception as e:
                     print(f"Error adding column {col_name}: {e}")
         
         # Also migrate versions table
         v_columns = [c['name'] for c in inspector.get_columns("traffic_event_versions")]
         for col_name, col_type in expected_columns.items():
-             if col_name not in v_columns and col_name not in ["pushed_to_mqtt"]:
+             if col_name not in v_columns and col_name not in ["pushed_to_mqtt", "updated_at"]:
                 print(f"Migrating versions: Adding missing column '{col_name}'")
                 try:
                     conn.execute(text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
