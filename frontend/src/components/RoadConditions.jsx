@@ -16,7 +16,7 @@ function RoadConditions() {
     const observerTarget = useRef(null)
 
     // Filtering state
-    const [selectedCounty, setSelectedCounty] = useState('Alla')
+    const [selectedCounties, setSelectedCounties] = useState([])
     const [roadFilter, setRoadFilter] = useState('')
 
     const COUNTIES = [
@@ -48,7 +48,7 @@ function RoadConditions() {
         setOffset(0)
         setHasMore(true)
         fetchConditions(true)
-    }, [selectedCounty]) // Re-fetch when county changes
+    }, [selectedCounties]) // Re-fetch when county changes
 
     const fetchConditions = useCallback(async (reset = false) => {
         try {
@@ -58,8 +58,11 @@ function RoadConditions() {
 
             // Construct URL
             let url = `/api/road-conditions?limit=${LIMIT}&offset=${currentOffset}`
-            if (selectedCounty !== 'Alla') {
-                url += `&county_no=${selectedCounty}`
+
+            // Handle multi-county selection
+            if (selectedCounties.length > 0) {
+                const countyParam = selectedCounties.join(',')
+                url += `&county_no=${countyParam}`
             }
 
             const response = await fetch(url)
@@ -86,7 +89,7 @@ function RoadConditions() {
             setLoading(false)
             setIsFetchingMore(false)
         }
-    }, [offset, selectedCounty])
+    }, [offset, selectedCounties])
 
     // Infinite Scroll Observer
     useEffect(() => {
@@ -144,6 +147,35 @@ function RoadConditions() {
         })
     }
 
+    const toggleCounty = (countyId) => {
+        setSelectedCounties(prev => {
+            if (countyId === 'Alla') return []
+
+            // If currently empty (showing all), and clicking a county, select just that one
+            // If clicking 'Alla', clear selection
+
+            const isSelected = prev.includes(countyId)
+            if (isSelected) {
+                return prev.filter(id => id !== countyId)
+            } else {
+                return [...prev, countyId]
+            }
+        })
+    }
+
+    const formatValidity = (start, end) => {
+        if (!start) return ''
+        const startTime = new Date(start).toLocaleTimeString('sv-SE', {
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+        const endTime = end ? new Date(end).toLocaleTimeString('sv-SE', {
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'tillsvidare'
+        return `Gäller: ${startTime} - ${endTime}`
+    }
+
     const getConditionStyle = (rc) => {
         // Base card style - remove border-l as we use absolute div now
         return "bg-white dark:bg-slate-800 relative"
@@ -172,14 +204,11 @@ function RoadConditions() {
         if (rc.end_time && new Date(rc.end_time) <= new Date()) return false
 
         // Apply filters
-        if (selectedCounty !== 'Alla' && rc.county_no !== parseInt(selectedCounty)) return false
+        // County filter is handled by API
         if (roadFilter && rc.road_number && !rc.road_number.toLowerCase().includes(roadFilter.toLowerCase())) return false
 
         return true
     })
-
-    // Get unique counties from data for filter dropdown
-    const availableCounties = [...new Set(conditions.map(c => c.county_no))].sort((a, b) => a - b)
 
     if (loading) return <div className="p-8 text-center text-slate-500 animate-pulse">Laddar väglagsdata...</div>
     if (error) return <div className="p-8 text-center text-red-500 bg-red-50 dark:bg-red-900/10 rounded-lg mx-4 mt-4">Kunde inte ladda väglag: {error}</div>
@@ -193,8 +222,8 @@ function RoadConditions() {
                         <Snowflake className="w-6 h-6 text-blue-500" />
                         Väglag
                         <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
-                            {conditions.length} visade rapporter
-                            {selectedCounty !== 'Alla' && ` i ${COUNTIES.find(c => c.id == selectedCounty)?.name || 'Valt län'}`}
+                            {conditions.length} rapporter
+                            {selectedCounties.length > 0 && ` i ${selectedCounties.length} län`}
                         </span>
                     </h2>
 
@@ -215,26 +244,29 @@ function RoadConditions() {
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
                     <div className="flex flex-wrap gap-2">
                         <button
-                            onClick={() => setSelectedCounty('Alla')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedCounty === 'Alla'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                            onClick={() => toggleCounty('Alla')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedCounties.length === 0
+                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900'
+                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                                 }`}
                         >
                             Alla län
                         </button>
-                        {COUNTIES.map(county => (
-                            <button
-                                key={county.id}
-                                onClick={() => setSelectedCounty(county.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${parseInt(selectedCounty) === county.id
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
-                                    }`}
-                            >
-                                {county.name}
-                            </button>
-                        ))}
+                        {COUNTIES.map(county => {
+                            const isSelected = selectedCounties.includes(county.id)
+                            return (
+                                <button
+                                    key={county.id}
+                                    onClick={() => toggleCounty(county.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isSelected
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                        }`}
+                                >
+                                    {county.name}
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
             </div>
@@ -290,17 +322,10 @@ function RoadConditions() {
                                                             {rc.condition_text || 'Okänt väglag'}
                                                         </h3>
                                                         <div className="flex flex-col items-end gap-0.5">
-                                                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 whitespace-nowrap shrink-0 mt-0.5">
+                                                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5">
                                                                 <Clock className="w-3.5 h-3.5" />
-                                                                <span>
-                                                                    {new Date(rc.start_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                                                                </span>
+                                                                <span>{formatValidity(rc.start_time, rc.end_time)}</span>
                                                             </div>
-                                                            {rc.end_time && (
-                                                                <span className="text-[10px] text-slate-400">
-                                                                    Till {new Date(rc.end_time).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     </div>
 

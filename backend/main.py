@@ -1,4 +1,4 @@
-VERSION = "26.2.30"
+VERSION = "26.2.31"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -97,7 +97,7 @@ COUNTY_MAP = {
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-app = FastAPI(title="Trafikinfo API", version="26.2.20")
+app = FastAPI(title="Trafikinfo API", version="26.2.31")
 
 class LoginRequest(BaseModel):
     password: str
@@ -821,6 +821,23 @@ async def road_condition_processor():
                     # Sync with DB
                     existing = db.query(RoadCondition).filter(RoadCondition.id == rc['id']).first()
                     
+                    # DEDUPLICATION: Check for semantic match (Same Road + Condition + County + StartTime)
+                    # This prevents duplicates when Trafikverket rotates IDs
+                    if not existing:
+                        query = db.query(RoadCondition).filter(
+                            RoadCondition.road_number == rc.get('road_number'),
+                            RoadCondition.condition_code == rc['condition_code'],
+                            RoadCondition.county_no == rc.get('county_no')
+                        )
+                        if rc.get('start_time'):
+                            st = datetime.fromisoformat(rc['start_time'])
+                            query = query.filter(RoadCondition.start_time == st)
+                        
+                        semantic_match = query.first()
+                        if semantic_match:
+                            logger.info(f"deduplication: Matched incoming RC {rc['id']} to existing {semantic_match.id}")
+                            existing = semantic_match
+
                     camera_url = None
                     camera_name = None
                     camera_snapshot = None
@@ -844,23 +861,18 @@ async def road_condition_processor():
                              
                              # Download snapshot
                              if camera_url:
-                                 # Unique filename for road conditions to avoid collision/overwrites if needed, 
-                                 # but actually we want fresh ones.
-                                 # We can reuse the download_camera_snapshot logic
+                                 target_id = existing.id if existing else rc['id']
                                  fullsize_url = primary.get('fullsize_url')
-                                 # Suffix with timestamp in logic, so just pass a stable ID base
-                                 # For RoadConditions, maybe we update snapshot every time?
-                                 # Let's clean up old ones or just keep latest.
-                                 # For now, download new:
-                                 camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{rc['id']}", fullsize_url)
+                                 camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{target_id}", fullsize_url)
 
+                    final_rc = None
                     if existing:
                         existing.condition_code = rc['condition_code']
                         existing.condition_text = rc['condition_text']
                         existing.measure = rc['measure']
                         existing.warning = rc['warning']
-                        existing.cause = rc.get('cause') # New field
-                        existing.icon_id = rc.get('icon_id') # New field
+                        existing.cause = rc.get('cause') 
+                        existing.icon_id = rc.get('icon_id') 
                         existing.road_number = rc.get('road_number')
                         existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
                         existing.end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None
@@ -872,7 +884,7 @@ async def road_condition_processor():
                             existing.camera_snapshot = camera_snapshot
 
                         db.commit()
-
+                        final_rc = existing
                     else:
                         new_rc = RoadCondition(
                             id=rc['id'],
@@ -880,8 +892,8 @@ async def road_condition_processor():
                             condition_text=rc['condition_text'],
                             measure=rc['measure'],
                             warning=rc['warning'],
-                            cause=rc.get('cause'), # New field
-                            icon_id=rc.get('icon_id'), # New field
+                            cause=rc.get('cause'), 
+                            icon_id=rc.get('icon_id'), 
                             road_number=rc.get('road_number'),
                             start_time=datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
                             end_time=datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None,
@@ -895,37 +907,44 @@ async def road_condition_processor():
                         )
                         db.add(new_rc)
                         db.commit()
+                        final_rc = new_rc
                     
                     # Prepare data for broadcast
                     icon_url = None
+                    base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
+                    base_url = base_url_setting.value if base_url_setting else ""
+                    
                     if rc.get('icon_id'):
-                        base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
-                        base_url = base_url_setting.value if base_url_setting else ""
                         icon_id_with_ext = f"{rc['icon_id']}.png"
                         icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
 
+                    # Normalize camera URL for output (Frontend & MQTT)
+                    out_camera_url = None
+                    if final_rc.camera_snapshot:
+                         out_camera_url = f"{base_url}/api/snapshots/{final_rc.camera_snapshot}" if base_url else f"/api/snapshots/{final_rc.camera_snapshot}"
+                    
                     condition_data = {
-                        "id": rc['id'],
-                        "condition_code": rc['condition_code'],
-                        "condition_text": rc['condition_text'],
-                        "measure": rc['measure'],
-                        "warning": rc['warning'],
-                        "cause": rc.get('cause'),
-                        "icon_id": rc.get('icon_id'),
+                        "id": final_rc.id,
+                        "condition_code": final_rc.condition_code,
+                        "condition_text": final_rc.condition_text,
+                        "measure": final_rc.measure,
+                        "warning": final_rc.warning,
+                        "cause": final_rc.cause,
+                        "icon_id": final_rc.icon_id,
                         "icon_url": icon_url,
-                        "road_number": rc.get('road_number'),
-                        "start_time": rc.get('start_time'),
-                        "end_time": rc.get('end_time'),
-                        "latitude": rc.get('latitude'),
-                        "longitude": rc.get('longitude'),
-                        "camera_url": camera_url,
-                        "camera_name": camera_name,
-                        "camera_snapshot": camera_snapshot,
-                        "timestamp": rc.get('timestamp')
+                        "road_number": final_rc.road_number,
+                        "start_time": final_rc.start_time.isoformat() if final_rc.start_time else None,
+                        "end_time": final_rc.end_time.isoformat() if final_rc.end_time else None,
+                        "latitude": final_rc.latitude,
+                        "longitude": final_rc.longitude,
+                        "county_no": final_rc.county_no,
+                        "camera_url": out_camera_url, # Points to local snapshot
+                        "camera_name": final_rc.camera_name,
+                        "camera_snapshot": final_rc.camera_snapshot,
+                        "timestamp": final_rc.timestamp.isoformat() if final_rc.timestamp else None
                     }
                     
-                    # Broadcast to connected clients (reuse existing connection list if possible, or create new)
-                    # For now, let's just push to same connected_clients as traffic events
+                    # Broadcast to connected clients 
                     for queue in connected_clients:
                          await queue.put(condition_data)
                     
@@ -938,9 +957,9 @@ async def road_condition_processor():
                          mqtt_rc_topic = mqtt_rc_topic_setting.value if mqtt_rc_topic_setting else "trafikinfo/road_conditions"
                          
                          try:
-                             # Convert datetime objects to string for JSON serialization
                              mqtt_payload = condition_data.copy()
-                             # condition_data already has strings for most things, but let's be safe with json.dumps default=str
+                             # Add requested fields
+                             mqtt_payload['county_no'] = final_rc.county_no
                              import json
                              mqtt_client.publish(mqtt_rc_topic, json.dumps(mqtt_payload, default=str))
                          except Exception as e:
@@ -1258,7 +1277,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
     return result
 
 @app.get("/api/road-conditions")
-def get_road_conditions(county_no: int = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     query = db.query(RoadCondition)
     
     # Filter by configured counties by default for consistency
@@ -1266,11 +1285,21 @@ def get_road_conditions(county_no: int = None, limit: int = 100, offset: int = 0
     selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
     
     if county_no:
-        query = query.filter(RoadCondition.county_no == county_no)
+        # Support comma-separated list of counties
+        try:
+            req_counties = [int(c.strip()) for c in str(county_no).split(",") if c.strip().isdigit()]
+            if req_counties:
+                query = query.filter(RoadCondition.county_no.in_(req_counties))
+        except:
+            pass
     elif selected_counties:
         query = query.filter(RoadCondition.county_no.in_(selected_counties))
         
     conditions = query.order_by(RoadCondition.timestamp.desc()).offset(offset).limit(limit).all()
+    
+    # Need base_url for timestamps
+    base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
+    base_url = base_url_setting.value if base_url_setting else ""
     
     return [{
         "id": c.id,
@@ -1278,6 +1307,7 @@ def get_road_conditions(county_no: int = None, limit: int = 100, offset: int = 0
         "condition_text": c.condition_text,
         "measure": c.measure,
         "warning": c.warning,
+        "cause": c.cause,
         "road_number": c.road_number,
         "start_time": c.start_time,
         "end_time": c.end_time,
@@ -1288,6 +1318,7 @@ def get_road_conditions(county_no: int = None, limit: int = 100, offset: int = 0
         "camera_snapshot": c.camera_snapshot,
         "camera_name": c.camera_name,
         "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None,
+        "camera_url": f"{base_url}/api/snapshots/{c.camera_snapshot}" if base_url and c.camera_snapshot else (f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None),
         "icon_id": c.icon_id,
         "icon_url": f"/api/icons/{c.icon_id}.png" if c.icon_id else None
     } for c in conditions]
