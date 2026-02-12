@@ -44,10 +44,36 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
 
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
+    const [activeCounties, setActiveCounties] = useState([])
     const [showFilters, setShowFilters] = useState(false)
     const [activeTabs, setActiveTabs] = useState({}) // { eventId: 'current' | 'history' }
     const [eventHistory, setEventHistory] = useState({}) // { externalId: [] }
     const [fetchingHistory, setFetchingHistory] = useState({}) // { externalId: boolean }
+
+    // Constants for Counties
+    const COUNTIES = [
+        { id: 1, name: 'Stockholm' },
+        { id: 3, name: 'Uppsala' },
+        { id: 4, name: 'Södermanland' },
+        { id: 5, name: 'Östergötland' },
+        { id: 6, name: 'Jönköping' },
+        { id: 7, name: 'Kronoberg' },
+        { id: 8, name: 'Kalmar' },
+        { id: 9, name: 'Gotland' },
+        { id: 10, name: 'Blekinge' },
+        { id: 12, name: 'Skåne' },
+        { id: 13, name: 'Halland' },
+        { id: 14, name: 'Västra Götaland' },
+        { id: 17, name: 'Värmland' },
+        { id: 18, name: 'Örebro' },
+        { id: 19, name: 'Västmanland' },
+        { id: 20, name: 'Dalarna' },
+        { id: 21, name: 'Gävleborg' },
+        { id: 22, name: 'Västernorrland' },
+        { id: 23, name: 'Jämtland' },
+        { id: 24, name: 'Västerbotten' },
+        { id: 25, name: 'Norrbotten' },
+    ]
 
     const fetchHistory = async (externalId, eventId) => {
         if (eventHistory[externalId]) {
@@ -120,12 +146,19 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
         )
     }
 
+    const toggleCounty = (id) => {
+        setActiveCounties(prev =>
+            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+        )
+    }
+
     const clearFilters = () => {
         setActiveMessageTypes([])
         setActiveSeverities([])
+        setActiveCounties([])
     }
 
-    const activeFilterCount = activeMessageTypes.length + activeSeverities.length
+    const activeFilterCount = activeMessageTypes.length + activeSeverities.length + activeCounties.length
 
     const filteredEvents = useMemo(() => {
         return events.filter(event => {
@@ -138,16 +171,21 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
             if (activeSeverities.length > 0 && !activeSeverities.includes(event.severity_text)) {
                 return false
             }
+            if (activeCounties.length > 0 && !activeCounties.includes(event.county_no)) {
+                return false
+            }
             return true
         })
-    }, [events, activeMessageTypes, activeSeverities])
+    }, [events, activeMessageTypes, activeSeverities, activeCounties])
 
     const fetchEvents = async (reset = false) => {
         try {
             const currentOffset = reset ? 0 : offset
             if (!reset) setIsFetchingMore(true)
 
-            const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}`)
+            // Pass counties filter to backend if set
+            const countyParam = activeCounties.length > 0 ? `&counties=${activeCounties.join(',')}` : ''
+            const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}${countyParam}`)
             const newEvents = response.data
 
             if (reset) {
@@ -439,10 +477,29 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                     shadow-[0_0_10px_rgba(59,130,246,0.5)]`}></div>
                             )}
 
+                            {/* Update Flash Animation */}
+                            {event.updated_at && event.updated_at !== event.created_at && (
+                                <motion.div
+                                    initial={{ opacity: 0.5 }}
+                                    animate={{ opacity: 0 }}
+                                    transition={{ duration: 2 }}
+                                    className="absolute inset-0 bg-yellow-400/20 dark:bg-yellow-500/10 pointer-events-none z-0"
+                                />
+                            )}
+
+                            {/* Update Flash Animation */}
+                            {event.updated_at && event.updated_at !== event.created_at && (
+                                <motion.div
+                                    initial={{ opacity: 0.5 }}
+                                    animate={{ opacity: 0 }}
+                                    transition={{ duration: 2 }}
+                                    className="absolute inset-0 bg-yellow-400/20 dark:bg-yellow-500/10 pointer-events-none z-0"
+                                />
+                            )}
+
                             <div className="flex flex-col md:flex-row gap-4">
                                 <div className="flex-1 space-y-4">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        {/* Status / History Icons (Compact Tabs) */}
                                         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-lg mr-1">
                                             <button
                                                 onClick={() => setActiveTabs(prev => ({ ...prev, [event.id]: 'current' }))}
@@ -474,15 +531,29 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                             </button>
                                         </div>
 
+                                        {/* New Badge (< 1h old) */}
+                                        {((new Date() - new Date(event.updated_at || event.created_at)) / (1000 * 60 * 60)) < 1 && (
+                                            <span className="relative flex h-2 w-2 mr-1">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                            </span>
+                                        )}
+
+                                        {/* New Badge (< 1h old) */}
+                                        {((new Date() - new Date(event.updated_at || event.created_at)) / (1000 * 60 * 60)) < 1 && (
+                                            <span className="relative flex h-2 w-2 mr-1">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                            </span>
+                                        )}
+
                                         {/* Road Number Badge */}
                                         {event.road_number && (
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm ${event.road_number.startsWith('Väg')
-                                                ? 'bg-blue-600 text-white border-blue-700'
-                                                : event.road_number.startsWith('E')
-                                                    ? 'bg-green-600 text-white border-green-700'
-                                                    : 'bg-yellow-500 text-black border-yellow-600'
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${event.road_number.startsWith('E')
+                                                ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow' // Europaväg styling
+                                                : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted' // Riksväg/Länsväg styling
                                                 }`}>
-                                                {event.road_number}
+                                                {event.road_number.replace(/^Väg\s+/, '')}
                                             </span>
                                         )}
 
@@ -504,6 +575,12 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                                 {restr}
                                             </span>
                                         ))}
+
+                                        {event.county_no && (
+                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium px-1.5 border-l border-slate-300 dark:border-slate-600 pl-2">
+                                                {COUNTIES.find(c => c.id === event.county_no)?.name || `Län ${event.county_no}`}
+                                            </span>
+                                        )}
 
                                         <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
                                             title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${format(new Date(event.updated_at), 'yyyy-MM-dd HH:mm')}` : `Skapad: ${format(new Date(event.created_at), 'yyyy-MM-dd HH:mm')}`}>

@@ -54,7 +54,6 @@ export default function Settings() {
             setMessage({ type: 'error', text: 'Kunde inte återställa systemet.' })
         }
     }
-
     const toggleCounty = (id) => {
         const currentCounties = settings.selected_counties ? settings.selected_counties.split(',') : []
         let newCounties
@@ -222,6 +221,7 @@ export default function Settings() {
                                 </div>
                             )}
                         </div>
+
 
                         <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                             <div className="flex items-center gap-3 mb-2">

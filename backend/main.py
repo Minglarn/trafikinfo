@@ -1,4 +1,4 @@
-VERSION = "26.2.19"
+VERSION = "26.2.21"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -937,8 +937,17 @@ async def proxy_camera_image(camera_id: str, fullsize: bool = False):
     return StreamingResponse(stream_image(), media_type="image/jpeg")
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, db: Session = Depends(get_db)):
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, counties: str = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
+    
+    # Filter by counties if provided (comma separated)
+    if counties:
+        try:
+            county_list = [int(c.strip()) for c in counties.split(",") if c.strip().isdigit()]
+            if county_list:
+                query = query.filter(TrafficEvent.county_no.in_(county_list))
+        except Exception as e:
+            logger.error(f"Error parsing counties filter: {e}")
     
     # Check if we should filter for "active" events only
     # Main feed (no params) -> Active only
@@ -1015,6 +1024,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             "traffic_restriction_type": e.traffic_restriction_type,
             "latitude": e.latitude,
             "longitude": e.longitude,
+            "county_no": e.county_no,
             "camera_snapshot": e.camera_snapshot,
             "extra_cameras": extra_cams,
             "history_count": history_counts.get(e.external_id, 0)
@@ -1150,29 +1160,6 @@ def get_settings(db: Session = Depends(get_db)):
     if "api_key" not in res:
         res["api_key"] = "" # Secret removed for GitHub safety
     return res
-
-@app.delete("/api/reset")
-async def reset_system(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    """Factory Reset: Clears all events and snapshots."""
-    try:
-        # Clear database
-        db.query(TrafficEvent).delete()
-        db.commit()
-        
-        # Clear snapshots
-        for filename in os.listdir(SNAPSHOTS_DIR):
-            file_path = os.path.join(SNAPSHOTS_DIR, filename)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception as e:
-                logger.error(f"Error deleting file {file_path}: {e}")
-                
-        logger.warning("Factory reset performed. All data cleared.")
-        return {"message": "Systemet har återställts."}
-    except Exception as e:
-        logger.error(f"Error during factory reset: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status")
 def get_status(db: Session = Depends(get_db)):
