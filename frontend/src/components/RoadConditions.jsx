@@ -121,10 +121,16 @@ function RoadConditions() {
         })
     }
 
-    const getConditionStyle = (code) => {
+    const getConditionStyle = (rc) => {
         // Match EventFeed styling: White/Dark background with colored left border
         const baseStyle = "bg-white dark:bg-slate-800 border-l-4"
-        switch (code) {
+
+        // If there is ANY warning text, force the red warning border
+        if (rc.warning) {
+            return `${baseStyle} border-l-red-500 border-slate-200 dark:border-slate-700`
+        }
+
+        switch (rc.condition_code) {
             case 4: return `${baseStyle} border-l-red-500 border-slate-200 dark:border-slate-700`
             case 3: return `${baseStyle} border-l-orange-500 border-slate-200 dark:border-slate-700`
             case 2: return `${baseStyle} border-l-yellow-500 border-slate-200 dark:border-slate-700`
@@ -210,7 +216,7 @@ function RoadConditions() {
                     <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Det ser ut att vara lugnt ute på vägarna</p>
                 </div>
             ) : (
-                <div>
+                <div className="space-y-4">
                     {activeConditions.map((rc) => {
                         const isMapOpen = expandedMaps.has(rc.id)
                         const isCameraOpen = expandedCameras.has(rc.id)
@@ -218,7 +224,7 @@ function RoadConditions() {
                         return (
                             <div
                                 key={rc.id}
-                                className={`rounded-xl shadow-sm overflow-hidden transition-all duration-300 ${getConditionStyle(rc.condition_code)}`}
+                                className={`rounded-xl shadow-sm overflow-hidden transition-all duration-300 ${getConditionStyle(rc)}`}
                             >
                                 <div className="p-4 sm:p-5">
                                     <div className="flex flex-col md:flex-row gap-4">
