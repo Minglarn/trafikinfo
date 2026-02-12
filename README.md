@@ -45,6 +45,7 @@ services:
     environment:
       - TZ=Europe/Stockholm
       - ADMIN_PASSWORD=ditt_lösenord_här
+      - DEBUG_MODE=false # Användbart för att felsöka true|false
 ```
 
 ### 3. Starta
