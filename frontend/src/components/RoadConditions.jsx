@@ -167,15 +167,25 @@ function RoadConditions() {
                                                     </div>
                                                 </div>
 
-                                                {/* Road Badge */}
-                                                {rc.road_number && (
-                                                    <div className="flex flex-wrap gap-2 mt-2">
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${rc.road_number.startsWith('E')
-                                                            ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow'
-                                                            : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted'
-                                                            }`}>
-                                                            {rc.road_number.replace(/^Väg\s+/, '')}
-                                                        </span>
+                                                {/* Road Badge & Location */}
+                                                {(rc.road_number || rc.camera_name) && (
+                                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                        {rc.road_number && (
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${rc.road_number.startsWith('E')
+                                                                ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow'
+                                                                : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted'
+                                                                }`}>
+                                                                {rc.road_number.replace(/^Väg\s+/, '')}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Location next to road number */}
+                                                        {rc.camera_name && (
+                                                            <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                                                <MapPin className="w-3.5 h-3.5" />
+                                                                <span>{rc.camera_name}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -214,11 +224,7 @@ function RoadConditions() {
                                                 </div>
                                             )}
 
-                                            {/* Location text if available */}
-                                            <div className="flex items-start gap-2 text-slate-500 dark:text-slate-400 text-xs mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                                <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                                                <span>{rc.camera_name || `Längs ${rc.road_number}`}</span>
-                                            </div>
+                                            {/* (Location moved to header) */}
                                         </div>
                                     </div>
 
