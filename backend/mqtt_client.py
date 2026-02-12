@@ -58,4 +58,17 @@ class MQTTClient:
             logger.error(f"Failed to publish to MQTT: {e}")
             return False
 
+    def publish(self, topic, payload):
+        """Generic publish method"""
+        if not self.connected:
+            return False
+            
+        try:
+            info = self.client.publish(topic, payload)
+            info.wait_for_publish(timeout=2.0)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to publish to {topic}: {e}")
+            return False
+
 mqtt_client = MQTTClient()

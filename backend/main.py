@@ -233,6 +233,55 @@ async def shutdown_event():
         rc_stream.stop_streaming()
     logger.info("Shutdown complete")
 
+async def sync_icons():
+    """Fetches and saves all available icons from Trafikverket"""
+    global tv_stream
+    # We need a stream instance simply to call fetch_icons, or we can just use the method if it was static, 
+    # but it's an instance method using api_key. tv_stream should be initialized by start_worker.
+    # We'll wait a bit to ensure tv_stream is ready
+    await asyncio.sleep(2)
+    
+    if not tv_stream:
+        logger.warning("Cannot sync icons: component not initialized")
+        return
+
+    logger.info("Syncing icons from Trafikverket...")
+    try:
+        icons = await tv_stream.fetch_icons()
+        count = 0
+        for icon in icons:
+            icon_id = icon.get('Id')
+            icon_url = icon.get('Url')
+            
+            if not icon_id or not icon_url:
+                continue
+                
+            local_path = os.path.join(ICONS_DIR, f"{icon_id}.png")
+            
+            # Skip if already exists
+            if os.path.exists(local_path):
+                continue
+                
+            # Force png32x32 if possible
+            if "type=" not in icon_url:
+                icon_url += "?type=png32x32"
+                
+            try:
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(icon_url)
+                    if r.status_code == 200:
+                        with open(local_path, "wb") as f:
+                            f.write(r.content)
+                        count += 1
+            except Exception as e:
+                logger.error(f"Failed to download icon {icon_id}: {e}")
+                
+        if count > 0:
+            logger.info(f"Icon sync complete. Downloaded {count} new icons.")
+        
+    except Exception as e:
+        logger.error(f"Error during icon sync: {e}")
+
 def start_worker(api_key: str, county_ids: list = None):
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream, cameras
     global rc_stream, rc_stream_task, rc_processor_task
@@ -250,15 +299,6 @@ def start_worker(api_key: str, county_ids: list = None):
     tv_stream = TrafikverketStream(api_key)
     
     # Start two streams: one for Situation (default) and one for RoadCondition
-    # Note: TrafikverketStream as written supports one connection. We might need two instances or update it.
-    # For now, let's instantiate two streams if we want both.
-    # But wait, the `event_processor` consumes one stream.
-    # Let's modify `start_worker` to start a separate task for road conditions if we want them live.
-    # Or, we can just have one stream if the API supported multiple object types in one query (it usually doesn't for SSE filter).
-    
-    # Actually, simpler: Let's run a second stream for RoadConditions.
-    
-    # Actually, simpler: Let's run a second stream for RoadConditions.
     rc_stream = TrafikverketStream(api_key)
     rc_stream_task = asyncio.create_task(rc_stream.start_streaming(county_ids=county_ids, object_type="RoadCondition"))
     rc_processor_task = asyncio.create_task(road_condition_processor())
@@ -278,6 +318,9 @@ def start_worker(api_key: str, county_ids: list = None):
     # Start camera sync
     global camera_sync_task
     camera_sync_task = asyncio.create_task(periodic_camera_sync())
+    
+    # Start icon sync
+    asyncio.create_task(sync_icons())
     
     logger.info(f"Trafikinfo Flux v{VERSION} started")
 
@@ -1244,7 +1287,9 @@ def get_road_conditions(county_no: int = None, db: Session = Depends(get_db)):
         "timestamp": c.timestamp,
         "camera_snapshot": c.camera_snapshot,
         "camera_name": c.camera_name,
-        "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None
+        "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None,
+        "icon_id": c.icon_id,
+        "icon_url": f"/api/icons/{c.icon_id}.png" if c.icon_id else None
     } for c in conditions]
 
 @app.get("/api/stats")
