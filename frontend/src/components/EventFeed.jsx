@@ -436,6 +436,25 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                 </div>
                             </div>
 
+                            {/* County Filter */}
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {COUNTIES.map(county => (
+                                        <button
+                                            key={county.id}
+                                            onClick={() => toggleCounty(county.id)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeCounties.includes(county.id)
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                                }`}
+                                        >
+                                            {county.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* Active Filters Summary */}
                             {activeFilterCount > 0 && (
                                 <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
