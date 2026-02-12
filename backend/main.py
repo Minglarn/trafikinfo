@@ -1,4 +1,4 @@
-VERSION = "26.2.18"
+VERSION = "26.2.19"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -933,25 +933,31 @@ async def proxy_camera_image(camera_id: str, fullsize: bool = False):
 def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
     
+    # Check if we should filter for "active" events only
+    # Main feed (no params) -> Active only
+    # History view (hours provided) -> All events in window
+    # Search view (date provided) -> All events on date
+    
     if date:
-        logger.info(f"Filtering events by date: {date}")
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d")
             day_start = datetime.combine(target_date.date(), time.min)
             day_end = datetime.combine(target_date.date(), time.max)
             logger.info(f"Day range for filter: {day_start} to {day_end}")
-            
-            # Match get_stats logic: filter by created_at
-            # This includes BOTH active and expired events created on this day
-            query = query.filter(TrafficEvent.created_at >= day_start, TrafficEvent.created_at <= day_end)
+            # Find events created on this day
+            query = query.filter(TrafficEvent.created_at >= day_start).filter(TrafficEvent.created_at <= day_end)
         except ValueError as e:
             logger.error(f"Invalid date format: {date}. Error: {e}")
     else:
-        # Filter out expired events for the main feed
-        now = datetime.now()
-        query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+        # If 'hours' is NOT provided, it's the main feed -> Filter out expired events
+        # If 'hours' IS provided (even 0 for all history), we show everything (including expired)
+        if hours is None:
+            now = datetime.now()
+            query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
         
-        if hours:
+        # Apply time window if specified (hours > 0)
+        # If hours=0 (All History), no cutoff is applied
+        if hours and hours > 0:
             cutoff = datetime.now() - timedelta(hours=hours)
             query = query.filter(TrafficEvent.created_at >= cutoff)
         
