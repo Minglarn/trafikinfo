@@ -100,6 +100,28 @@ class TrafikverketStream:
             data = await self.queue.get()
             yield data
 
+    async def fetch_icons(self):
+        """Fetches all available icons from Road.Infrastructure"""
+        query = f"""
+        <REQUEST>
+            <LOGIN authenticationkey='{self.api_key}' />
+            <QUERY objecttype='Icon' schemaversion='1.1' namespace='Road.Infrastructure'>
+                <FILTER>
+                    <EQ name="Deleted" value="false" />
+                </FILTER>
+            </QUERY>
+        </REQUEST>
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                response.raise_for_status()
+                data = response.json()
+                return data['RESPONSE']['RESULT'][0]['Icon']
+            except Exception as e:
+                logger.error(f"Failed to fetch icons: {e}")
+                return []
+
 
 def parse_situation(json_data):
     # Simplified parser for Trafikverket Situation object
@@ -440,24 +462,4 @@ async def get_cameras(api_key: str):
             logger.error(f"Failed to fetch cameras: {e}")
             return []
 
-    async def fetch_icons(self):
-        """Fetches all available icons from Road.Infrastructure"""
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='Icon' schemaversion='1.1' namespace='Road.Infrastructure'>
-                <FILTER>
-                    <EQ name="Deleted" value="false" />
-                </FILTER>
-            </QUERY>
-        </REQUEST>
-        """
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
-                response.raise_for_status()
-                data = response.json()
-                return data['RESPONSE']['RESULT'][0]['Icon']
-            except Exception as e:
-                logger.error(f"Failed to fetch icons: {e}")
-                return []
+
