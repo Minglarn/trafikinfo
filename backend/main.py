@@ -1,4 +1,4 @@
-VERSION = "26.2.27"
+VERSION = "26.2.28"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +22,12 @@ from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_
 debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
 logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Silence noisy libraries unless in debug mode
+if not debug_mode:
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # Filter out frequent /api/status logs
 class EndpointFilter(logging.Filter):
@@ -387,7 +393,7 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
                 with open(filepath, "wb") as f:
                     f.write(response.content)
                 
-                logger.info(f"Saved snapshot to {filepath} ({content_size} bytes)")
+                logger.debug(f"Saved snapshot to {filepath} ({content_size} bytes)")
                 return filename
             else:
                 logger.warning(f"Failed to download snapshot from {url}: {response.status_code}")
@@ -497,7 +503,7 @@ async def event_processor():
 
                         if has_changed:
                             # Save history before updating
-                            logger.info(f"Event {ev['external_id']} changed, saving history version")
+                            logger.debug(f"Event {ev['external_id']} changed, saving history version")
                             history_version = TrafficEventVersion(
                                 event_id=existing.id,
                                 external_id=existing.external_id,
@@ -559,7 +565,7 @@ async def event_processor():
                                 target_url = camera_url or existing.camera_url
                                 target_fullsize = fullsize_url # might be None, but download_camera_snapshot handles it
                                 
-                                logger.info(f"Downloading fresh snapshot for updated event {ev['external_id']}")
+                                logger.debug(f"Downloading fresh snapshot for updated event {ev['external_id']}")
                                 snapshot_file = await download_camera_snapshot(target_url, ev['external_id'], target_fullsize)
                                 
                                 if snapshot_file:
@@ -723,7 +729,7 @@ async def event_processor():
             finally:
                 db.close()
     except asyncio.CancelledError:
-        logger.info("Event processor cancelled")
+        logger.debug("Event processor cancelled")
     except Exception as e:
     	logger.error(f"Event processor error: {e}")
 
