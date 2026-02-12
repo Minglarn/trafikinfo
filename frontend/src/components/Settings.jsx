@@ -389,13 +389,45 @@ export default function Settings() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path</label>
+                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path (Traffic Events)</label>
                                         <input
                                             type="text"
                                             value={settings.mqtt_topic ?? ''}
                                             onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
                                             className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
                                         />
+                                    </div>
+
+                                    {/* Road Conditions MQTT Settings */}
+                                    <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Skicka väglag till MQTT</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const isEnabled = settings.mqtt_rc_enabled === 'true';
+                                                    setSettings({ ...settings, mqtt_rc_enabled: isEnabled ? 'false' : 'true' });
+                                                }}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.mqtt_rc_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_rc_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`}
+                                                />
+                                            </button>
+                                        </div>
+
+                                        {settings.mqtt_rc_enabled === 'true' && (
+                                            <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path (Väglag)</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.mqtt_rc_topic ?? 'trafikinfo/road_conditions'}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_rc_topic: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                    placeholder="trafikinfo/road_conditions"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700/50 pt-4">

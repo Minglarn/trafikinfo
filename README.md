@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.29-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.30-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -9,18 +9,10 @@
 
 ![App Screenshot](screenshot.png)
 
-Trafikinfo Flux är en Docker-baserad plattform för att övervaka realtidsdata från det svenska Trafikverkets API. Systemet strömmar händelser (Situationer), lagrar dem i en lokal databas för historik och kan automatiskt pusha utvalda händelser till en MQTT-broker.
+Ett modernt system för att visa trafikinformation från Trafikverket i realtid. Systemet består av en backend i Python (FastAPI) och en frontend i React.
 
 ## Funktioner
 
-- **SSE Streaming**: Direktuppkoppling mot Trafikverket för händelser i realtid.
-- **Väglag**: Realtidsinformation om väglag (halka, snö, mm) kopplat till kameror.
-- **Kartvisualisering**: Interaktiva kartor för att se exakt var händelser sker.
-- **Mobilanpassad**: Fullt responsiv design med smidig **Bottom Navigation** för mobilen.
-- **Statistik & Analys**: Dashboard som visar trender och fördelning per kalenderdag.
-- **MQTT Bridge**: Skickar vidare trafikdata till ditt smarta hem eller andra system.
-- **Ljudaviseringar**: Möjlighet att få ljudsignaler vid nya händelser.
-- **Web GUI**: Modernt, responsivt gränssnitt med mörkt läge.
 - **Historik**: Sökbar databas över alla historiska händelser och versionsändringar.
 
 ## Kom igång med Docker Compose

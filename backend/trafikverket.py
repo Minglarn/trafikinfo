@@ -246,13 +246,15 @@ def parse_road_condition(json_data):
                 }
                 condition_text = code_map.get(condition_code, "Okänt")
 
-            # Measures (Åtgärd) & Warnings
+            # Measures (Åtgärd) & Warnings & Cause & Icon
             measures = rc.get('Measure', [])
             warnings = rc.get('Warning', [])
+            causes = rc.get('Cause', [])
+            icon_id = rc.get('IconId')
             
             start_time = rc.get('StartTime')
             end_time = rc.get('EndTime')
-            timestamp = rc.get('ModifiedTime')
+            timestamp = rc.get('ModifiedTime') # Usage of ModifiedTime as timestamp source
             
             # Geometry
             latitude = None
@@ -274,6 +276,8 @@ def parse_road_condition(json_data):
                 "condition_text": condition_text,
                 "measure": ", ".join(measures) if measures else None,
                 "warning": ", ".join(warnings) if warnings else None,
+                "cause": ", ".join(causes) if causes else None,
+                "icon_id": icon_id,
                 "road_number": rc.get('RoadNumber'),
                 "start_time": start_time,
                 "end_time": end_time,

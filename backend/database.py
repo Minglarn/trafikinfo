@@ -108,7 +108,8 @@ class RoadCondition(Base):
     camera_url = Column(String)
     camera_name = Column(String)
     camera_snapshot = Column(String)
-
+    cause = Column(String) # Orsak
+    icon_id = Column(String)
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -182,3 +183,19 @@ def migrate_db():
                     conn.execute(text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
                 except Exception as e:
                     print(f"Error adding column {col_name} to versions: {e}")
+
+        # Migrate RoadConditions table
+        if "road_conditions" in inspector.get_table_names():
+            rc_columns = [c['name'] for c in inspector.get_columns("road_conditions")]
+            rc_expected = {
+                "cause": "VARCHAR",
+                "icon_id": "VARCHAR",
+                "camera_snapshot": "VARCHAR"
+            }
+            for col_name, col_type in rc_expected.items():
+                if col_name not in rc_columns:
+                    print(f"Migrating road_conditions: Adding missing column '{col_name}'")
+                    try:
+                        conn.execute(text(f"ALTER TABLE road_conditions ADD COLUMN {col_name} {col_type}"))
+                    except Exception as e:
+                        print(f"Error adding column {col_name} to road_conditions: {e}")

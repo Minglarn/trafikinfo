@@ -1,4 +1,4 @@
-VERSION = "26.2.29"
+VERSION = "26.2.30"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -816,15 +816,20 @@ async def road_condition_processor():
                         existing.condition_text = rc['condition_text']
                         existing.measure = rc['measure']
                         existing.warning = rc['warning']
+                        existing.cause = rc.get('cause') # New field
+                        existing.icon_id = rc.get('icon_id') # New field
                         existing.road_number = rc.get('road_number')
                         existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
                         existing.end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None
-                        existing.timestamp = datetime.now()
+                        existing.timestamp = datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now()
                         
                         if needs_camera_sync and camera_url:
                             existing.camera_url = camera_url
                             existing.camera_name = camera_name
                             existing.camera_snapshot = camera_snapshot
+
+                        db.commit()
+
                     else:
                         new_rc = RoadCondition(
                             id=rc['id'],
@@ -832,22 +837,74 @@ async def road_condition_processor():
                             condition_text=rc['condition_text'],
                             measure=rc['measure'],
                             warning=rc['warning'],
+                            cause=rc.get('cause'), # New field
+                            icon_id=rc.get('icon_id'), # New field
                             road_number=rc.get('road_number'),
                             start_time=datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
                             end_time=datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None,
                             latitude=rc.get('latitude'),
                             longitude=rc.get('longitude'),
                             county_no=rc.get('county_no'),
-                            timestamp=datetime.now(),
+                            timestamp=datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now(),
                             camera_url=camera_url,
                             camera_name=camera_name,
                             camera_snapshot=camera_snapshot
                         )
                         db.add(new_rc)
+                        db.commit()
                     
-                    db.commit()
+                    # Prepare data for broadcast
+                    icon_url = None
+                    if rc.get('icon_id'):
+                        base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
+                        base_url = base_url_setting.value if base_url_setting else ""
+                        icon_id_with_ext = f"{rc['icon_id']}.png"
+                        icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
+
+                    condition_data = {
+                        "id": rc['id'],
+                        "condition_code": rc['condition_code'],
+                        "condition_text": rc['condition_text'],
+                        "measure": rc['measure'],
+                        "warning": rc['warning'],
+                        "cause": rc.get('cause'),
+                        "icon_id": rc.get('icon_id'),
+                        "icon_url": icon_url,
+                        "road_number": rc.get('road_number'),
+                        "start_time": rc.get('start_time'),
+                        "end_time": rc.get('end_time'),
+                        "latitude": rc.get('latitude'),
+                        "longitude": rc.get('longitude'),
+                        "camera_url": camera_url,
+                        "camera_name": camera_name,
+                        "camera_snapshot": camera_snapshot,
+                        "timestamp": rc.get('timestamp')
+                    }
+                    
+                    # Broadcast to connected clients (reuse existing connection list if possible, or create new)
+                    # For now, let's just push to same connected_clients as traffic events
+                    for queue in connected_clients:
+                         await queue.put(condition_data)
+                    
+                    # Publish to MQTT if enabled
+                    mqtt_rc_enabled_setting = db.query(Settings).filter(Settings.key == "mqtt_rc_enabled").first()
+                    mqtt_rc_enabled = mqtt_rc_enabled_setting.value == "true" if mqtt_rc_enabled_setting else False
+                    
+                    if mqtt_rc_enabled:
+                         mqtt_rc_topic_setting = db.query(Settings).filter(Settings.key == "mqtt_rc_topic").first()
+                         mqtt_rc_topic = mqtt_rc_topic_setting.value if mqtt_rc_topic_setting else "trafikinfo/road_conditions"
+                         
+                         try:
+                             # Convert datetime objects to string for JSON serialization
+                             mqtt_payload = condition_data.copy()
+                             # condition_data already has strings for most things, but let's be safe with json.dumps default=str
+                             import json
+                             await mqtt_client.publish(mqtt_rc_topic, json.dumps(mqtt_payload, default=str))
+                         except Exception as e:
+                             logger.error(f"Failed to publish road condition to MQTT: {e}")
+
             except Exception as e:
-                logger.error(f"Error processing road condition: {e}")
+                logger.error(f"Error processing road condition batch: {e}")
             finally:
                 db.close()
 

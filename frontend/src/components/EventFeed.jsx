@@ -819,67 +819,80 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg bg-slate-100/50 dark:bg-black/20"
                                     >
-                                        <div className="p-4 flex flex-col gap-6" onClick={e => e.stopPropagation()}>
-                                            {/* Primary Camera */}
-                                            {event.camera_snapshot && (
-                                                <div className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
-                                                    <img
-                                                        src={`/api/snapshots/${event.camera_snapshot}`}
-                                                        alt={event.camera_name}
-                                                        className="w-full h-auto object-contain max-h-[60vh]"
-                                                        onError={(e) => {
-                                                            e.target.style.opacity = '0';
-                                                        }}
-                                                    />
-                                                    <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
-                                                        <div className="flex justify-between items-center">
-                                                            <div>
-                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{event.camera_name}</h3>
-                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Primär vy</p>
-                                                            </div>
-                                                            <a
-                                                                href={`/api/snapshots/${event.camera_snapshot}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
-                                                            >
-                                                                Visa fullstorlek
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
+                                        <div className="p-4 space-y-4" onClick={e => e.stopPropagation()}>
+                                            {/* Unified Image Grid */}
+                                            {(() => {
+                                                const allImages = [];
+                                                if (event.camera_snapshot) {
+                                                    allImages.push({
+                                                        src: `/api/snapshots/${event.camera_snapshot}`,
+                                                        name: event.camera_name,
+                                                        type: 'Primär vy',
+                                                        link: `/api/snapshots/${event.camera_snapshot}`
+                                                    });
+                                                }
+                                                if (event.extra_cameras) {
+                                                    event.extra_cameras.forEach(extra => {
+                                                        if (extra.snapshot) {
+                                                            allImages.push({
+                                                                src: `/api/snapshots/${extra.snapshot}`,
+                                                                name: extra.name,
+                                                                type: 'Alternativ vy',
+                                                                link: `/api/snapshots/${extra.snapshot}`
+                                                            });
+                                                        }
+                                                    });
+                                                }
 
-                                            {/* Extra Cameras */}
-                                            {event.extra_cameras?.map((extra, idx) => (
-                                                <div key={extra.id || idx} className="relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col">
-                                                    {extra.snapshot && (
-                                                        <img
-                                                            src={`/api/snapshots/${extra.snapshot}`}
-                                                            alt={extra.name}
-                                                            className="w-full h-auto object-contain max-h-[60vh]"
-                                                        />
-                                                    )}
-                                                    <div className="bg-white/80 dark:bg-black/60 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
-                                                        <div className="flex justify-between items-center">
-                                                            <div>
-                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold">{extra.name}</h3>
-                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Alternativ vy</p>
-                                                            </div>
-                                                            {extra.snapshot && (
-                                                                <a
-                                                                    href={`/api/snapshots/${extra.snapshot}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2 py-1 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
+                                                if (allImages.length === 0) return (
+                                                    <div className="text-center py-8 text-slate-400">Inga bilder tillgängliga</div>
+                                                );
+
+                                                return (
+                                                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4`}>
+                                                        {allImages.map((img, idx) => {
+                                                            // Logic for 3 images: First one spans full width
+                                                            const isThreeImages = allImages.length === 3;
+                                                            const isFirstOfThree = isThreeImages && idx === 0;
+
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className={`relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col ${isFirstOfThree ? 'md:col-span-2' : ''}`}
                                                                 >
-                                                                    Visa fullstorlek
-                                                                </a>
-                                                            )}
-                                                        </div>
+                                                                    <div className="relative aspect-video bg-slate-900">
+                                                                        <img
+                                                                            src={img.src}
+                                                                            alt={img.name}
+                                                                            className="w-full h-full object-contain"
+                                                                            loading="lazy"
+                                                                            onError={(e) => {
+                                                                                e.target.style.opacity = '0';
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
+                                                                        <div className="flex justify-between items-center gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold truncate" title={img.name}>{img.name}</h3>
+                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">{img.type}</p>
+                                                                            </div>
+                                                                            <a
+                                                                                href={img.link}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="shrink-0 text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
+                                                                            >
+                                                                                Visa fullstorlek
+                                                                            </a>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })()}
 
                                             <button
                                                 onClick={() => toggleCamera(event.id)}
