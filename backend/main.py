@@ -942,7 +942,7 @@ async def road_condition_processor():
                              mqtt_payload = condition_data.copy()
                              # condition_data already has strings for most things, but let's be safe with json.dumps default=str
                              import json
-                             await mqtt_client.publish(mqtt_rc_topic, json.dumps(mqtt_payload, default=str))
+                             mqtt_client.publish(mqtt_rc_topic, json.dumps(mqtt_payload, default=str))
                          except Exception as e:
                              logger.error(f"Failed to publish road condition to MQTT: {e}")
 

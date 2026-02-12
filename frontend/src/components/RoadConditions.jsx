@@ -9,6 +9,34 @@ function RoadConditions() {
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
 
+    // Filtering state
+    const [selectedCounty, setSelectedCounty] = useState('Alla')
+    const [roadFilter, setRoadFilter] = useState('')
+
+    const COUNTIES = {
+        1: "Stockholms län",
+        3: "Uppsala län",
+        4: "Södermanlands län",
+        5: "Östergötlands län",
+        6: "Jönköpings län",
+        7: "Kronobergs län",
+        8: "Kalmar län",
+        9: "Gotlands län",
+        10: "Blekinge län",
+        12: "Skåne län",
+        13: "Hallands län",
+        14: "Västra Götalands län",
+        17: "Värmlands län",
+        18: "Örebro län",
+        19: "Västmanlands län",
+        20: "Dalarnas län",
+        21: "Gävleborgs län",
+        22: "Västernorrlands län",
+        23: "Jämtlands län",
+        24: "Västerbottens län",
+        25: "Norrbottens län"
+    }
+
     useEffect(() => {
         fetchConditions()
         const interval = setInterval(fetchConditions, 60000) // Refresh every minute
@@ -95,26 +123,57 @@ function RoadConditions() {
         }
     }
 
-    // Filter out expired conditions
+    // Filter active conditions
     const activeConditions = conditions.filter(rc => {
-        if (!rc.end_time) return true // No end time means it's valid indefinitely or until removed
-        return new Date(rc.end_time) > new Date()
+        if (rc.end_time && new Date(rc.end_time) <= new Date()) return false
+
+        // Apply filters
+        if (selectedCounty !== 'Alla' && rc.county_no !== parseInt(selectedCounty)) return false
+        if (roadFilter && rc.road_number && !rc.road_number.toLowerCase().includes(roadFilter.toLowerCase())) return false
+
+        return true
     })
+
+    // Get unique counties from data for filter dropdown
+    const availableCounties = [...new Set(conditions.map(c => c.county_no))].sort((a, b) => a - b)
 
     if (loading) return <div className="p-8 text-center text-slate-500 animate-pulse">Laddar väglagsdata...</div>
     if (error) return <div className="p-8 text-center text-red-500 bg-red-50 dark:bg-red-900/10 rounded-lg mx-4 mt-4">Kunde inte ladda väglag: {error}</div>
 
     return (
         <div className="space-y-4 max-w-5xl mx-auto pb-24">
-            {/* Header */}
-            <div className="flex items-center justify-between py-4 px-1">
+            {/* Header with Filters */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 px-1">
                 <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <Snowflake className="w-6 h-6 text-blue-500" />
                     Väglag
                     <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                         {activeConditions.length} rapporter
+                        {selectedCounty !== 'Alla' && ` i ${COUNTIES[selectedCounty] || 'Valt län'}`}
                     </span>
                 </h2>
+
+                {/* Filters */}
+                <div className="flex flex-row gap-2">
+                    <select
+                        value={selectedCounty}
+                        onChange={(e) => setSelectedCounty(e.target.value)}
+                        className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 px-3 focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="Alla">Alla län</option>
+                        {availableCounties.map(c_id => (
+                            <option key={c_id} value={c_id}>{COUNTIES[c_id] || `Län ${c_id}`}</option>
+                        ))}
+                    </select>
+
+                    <input
+                        type="text"
+                        placeholder="Filtrera väg..."
+                        value={roadFilter}
+                        onChange={(e) => setRoadFilter(e.target.value)}
+                        className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 px-3 w-32 focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
             </div>
 
             {activeConditions.length === 0 ? (
@@ -149,7 +208,7 @@ function RoadConditions() {
 
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between gap-2">
-                                                    <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg">
+                                                    <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg uppercase">
                                                         {rc.condition_text || 'Okänt väglag'}
                                                     </h3>
                                                     <div className="flex flex-col items-end gap-0.5">
@@ -185,6 +244,13 @@ function RoadConditions() {
                                                                 <MapPin className="w-3.5 h-3.5" />
                                                                 <span>{rc.camera_name}</span>
                                                             </div>
+                                                        )}
+
+                                                        {/* County Badge */}
+                                                        {rc.county_no && (
+                                                            <span className="text-[10px] items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hidden sm:flex">
+                                                                {COUNTIES[rc.county_no] || `Län ${rc.county_no}`}
+                                                            </span>
                                                         )}
                                                     </div>
                                                 )}
