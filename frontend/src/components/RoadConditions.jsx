@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, ChevronDown, ChevronUp } from 'lucide-react'
 import EventMap from './EventMap'
 
@@ -13,6 +13,7 @@ function RoadConditions() {
     const [offset, setOffset] = useState(0)
     const [hasMore, setHasMore] = useState(true)
     const [isFetchingMore, setIsFetchingMore] = useState(false)
+    const observerTarget = useRef(null)
 
     // Filtering state
     const [selectedCounty, setSelectedCounty] = useState('Alla')
@@ -49,7 +50,7 @@ function RoadConditions() {
         fetchConditions(true)
     }, [selectedCounty]) // Re-fetch when county changes
 
-    const fetchConditions = async (reset = false) => {
+    const fetchConditions = useCallback(async (reset = false) => {
         try {
             if (!reset) setIsFetchingMore(true)
             const currentOffset = reset ? 0 : offset
@@ -85,7 +86,29 @@ function RoadConditions() {
             setLoading(false)
             setIsFetchingMore(false)
         }
-    }
+    }, [offset, selectedCounty])
+
+    // Infinite Scroll Observer
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !isFetchingMore && !loading) {
+                    fetchConditions(false)
+                }
+            },
+            { threshold: 1.0 }
+        )
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current)
+        }
+
+        return () => {
+            if (observerTarget.current) {
+                observer.unobserve(observerTarget.current)
+            }
+        }
+    }, [hasMore, isFetchingMore, loading, fetchConditions])
 
     const toggleMap = (id) => {
         setExpandedMaps(prev => {
@@ -122,20 +145,8 @@ function RoadConditions() {
     }
 
     const getConditionStyle = (rc) => {
-        // Match EventFeed styling: White/Dark background with colored left border
-        const baseStyle = "bg-white dark:bg-slate-800 border-l-4"
-
-        // If there is ANY warning text, force the red warning border
-        if (rc.warning) {
-            return `${baseStyle} border-l-red-500 border-slate-200 dark:border-slate-700`
-        }
-
-        switch (rc.condition_code) {
-            case 4: return `${baseStyle} border-l-red-500 border-slate-200 dark:border-slate-700`
-            case 3: return `${baseStyle} border-l-orange-500 border-slate-200 dark:border-slate-700`
-            case 2: return `${baseStyle} border-l-yellow-500 border-slate-200 dark:border-slate-700`
-            default: return `${baseStyle} border-l-blue-500 border-slate-200 dark:border-slate-700`
-        }
+        // Base card style - remove border-l as we use absolute div now
+        return "bg-white dark:bg-slate-800 relative"
     }
 
     const getConditionBadgeColor = (code) => {
@@ -212,7 +223,7 @@ function RoadConditions() {
                         >
                             Alla län
                         </button>
-                        {COUNTIES.filter(c => availableCounties.includes(c.id)).map(county => (
+                        {COUNTIES.map(county => (
                             <button
                                 key={county.id}
                                 onClick={() => setSelectedCounty(county.id)}
@@ -456,27 +467,20 @@ function RoadConditions() {
             )}
 
             {/* Load More Button */}
-            {hasMore && !loading && (
-                <div className="flex justify-center mt-8">
-                    <button
-                        onClick={() => fetchConditions(false)}
-                        disabled={isFetchingMore}
-                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-                    >
-                        {isFetchingMore ? (
-                            <>
-                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Laddar...
-                            </>
-                        ) : (
-                            <>
-                                <ChevronDown className="w-4 h-4" />
-                                Ladda fler rapporter
-                            </>
-                        )}
-                    </button>
-                </div>
-            )}
+            {/* Infinite Scroll Loader */}
+            <div ref={observerTarget} className="py-8 flex justify-center w-full">
+                {isFetchingMore && (
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-xs font-medium animate-pulse">Laddar fler rapporter...</span>
+                    </div>
+                )}
+                {!hasMore && conditions.length > 0 && (
+                    <div className="text-slate-400 text-xs font-medium">
+                        Inga fler rapporter att visa
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
