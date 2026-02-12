@@ -18,29 +18,29 @@ function RoadConditions() {
     const [selectedCounty, setSelectedCounty] = useState('Alla')
     const [roadFilter, setRoadFilter] = useState('')
 
-    const COUNTIES = {
-        1: "Stockholms län",
-        3: "Uppsala län",
-        4: "Södermanlands län",
-        5: "Östergötlands län",
-        6: "Jönköpings län",
-        7: "Kronobergs län",
-        8: "Kalmar län",
-        9: "Gotlands län",
-        10: "Blekinge län",
-        12: "Skåne län",
-        13: "Hallands län",
-        14: "Västra Götalands län",
-        17: "Värmlands län",
-        18: "Örebro län",
-        19: "Västmanlands län",
-        20: "Dalarnas län",
-        21: "Gävleborgs län",
-        22: "Västernorrlands län",
-        23: "Jämtlands län",
-        24: "Västerbottens län",
-        25: "Norrbottens län"
-    }
+    const COUNTIES = [
+        { id: 1, name: "Stockholm" },
+        { id: 3, name: "Uppsala" },
+        { id: 4, name: "Södermanland" },
+        { id: 5, name: "Östergötland" },
+        { id: 6, name: "Jönköping" },
+        { id: 7, name: "Kronoberg" },
+        { id: 8, name: "Kalmar" },
+        { id: 9, name: "Gotland" },
+        { id: 10, name: "Blekinge" },
+        { id: 12, name: "Skåne" },
+        { id: 13, name: "Halland" },
+        { id: 14, name: "Västra Götaland" },
+        { id: 17, name: "Värmland" },
+        { id: 18, name: "Örebro" },
+        { id: 19, name: "Västmanland" },
+        { id: 20, name: "Dalarna" },
+        { id: 21, name: "Gävleborg" },
+        { id: 22, name: "Västernorrland" },
+        { id: 23, name: "Jämtland" },
+        { id: 24, name: "Västerbotten" },
+        { id: 25, name: "Norrbotten" },
+    ]
 
     useEffect(() => {
         // Initial fetch or re-fetch when county changes
@@ -176,36 +176,55 @@ function RoadConditions() {
     return (
         <div className="space-y-4 max-w-5xl mx-auto pb-24">
             {/* Header with Filters */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 px-1">
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <Snowflake className="w-6 h-6 text-blue-500" />
-                    Väglag
-                    <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
-                        {conditions.length} visade rapporter
-                        {selectedCounty !== 'Alla' && ` i ${COUNTIES[selectedCounty] || 'Valt län'}`}
-                    </span>
-                </h2>
+            <div className="flex flex-col gap-4 py-4 px-1">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <Snowflake className="w-6 h-6 text-blue-500" />
+                        Väglag
+                        <span className="ml-2 text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                            {conditions.length} visade rapporter
+                            {selectedCounty !== 'Alla' && ` i ${COUNTIES.find(c => c.id == selectedCounty)?.name || 'Valt län'}`}
+                        </span>
+                    </h2>
 
-                {/* Filters */}
-                <div className="flex flex-row gap-2">
-                    <select
-                        value={selectedCounty}
-                        onChange={(e) => setSelectedCounty(e.target.value)}
-                        className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 px-3 focus:ring-2 focus:ring-blue-500"
-                    >
-                        <option value="Alla">Alla län</option>
-                        {availableCounties.map(c_id => (
-                            <option key={c_id} value={c_id}>{COUNTIES[c_id] || `Län ${c_id}`}</option>
+                    {/* Road Filter Input */}
+                    <div className="w-full md:w-auto">
+                        <input
+                            type="text"
+                            placeholder="Filtrera väg..."
+                            value={roadFilter}
+                            onChange={(e) => setRoadFilter(e.target.value)}
+                            className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-4 w-full md:w-64 focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+
+                {/* County Filter Chips */}
+                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={() => setSelectedCounty('Alla')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedCounty === 'Alla'
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                }`}
+                        >
+                            Alla län
+                        </button>
+                        {COUNTIES.filter(c => availableCounties.includes(c.id)).map(county => (
+                            <button
+                                key={county.id}
+                                onClick={() => setSelectedCounty(county.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${parseInt(selectedCounty) === county.id
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                    }`}
+                            >
+                                {county.name}
+                            </button>
                         ))}
-                    </select>
-
-                    <input
-                        type="text"
-                        placeholder="Filtrera väg..."
-                        value={roadFilter}
-                        onChange={(e) => setRoadFilter(e.target.value)}
-                        className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 px-3 w-32 focus:ring-2 focus:ring-blue-500"
-                    />
+                    </div>
                 </div>
             </div>
 
@@ -226,7 +245,21 @@ function RoadConditions() {
                                 key={rc.id}
                                 className={`rounded-xl shadow-sm overflow-hidden transition-all duration-300 ${getConditionStyle(rc)}`}
                             >
-                                <div className="p-4 sm:p-5">
+                                {/* Warning Border */}
+                                {rc.warning && (
+                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] z-10 animate-pulse"></div>
+                                )}
+
+                                {/* Standard Border (if not warning) */}
+                                {!rc.warning && (
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${rc.condition_code === 4 ? 'bg-red-500' :
+                                        rc.condition_code === 3 ? 'bg-orange-500' :
+                                            rc.condition_code === 2 ? 'bg-yellow-500' :
+                                                'bg-blue-500'
+                                        } shadow-[0_0_10px_rgba(59,130,246,0.5)]`}></div>
+                                )}
+
+                                <div className="p-4 sm:p-5 pl-6">
                                     <div className="flex flex-col md:flex-row gap-4">
                                         {/* Left Side: Content */}
                                         <div className="flex-1 min-w-0 space-y-3">
@@ -283,7 +316,7 @@ function RoadConditions() {
                                                             {/* County Badge */}
                                                             {rc.county_no && (
                                                                 <span className="text-[10px] items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hidden sm:flex">
-                                                                    {COUNTIES[rc.county_no] || `Län ${rc.county_no}`}
+                                                                    {COUNTIES.find(c => c.id === rc.county_no)?.name || `Län ${rc.county_no}`}
                                                                 </span>
                                                             )}
                                                         </div>
