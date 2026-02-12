@@ -532,20 +532,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                         </div>
 
                                         {/* New Badge (< 1h old) */}
-                                        {((new Date() - new Date(event.updated_at || event.created_at)) / (1000 * 60 * 60)) < 1 && (
-                                            <span className="relative flex h-2 w-2 mr-1">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                                            </span>
-                                        )}
-
-                                        {/* New Badge (< 1h old) */}
-                                        {((new Date() - new Date(event.updated_at || event.created_at)) / (1000 * 60 * 60)) < 1 && (
-                                            <span className="relative flex h-2 w-2 mr-1">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                                            </span>
-                                        )}
 
                                         {/* Road Number Badge */}
                                         {event.road_number && (
@@ -576,8 +562,9 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                             </span>
                                         ))}
 
+                                        {/* County Name */}
                                         {event.county_no && (
-                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium px-1.5 border-l border-slate-300 dark:border-slate-600 pl-2">
+                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                                                 {COUNTIES.find(c => c.id === event.county_no)?.name || `Län ${event.county_no}`}
                                             </span>
                                         )}
