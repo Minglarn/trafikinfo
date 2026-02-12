@@ -12,3 +12,4 @@ services:
     environment:
       - TZ=Europe/Stockholm
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - DEBUG_MODE=false
