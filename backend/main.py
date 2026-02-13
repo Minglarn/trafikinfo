@@ -1553,9 +1553,17 @@ def get_vapid_keys(db: Session):
     needs_generation = False
     if not private_key_setting or not public_key_setting:
         needs_generation = True
-    elif not private_key_setting.value.startswith("-----BEGIN PRIVATE KEY-----"):
-        logger.warning("Detected invalid VAPID private key format (not PEM). Regenerating keys...")
-        needs_generation = True
+    else:
+        # Validate that the private key is actually parseable
+        try:
+            from cryptography.hazmat.primitives import serialization
+            serialization.load_pem_private_key(
+                private_key_setting.value.encode('utf-8'),
+                password=None
+            )
+        except Exception as e:
+            logger.warning(f"Detected invalid/corrupt VAPID private key: {e}. Regenerating...")
+            needs_generation = True
         
     if needs_generation:
         from cryptography.hazmat.primitives import serialization
