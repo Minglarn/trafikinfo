@@ -1726,7 +1726,7 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
                 "message": message,
                 "url": url
             }),
-            vapid_key=vapid_obj,
+            vapid_private_key=vapid_obj,
             vapid_claims={
                 "sub": "mailto:dev@trafikinfo-flux.local"
             }
