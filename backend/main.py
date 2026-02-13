@@ -1723,12 +1723,27 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
         )
     except WebPushException as ex:
         logger.error(f"Push failed: {ex}")
+        # 404/410 means subscription is gone/expired at the push service
         if ex.response is not None and ex.response.status_code in [404, 410]:
-            logger.info(f"Removing invalid subscription: {subscription.endpoint}")
+            logger.info(f"Removing invalid subscription (404/410): {subscription.endpoint}")
             db.delete(subscription)
             db.commit()
+    except (ValueError, TypeError) as e:
+        # Catch errors related to invalid key data (crypto/base64)
+        logger.error(f"Invalid key data for subscription {subscription.id}: {e}")
+        logger.info(f"Removing corrupt subscription: {subscription.endpoint}")
+        db.delete(subscription)
+        db.commit()
     except Exception as e:
-        logger.error(f"Unexpected push error: {e}")
+        # Catch generic errors but check string for "deserialize"
+        err_str = str(e)
+        if "deserialize" in err_str or "ASN.1" in err_str:
+             logger.error(f"Crypto error for subscription {subscription.id}: {e}")
+             logger.info(f"Removing incompatible subscription: {subscription.endpoint}")
+             db.delete(subscription)
+             db.commit()
+        else:
+             logger.error(f"Unexpected push error: {e}")
 
 async def notify_subscribers(data: dict, db: Session, type: str = "event"):
     subs = db.query(PushSubscription).all()
