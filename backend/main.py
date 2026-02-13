@@ -1572,8 +1572,9 @@ def get_vapid_keys(db: Session):
         try:
             from cryptography.hazmat.primitives import serialization
             
-            # CRITICAL FIX: Strip whitespace and ensure utf-8 bytes
-            pem_data = private_key_setting.value.strip()
+            # CRITICAL FIX: Strip ANY whitespace/newlines/CR that could mangle ASN.1
+            raw_val = private_key_setting.value
+            pem_data = raw_val.strip().replace("\r", "")
             if isinstance(pem_data, str):
                 pem_data = pem_data.encode('utf-8')
                 
@@ -1582,12 +1583,18 @@ def get_vapid_keys(db: Session):
                 password=None
             )
             
-            # RE-SERIALIZE to ensure perfect formatting for pywebpush
+            # RE-SERIALIZE to TraditionalOpenSSL (SEC1) which is often more compatible for EC keys in older libs
             clean_private_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
+                format=serialization.PrivateFormat.TraditionalOpenSSL, # Changed from PKCS8
                 encryption_algorithm=serialization.NoEncryption()
             ).decode('utf-8')
+            
+            # If the re-serialized version is different from what's in DB, save it back!
+            if clean_private_pem.strip() != raw_val.strip():
+                logger.info("Updating VAPID private key in DB with cleaned format.")
+                private_key_setting.value = clean_private_pem
+                db.commit()
             
             clean_public_b64 = public_key_setting.value.strip()
             
@@ -1603,10 +1610,10 @@ def get_vapid_keys(db: Session):
         logger.info("Generating new VAPID keys...")
         pk = ec.generate_private_key(ec.SECP256R1())
         
-        # VAPID private key in PEM format (accepted by pywebpush)
+        # VAPID private key in TraditionalOpenSSL format
         clean_private_pem = pk.private_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
+            format=serialization.PrivateFormat.TraditionalOpenSSL, # Changed from PKCS8
             encryption_algorithm=serialization.NoEncryption()
         ).decode('utf-8')
         
@@ -1715,18 +1722,19 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
                 "message": message,
                 "url": url
             }),
-            vapid_private_key=private_key,
+            vapid_private_key=private_key.strip(), # Ensure string and stripped
             vapid_claims={
                 "sub": "mailto:dev@trafikinfo-flux.local"
             }
         )
     except WebPushException as ex:
-        logger.error(f"Push failed: {ex}")
-        # 404/410 means subscription is gone/expired at the push service
+        # Check if it's a 404/410 first
         if ex.response is not None and ex.response.status_code in [404, 410]:
             logger.info(f"Removing invalid subscription (404/410): {subscription.endpoint}")
             db.delete(subscription)
             db.commit()
+        else:
+            logger.error(f"Push failed: {ex}")
     except (ValueError, TypeError) as e:
         # Catch errors related to invalid key data (crypto/base64)
         logger.error(f"Invalid key data for subscription {subscription.id}: {e}")
