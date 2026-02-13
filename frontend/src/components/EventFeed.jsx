@@ -42,6 +42,8 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
 
+    const [activeMessageTypes, setActiveMessageTypes] = useState([])
+    const [activeSeverities, setActiveSeverities] = useState([])
     const [activeCounties, setActiveCounties] = useState([])
     const [monitoredCounties, setMonitoredCounties] = useState(() => {
         const saved = localStorage.getItem('localCounties')
