@@ -252,6 +252,34 @@ export default function Settings() {
                         </div>
                     </div>
 
+                    {/* Regional bevakning (Counties) - Public now */}
+                    <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
+                        <div className="flex items-center gap-3 mb-2">
+                            <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Regional bevakning</h3>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Välj vilka län du vill bevaka. Inställningen sparas lokalt för dina push-notiser.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                            {SWEDISH_COUNTIES.map((county) => (
+                                <label
+                                    key={county.id}
+                                    className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${selectedCountiesList.includes(county.id)
+                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="hidden"
+                                        checked={selectedCountiesList.includes(county.id)}
+                                        onChange={() => toggleCounty(county.id)}
+                                    />
+                                    <span className="text-sm font-medium">{county.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* --- ADMIN SECTIONS (Behind isLoggedIn) --- */}
 
                     {!isLoggedIn ? (
@@ -348,32 +376,6 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            {/* Counties */}
-                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Regional bevakning</h3>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                                    {SWEDISH_COUNTIES.map((county) => (
-                                        <label
-                                            key={county.id}
-                                            className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${selectedCountiesList.includes(county.id)
-                                                ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
-                                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                                                }`}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                className="hidden"
-                                                checked={selectedCountiesList.includes(county.id)}
-                                                onChange={() => toggleCounty(county.id)}
-                                            />
-                                            <span className="text-sm font-medium">{county.name}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
 
                             {/* MQTT */}
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
