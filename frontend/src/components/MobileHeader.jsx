@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Server, Activity } from 'lucide-react'
+import { Server, Activity, Lock, Unlock, LogOut } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
-const MobileHeader = () => {
+const MobileHeader = ({ onOpenLogin }) => {
+    const { isLoggedIn, logout } = useAuth()
     const [status, setStatus] = useState({
         trafikverket: { connected: false },
         mqtt: { connected: false }
@@ -44,6 +46,17 @@ const MobileHeader = () => {
                         <div className={`w-1.5 h-1.5 rounded-full ${!status.mqtt?.enabled ? 'bg-slate-300 dark:bg-slate-700' : status.mqtt?.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                     </div>
                 </div>
+
+                {/* Auth Button */}
+                <button
+                    onClick={isLoggedIn ? logout : onOpenLogin}
+                    className={`p-2 rounded-xl transition-all border ${isLoggedIn
+                        ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400'
+                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                        }`}
+                >
+                    {isLoggedIn ? <Unlock size={18} /> : <Lock size={18} />}
+                </button>
             </div>
         </header>
     )

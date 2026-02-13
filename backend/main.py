@@ -1,4 +1,4 @@
-VERSION = "26.2.44"
+VERSION = "26.2.45"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -105,7 +105,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.44")
+app = FastAPI(title="Trafikinfo API", version="26.2.45")
 
 class LoginRequest(BaseModel):
     password: str
@@ -693,11 +693,7 @@ async def event_processor():
                             db.commit()
                         
                         db.refresh(new_event)
-                    
-                    # Notify subscribers for NEW events only
-                    if not existing:
-                        await notify_subscribers(mqtt_data, db, type="event")
-                    
+
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
                     
@@ -773,6 +769,10 @@ async def event_processor():
                     else:
                         new_event.pushed_to_mqtt = 0
                     db.commit()
+
+                    # Notify subscribers for NEW events only
+                    if not existing:
+                        await notify_subscribers(mqtt_data, db, type="event")
 
                     # Fetch history count
                     history_count = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == new_event.external_id).count()

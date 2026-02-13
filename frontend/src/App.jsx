@@ -131,7 +131,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden transition-colors duration-300">
       {/* Mobile Top Header */}
-      <MobileHeader />
+      <MobileHeader onOpenLogin={() => setIsLoginModalOpen(true)} />
 
       {/* Sidebar Navigation */}
       <Sidebar
