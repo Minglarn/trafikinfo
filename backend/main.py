@@ -1,4 +1,4 @@
-VERSION = "26.2.32"
+VERSION = "26.2.40"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -97,7 +97,7 @@ COUNTY_MAP = {
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
-app = FastAPI(title="Trafikinfo API", version="26.2.32")
+app = FastAPI(title="Trafikinfo API", version="26.2.40")
 
 class LoginRequest(BaseModel):
     password: str
