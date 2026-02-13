@@ -262,6 +262,9 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
             try {
                 const newEvent = JSON.parse(event.data)
 
+                // STRICT SEPARATION: Ignore RoadConditions in the main feed
+                if (newEvent.event_type === 'RoadCondition') return;
+
                 setEvents(prev => {
                     // Check if new event is already expired
                     if (newEvent.end_time && new Date(newEvent.end_time) < new Date()) {

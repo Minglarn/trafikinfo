@@ -998,6 +998,7 @@ async def road_condition_processor():
                          out_camera_url = f"{base_url}/api/snapshots/{final_rc.camera_snapshot}" if base_url else f"/api/snapshots/{final_rc.camera_snapshot}"
                     
                     condition_data = {
+                        "event_type": "RoadCondition",
                         "id": final_rc.id,
                         "condition_code": final_rc.condition_code,
                         "condition_text": final_rc.condition_text,
@@ -1558,14 +1559,21 @@ def get_vapid_keys(db: Session):
     
     # Check if keys exist and are valid (PEM format)
     needs_generation = False
-    if not private_key_setting or not public_key_setting:
+    
+    if not private_key_setting or not public_key_setting or not private_key_setting.value:
         needs_generation = True
     else:
         # Validate that the private key is actually parseable
         try:
             from cryptography.hazmat.primitives import serialization
+            
+            # CRITICAL FIX: Strip whitespace and ensure utf-8 bytes
+            pem_data = private_key_setting.value.strip()
+            if isinstance(pem_data, str):
+                pem_data = pem_data.encode('utf-8')
+                
             serialization.load_pem_private_key(
-                private_key_setting.value.encode('utf-8'),
+                pem_data,
                 password=None
             )
         except Exception as e:
@@ -1575,7 +1583,9 @@ def get_vapid_keys(db: Session):
     if needs_generation:
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
+        import base64
         
+        logger.info("Generating new VAPID keys...")
         pk = ec.generate_private_key(ec.SECP256R1())
         
         # VAPID private key in PEM format (accepted by pywebpush)
@@ -1590,18 +1600,19 @@ def get_vapid_keys(db: Session):
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
         )
+        
+        # Use URL-safe Base64 without padding for the public key string (client-side requirement)
         public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
         if not private_key_setting:
-            db.add(Settings(key="vapid_private_key", value=private_pem))
-            # Refresh checking var
-            private_key_setting = Settings(key="vapid_private_key", value=private_pem) 
+            private_key_setting = Settings(key="vapid_private_key", value=private_pem)
+            db.add(private_key_setting)
         else:
             private_key_setting.value = private_pem
             
         if not public_key_setting:
-            db.add(Settings(key="vapid_public_key", value=public_key_b64))
             public_key_setting = Settings(key="vapid_public_key", value=public_key_b64)
+            db.add(public_key_setting)
         else:
             public_key_setting.value = public_key_b64
             
@@ -1609,7 +1620,7 @@ def get_vapid_keys(db: Session):
         logger.info("VAPID keys generated/updated successfully.")
         return private_pem, public_key_b64
         
-    return private_key_setting.value, public_key_setting.value
+    return private_key_setting.value.strip(), public_key_setting.value.strip()
 
 @app.get("/api/push/vapid-public-key")
 def get_vapid_public_key(db: Session = Depends(get_db)):
