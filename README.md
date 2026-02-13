@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.40-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.53-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -9,10 +9,12 @@
 
 ![App Screenshot](screenshot.png)
 
-Ett modernt system för att visa trafikinformation från Trafikverket i realtid. Systemet består av en backend i Python (FastAPI) och en frontend i React.
+Ett modernt system för att visa trafikinformation från Trafikverket i realtid. Systemet består av en backend i Python (FastAPI) och en frontend i React (PWA).
 
 ## Funktioner
 
+- **Push-notiser (PWA)**: Realtidsaviseringar direkt i din webbläsare eller telefon med dynamiska ikoner per händelsetyp.
+- **Family Model**: Smart bevakning där servern dynamiskt anpassar hämtning baserat på vad klientsidan (användarna) aktivt efterfrågar.
 - **Historik**: Sökbar databas över alla historiska händelser och versionsändringar.
 - **Väglag**: Full kontroll på vinterväglag, halka och snöröjning med kamerabilder och mätstationer.
 - **Planerat**: Separat vy för långsiktiga vägarbeten och kommande händelser.
