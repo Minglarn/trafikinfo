@@ -16,10 +16,7 @@ function RoadConditions() {
     const observerTarget = useRef(null)
 
     // Filtering state
-    const [selectedCounties, setSelectedCounties] = useState(() => {
-        const saved = localStorage.getItem('localCounties')
-        return saved ? saved.split(',') : []
-    })
+    const [selectedCounties, setSelectedCounties] = useState([])
     const [roadFilter, setRoadFilter] = useState('')
     const [allowedCounties, setAllowedCounties] = useState([])
 
@@ -47,26 +44,19 @@ function RoadConditions() {
         { id: 25, name: "Norrbotten" },
     ]
 
-    // Fetch settings to filter allowed counties
     useEffect(() => {
-        const fetchSettings = async () => {
-            try {
-                const response = await fetch('/api/settings')
-                const settings = await response.json()
-                const selected = settings.selected_counties ? settings.selected_counties.split(',') : []
-
-                if (selected.includes('0') || selected.length === 0) {
-                    setAllowedCounties(ALL_COUNTIES)
-                } else {
-                    const filtered = ALL_COUNTIES.filter(c => selected.includes(c.id.toString()))
-                    setAllowedCounties(filtered)
-                }
-            } catch (err) {
-                console.error('Failed to fetch settings:', err)
-                setAllowedCounties(ALL_COUNTIES) // Fallback to all
-            }
+        const fetchMonitored = () => {
+            const saved = localStorage.getItem('localCounties')
+            const ids = saved ? saved.split(',') : []
+            setAllowedCounties(ALL_COUNTIES.filter(c => ids.includes(c.id.toString())))
         }
-        fetchSettings()
+        fetchMonitored()
+        window.addEventListener('storage', fetchMonitored)
+        window.addEventListener('focus', fetchMonitored)
+        return () => {
+            window.removeEventListener('storage', fetchMonitored)
+            window.removeEventListener('focus', fetchMonitored)
+        }
     }, [])
 
     useEffect(() => {
@@ -76,6 +66,7 @@ function RoadConditions() {
         fetchConditions(true)
     }, [selectedCounties]) // Re-fetch when county changes
 
+    // Sync monitored counties from localStorage
     const fetchConditions = useCallback(async (reset = false) => {
         try {
             if (!reset) setIsFetchingMore(true)

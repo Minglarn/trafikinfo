@@ -42,9 +42,8 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
 
-    const [activeMessageTypes, setActiveMessageTypes] = useState([])
-    const [activeSeverities, setActiveSeverities] = useState([])
-    const [activeCounties, setActiveCounties] = useState(() => {
+    const [activeCounties, setActiveCounties] = useState([])
+    const [monitoredCounties, setMonitoredCounties] = useState(() => {
         const saved = localStorage.getItem('localCounties')
         return saved ? saved.split(',').map(id => parseInt(id)) : []
     })
@@ -301,6 +300,22 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         }
     }, [mode, activeCounties, activeMessageTypes, activeSeverities]) // Re-fetch when filters or mode change
 
+    // Sync monitored counties from localStorage
+    useEffect(() => {
+        const handleStorageChange = () => {
+            const saved = localStorage.getItem('localCounties')
+            const ids = saved ? saved.split(',').map(id => parseInt(id)) : []
+            setMonitoredCounties(ids)
+        }
+        window.addEventListener('storage', handleStorageChange)
+        // Also check on focus
+        window.addEventListener('focus', handleStorageChange)
+        return () => {
+            window.removeEventListener('storage', handleStorageChange)
+            window.removeEventListener('focus', handleStorageChange)
+        }
+    }, [])
+
     useEffect(() => {
         // Handle deep linking from props
         if (initialEventId && events.length > 0) {
@@ -478,23 +493,25 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                             </div>
 
                             {/* County Filter */}
-                            <div>
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {COUNTIES.filter(c => configuredCounties.length === 0 || configuredCounties.includes(c.id)).map(county => (
-                                        <button
-                                            key={county.id}
-                                            onClick={() => toggleCounty(county.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeCounties.includes(county.id)
-                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
-                                                }`}
-                                        >
-                                            {county.name}
-                                        </button>
-                                    ))}
+                            {monitoredCounties.length > 0 && (
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län (Dina bevakade)</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {COUNTIES.filter(c => monitoredCounties.includes(c.id)).map(county => (
+                                            <button
+                                                key={county.id}
+                                                onClick={() => toggleCounty(county.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeCounties.includes(county.id)
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                                    }`}
+                                            >
+                                                {county.name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Active Filters Summary */}
                             {activeFilterCount > 0 && (

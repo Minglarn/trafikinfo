@@ -105,7 +105,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.49")
+app = FastAPI(title="Trafikinfo API", version="26.2.50")
 
 class LoginRequest(BaseModel):
     password: str
