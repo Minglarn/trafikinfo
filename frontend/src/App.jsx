@@ -141,6 +141,7 @@ function AppContent() {
         toggleTheme={toggleTheme}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         counts={counts}
+        setupRequired={setupRequired}
       />
 
       {/* Main Content Area */}
@@ -159,7 +160,7 @@ function AppContent() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} setupRequired={setupRequired} />
 
       <LoginModal
         isOpen={isLoginModalOpen}

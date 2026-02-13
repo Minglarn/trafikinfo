@@ -305,13 +305,30 @@ export default function Settings() {
                                 <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Trafikverket API</h3>
                             </div>
+
+                            {(!settings.api_key || settings.api_key === '') && (
+                                <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl flex gap-3 animate-in zoom-in duration-300">
+                                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                                    <div>
+                                        <h4 className="text-sm font-bold text-red-900 dark:text-red-300">Konfiguration saknas</h4>
+                                        <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                                            Systemet behöver en **Authentication Key** från Trafikverket för att kunna hämta händelser.
+                                            Utan denna kommer inga flöden att fungera.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Authentication Key</label>
                                 <input
                                     type="password"
                                     value={settings.api_key ?? ''}
                                     onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                    className={`w-full bg-slate-50 dark:bg-slate-900 border rounded-xl px-4 py-2.5 outline-none transition-all ${!settings.api_key || settings.api_key === ''
+                                            ? 'border-red-400 dark:border-red-500/50 shadow-sm shadow-red-500/10 focus:border-red-500'
+                                            : 'border-slate-200 dark:border-slate-700 focus:border-blue-500'
+                                        } text-slate-900 dark:text-white`}
                                     placeholder="Din API-nyckel..."
                                 />
                                 <p className="text-xs text-slate-500">Hämta din nyckel på dataportalen.trafikverket.se</p>

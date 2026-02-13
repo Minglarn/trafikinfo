@@ -78,7 +78,12 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
                                 }`}
                         >
                             <div className="flex items-center gap-4">
-                                <Icon className="w-6 h-6 min-w-6" />
+                                <div className="relative">
+                                    <Icon className="w-6 h-6 min-w-6" />
+                                    {item.id === 'settings' && setupRequired && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
+                                    )}
+                                </div>
                                 {!isCollapsed && (
                                     <motion.span
                                         initial={{ opacity: 0 }}
