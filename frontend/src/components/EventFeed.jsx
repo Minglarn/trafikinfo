@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar, AlertCircle } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
