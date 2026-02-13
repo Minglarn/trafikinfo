@@ -49,3 +49,45 @@ self.addEventListener('fetch', (event) => {
         })
     );
 });
+
+self.addEventListener('push', (event) => {
+    try {
+        const data = event.data.json();
+        const title = data.title || 'Trafikinfo Flux';
+        const options = {
+            body: data.message,
+            icon: '/logo.png',
+            badge: '/logo.png',
+            data: {
+                url: data.url
+            },
+            tag: data.url,
+            renotify: true
+        };
+
+        event.waitUntil(
+            self.registration.showNotification(title, options)
+        );
+    } catch (e) {
+        console.error('Push data error:', e);
+    }
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const urlToOpen = event.notification.data.url || '/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            for (let i = 0; i < windowClients.length; i++) {
+                const client = windowClients[i];
+                if (client.url === urlToOpen && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
+});

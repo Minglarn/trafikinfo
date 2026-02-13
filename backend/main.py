@@ -13,8 +13,10 @@ from typing import List
 from datetime import datetime, timedelta, time
 from sqlalchemy import func
 from pydantic import BaseModel
+from pywebpush import webpush, WebPushException
+import base64
 
-from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription
 from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras, parse_road_condition
 
@@ -96,6 +98,12 @@ COUNTY_MAP = {
 
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
+class PushSubscriptionSchema(BaseModel):
+    endpoint: str
+    keys: dict # contains p256dh and auth
+    counties: str = ""
+    min_severity: int = 1
 
 app = FastAPI(title="Trafikinfo API", version="26.2.40")
 
@@ -686,6 +694,10 @@ async def event_processor():
                         
                         db.refresh(new_event)
                     
+                    # Notify subscribers for NEW events only
+                    if not existing:
+                        await notify_subscribers(mqtt_data, db, type="event")
+                    
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
                     
@@ -947,6 +959,11 @@ async def road_condition_processor():
                         "timestamp": final_rc.timestamp.isoformat() if final_rc.timestamp else None
                     }
                     
+                    # Notify subscribers for NEW/UPDATED road conditions with warnings
+                    if final_rc.warning:
+                        # Fetch base_url for consistency
+                        await notify_subscribers(condition_data, db, type="road_condition")
+
                     # Broadcast to connected clients 
                     for queue in connected_clients:
                          await queue.put(condition_data)
@@ -1464,6 +1481,133 @@ async def report_base_url(payload: dict, db: Session = Depends(get_db)):
         db.commit()
         
     return {"status": "ok", "base_url": base_url}
+
+def get_vapid_keys(db: Session):
+    private_key_setting = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
+    public_key_setting = db.query(Settings).filter(Settings.key == "vapid_public_key").first()
+    
+    if not private_key_setting or not public_key_setting:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        
+        pk = ec.generate_private_key(ec.SECP256R1())
+        private_key_pem = pk.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode('utf-8')
+        
+        # Public key for VAPID needs to be the uncompressed point (65 bytes)
+        public_key_bytes = pk.public_key().public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.UncompressedPoint
+        )
+        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
+        
+        if not private_key_setting:
+            db.add(Settings(key="vapid_private_key", value=private_key_pem))
+        else:
+            private_key_setting.value = private_key_pem
+            
+        if not public_key_setting:
+            db.add(Settings(key="vapid_public_key", value=public_key_b64))
+        else:
+            public_key_setting.value = public_key_b64
+            
+        db.commit()
+        return private_key_pem, public_key_b64
+        
+    return private_key_setting.value, public_key_setting.value
+
+@app.get("/api/push/vapid-public-key")
+def get_vapid_public_key(db: Session = Depends(get_db)):
+    _, public_key = get_vapid_keys(db)
+    return {"public_key": public_key}
+
+@app.post("/api/push/subscribe")
+def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db)):
+    existing = db.query(PushSubscription).filter(PushSubscription.endpoint == subscription.endpoint).first()
+    if existing:
+        existing.p256dh = subscription.keys.get('p256dh')
+        existing.auth = subscription.keys.get('auth')
+        existing.counties = subscription.counties
+        existing.min_severity = subscription.min_severity
+    else:
+        new_sub = PushSubscription(
+            endpoint=subscription.endpoint,
+            p256dh=subscription.keys.get('p256dh'),
+            auth=subscription.keys.get('auth'),
+            counties=subscription.counties,
+            min_severity=subscription.min_severity
+        )
+        db.add(new_sub)
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/push/unsubscribe")
+def unsubscribe(payload: dict, db: Session = Depends(get_db)):
+    endpoint = payload.get("endpoint")
+    if endpoint:
+        db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).delete()
+        db.commit()
+    return {"status": "ok"}
+
+async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session):
+    private_key, _ = get_vapid_keys(db)
+    
+    try:
+        webpush(
+            subscription_info={
+                "endpoint": subscription.endpoint,
+                "keys": {
+                    "p256dh": subscription.p256dh,
+                    "auth": subscription.auth
+                }
+            },
+            data=json.dumps({
+                "title": title,
+                "message": message,
+                "url": url
+            }),
+            vapid_private_key=private_key,
+            vapid_claims={
+                "sub": "mailto:dev@trafikinfo-flux.local"
+            }
+        )
+    except WebPushException as ex:
+        logger.error(f"Push failed: {ex}")
+        if ex.response is not None and ex.response.status_code in [404, 410]:
+            logger.info(f"Removing invalid subscription: {subscription.endpoint}")
+            db.delete(subscription)
+            db.commit()
+    except Exception as e:
+        logger.error(f"Unexpected push error: {e}")
+
+async def notify_subscribers(data: dict, db: Session, type: str = "event"):
+    subs = db.query(PushSubscription).all()
+    if not subs:
+        return
+
+    for sub in subs:
+        # Check filters
+        allowed_counties = sub.counties.split(",") if sub.counties else []
+        item_county = str(data.get('county_no'))
+        
+        if allowed_counties and item_county not in allowed_counties:
+            continue
+            
+        if type == "event":
+            if data.get('severity_code', 0) < sub.min_severity:
+                continue
+            title = f"⚠️ {data.get('title', 'Trafikhändelse')}"
+            message = data.get('location', '')
+            url = data.get('event_url', '/')
+        else: # road_condition
+            title = f"❄️ Väglag: {data.get('condition_text', 'Varning')}"
+            message = f"{data.get('location_text', '')}: {data.get('warning', '')}. {data.get('measure', '')}"
+            url = "/?tab=road-conditions" # Default to road conditions tab
+
+        await send_push_notification(sub, title, message, url, db)
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):

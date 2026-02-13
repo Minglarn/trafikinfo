@@ -119,17 +119,31 @@ class Settings(Base):
     key = Column(String, unique=True, index=True)
     value = Column(String)
 
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    endpoint = Column(String, unique=True, index=True)
+    p256dh = Column(String)
+    auth = Column(String)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    # Filter settings per subscription
+    counties = Column(String) # Comma separated list of county numbers
+    min_severity = Column(Integer, default=1)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     migrate_db()
     
-    # Ensure cameras table exists (SQLAlchemy might skip if already exists)
+    # Ensure tables exists
     from sqlalchemy import inspect
     inspector = inspect(engine)
     if "cameras" not in inspector.get_table_names():
         Camera.__table__.create(bind=engine)
     if "road_conditions" not in inspector.get_table_names():
         RoadCondition.__table__.create(bind=engine)
+    if "push_subscriptions" not in inspector.get_table_names():
+        PushSubscription.__table__.create(bind=engine)
 
 def migrate_db():
     from sqlalchemy import inspect, text

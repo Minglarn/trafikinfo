@@ -8,3 +8,5 @@ python-dotenv
 pydantic
 pydantic-settings
 asyncio
+pywebpush
+cryptography

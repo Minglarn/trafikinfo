@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Save, ShieldCheck, Server, AlertCircle, Volume2, MapPin, Check, Trash2, AlertTriangle } from 'lucide-react'
+import { Save, ShieldCheck, Server, AlertCircle, Volume2, MapPin, Check, Trash2, AlertTriangle, Bell, BellOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const API_BASE = '/api'
@@ -44,6 +44,8 @@ export default function Settings() {
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
+    const [pushEnabled, setPushEnabled] = useState(false)
+    const [subscribing, setSubscribing] = useState(false)
 
     const performFactoryReset = async () => {
         if (!isLoggedIn) return
@@ -80,6 +82,79 @@ export default function Settings() {
     const playSound = () => {
         const audio = new Audio(`/sounds/${soundFile}`)
         audio.play().catch(e => console.error('Error playing sound:', e))
+    }
+
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+                registration.pushManager.getSubscription().then(subscription => {
+                    setPushEnabled(!!subscription)
+                })
+            })
+        }
+    }, [])
+
+    const urlBase64ToUint8Array = (base64String) => {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding)
+            .replace(/\-/g, '+')
+            .replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    const togglePush = async () => {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            setMessage({ type: 'error', text: 'Din webbläsare stöder inte push-notiser.' })
+            return
+        }
+
+        setSubscribing(true)
+        try {
+            if (pushEnabled) {
+                const registration = await navigator.serviceWorker.ready
+                const subscription = await registration.pushManager.getSubscription()
+                if (subscription) {
+                    await subscription.unsubscribe()
+                    await axios.post(`${API_BASE}/push/unsubscribe`, { endpoint: subscription.endpoint })
+                }
+                setPushEnabled(false)
+            } else {
+                const permission = await Notification.requestPermission()
+                if (permission !== 'granted') {
+                    throw new Error('Permission not granted')
+                }
+
+                const res = await axios.get(`${API_BASE}/push/vapid-public-key`)
+                const vapidPublicKey = res.data.public_key
+                const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
+
+                const registration = await navigator.serviceWorker.ready
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: convertedVapidKey
+                })
+
+                const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh'))))
+                const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+
+                await axios.post(`${API_BASE}/push/subscribe`, {
+                    endpoint: subscription.endpoint,
+                    keys: { p256dh, auth },
+                    counties: settings.selected_counties,
+                    min_severity: 1
+                })
+                setPushEnabled(true)
+            }
+        } catch (error) {
+            console.error('Push toggle failed:', error)
+            setMessage({ type: 'error', text: 'Kunde inte ändra push-notiser. Säkerställ HTTPS och att appen är installerad (iOS).' })
+        }
+        setSubscribing(false)
     }
 
     useEffect(() => {
@@ -284,6 +359,35 @@ export default function Settings() {
                                 >
                                     Välj alla
                                 </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-3">
+                                    <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">PWA Push-notiser</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={togglePush}
+                                    disabled={subscribing}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${pushEnabled ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    {subscribing ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                    ) : (
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                        />
+                                    )}
+                                </button>
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                                Ta emot notiser direkt i din enhet när nya händelser inträffar i dina valda län.
+                            </p>
+                            <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10 p-3 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+                                <strong>Tips för iOS:</strong> Du måste först "Lägg till på hemskärmen" för att kunna aktivera notiser.
                             </div>
                         </div>
 
