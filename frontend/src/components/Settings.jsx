@@ -38,6 +38,8 @@ export default function Settings() {
         mqtt_port: '1883',
         mqtt_topic: 'trafikinfo/events',
         mqtt_enabled: 'false',
+        mqtt_rc_enabled: 'false',
+        mqtt_rc_topic: 'trafikinfo/road_conditions',
         selected_counties: '1,4', // Default
         retention_days: '30' // Default 30 days
     })
@@ -505,8 +507,38 @@ export default function Settings() {
                                                 />
                                             </div>
                                         </div>
+                                        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-orange-500" />
+                                                Väglag (Road Conditions)
+                                            </h4>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Skicka väglag till MQTT</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSettings({ ...settings, mqtt_rc_enabled: settings.mqtt_rc_enabled === 'true' ? 'false' : 'true' })}
+                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.mqtt_rc_enabled === 'true' ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                >
+                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_rc_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                </button>
+                                            </div>
+
+                                            {settings.mqtt_rc_enabled === 'true' && (
+                                                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic för Väglag</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.mqtt_rc_topic ?? 'trafikinfo/road_conditions'}
+                                                        onChange={(e) => setSettings({ ...settings, mqtt_rc_topic: e.target.value })}
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-orange-500 text-slate-900 dark:text-white transition-colors"
+                                                        placeholder="trafikinfo/road_conditions"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div className="space-y-2">
-                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Root</label>
+                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Root (Trafikhändelser)</label>
                                             <input
                                                 type="text"
                                                 value={settings.mqtt_topic ?? 'trafikinfo/events'}
