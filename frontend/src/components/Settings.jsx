@@ -194,7 +194,9 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-6 mt-8">
-                    {/* 1. Public Settings: Push & Sounds */}
+                    {/* --- PUBLIC SECTIONS (Always visible) --- */}
+
+                    {/* Push Notifications */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                         <div className="flex items-center justify-between gap-3 mb-2">
                             <div className="flex items-center gap-3">
@@ -224,6 +226,7 @@ export default function Settings() {
                         </div>
                     </div>
 
+                    {/* Sound Notifications */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                         <div className="flex items-center gap-3 mb-2">
                             <Volume2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -249,27 +252,27 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* 2. Admin Sections Check */}
+                    {/* --- ADMIN SECTIONS (Behind isLoggedIn) --- */}
+
                     {!isLoggedIn ? (
                         <div className="bg-white dark:bg-slate-900 p-10 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full text-center">
                             <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                 <ShieldCheck className="w-8 h-8 text-blue-500" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Fler inställningar kräver inloggning</h3>
-                            <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">
-                                Du måste logga in som Admin för att ändra systemets kärninställningar som API-nycklar och MQTT.
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Systeminställningar låsta</h3>
+                            <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm leading-relaxed">
+                                Du måste logga in som Admin för att ändra systemets kärninställningar som API-nycklar, län-bevakning och MQTT.
                             </p>
                             <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                                 <p className="text-xs text-slate-500 italic">
-                                    Logga in via lås-ikonen i menyn för full tillgång.
+                                    Klicka på lås-ikonen för att logga in.
                                 </p>
                             </div>
                         </div>
                     ) : (
-                        <>
-                            {/* Rest of the admin settings as before... */}
-                            {/* Summary of settings */}
-                            <div className="setting-group bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                            {/* General */}
+                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
                                 <div className="flex items-center gap-3 mb-2">
                                     <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Generellt</h3>
@@ -278,7 +281,6 @@ export default function Settings() {
                                     <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Kameraradie (km)</label>
                                     <input
                                         type="number"
-                                        name="camera_radius_km"
                                         value={settings.camera_radius_km ?? ''}
                                         onChange={(e) => setSettings({ ...settings, camera_radius_km: e.target.value })}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
@@ -289,6 +291,7 @@ export default function Settings() {
                                 </div>
                             </div>
 
+                            {/* Data storage */}
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                                 <div className="flex items-center gap-3 mb-2">
                                     <Trash2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -311,51 +314,7 @@ export default function Settings() {
                                 </div>
                             </div>
 
-                            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-6 rounded-2xl space-y-4">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                                    <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Farlig zon</h3>
-                                </div>
-                                <p className="text-sm text-red-700 dark:text-red-300">
-                                    Här kan du återställa systemet till fabriksinställningar. Detta raderar all historik, alla inställningar och alla sparade bilder.
-                                </p>
-
-                                {!showResetConfirm ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowResetConfirm(true)}
-                                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition-colors text-sm flex items-center gap-2"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        Rensa allt (Factory Reset)
-                                    </button>
-                                ) : (
-                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-red-200 dark:border-red-900/30 shadow-lg space-y-3 animate-in fade-in zoom-in duration-200">
-                                        <h4 className="font-bold text-red-600 dark:text-red-400">VILL DU VERKLIGEN GÖRA DETTA?</h4>
-                                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                                            Denna åtgärd går inte att ångra. All databasdata och alla bilder kommer att raderas permanent. Appen kommer kräva ny konfiguration.
-                                        </p>
-                                        <div className="flex gap-2 pt-2">
-                                            <button
-                                                type="button"
-                                                onClick={performFactoryReset}
-                                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg text-xs"
-                                            >
-                                                Ja, rensa allt
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowResetConfirm(false)}
-                                                className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold py-2 px-3 rounded-lg text-xs"
-                                            >
-                                                Avbryt
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-
+                            {/* API Key */}
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                                 <div className="flex items-center gap-3 mb-2">
                                     <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -369,7 +328,6 @@ export default function Settings() {
                                             <h4 className="text-sm font-bold text-red-900 dark:text-red-300">Konfiguration saknas</h4>
                                             <p className="text-xs text-red-700 dark:text-red-400 mt-1">
                                                 Systemet behöver en **Authentication Key** från Trafikverket för att kunna hämta händelser.
-                                                Utan denna kommer inga flöden att fungera.
                                             </p>
                                         </div>
                                     </div>
@@ -382,29 +340,27 @@ export default function Settings() {
                                         value={settings.api_key ?? ''}
                                         onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
                                         className={`w-full bg-slate-50 dark:bg-slate-900 border rounded-xl px-4 py-2.5 outline-none transition-all ${!settings.api_key || settings.api_key === ''
-                                            ? 'border-red-400 dark:border-red-500/50 shadow-sm shadow-red-500/10 focus:border-red-500'
+                                            ? 'border-red-400 dark:border-red-500/50 focus:border-red-500'
                                             : 'border-slate-200 dark:border-slate-700 focus:border-blue-500'
                                             } text-slate-900 dark:text-white`}
                                         placeholder="Din API-nyckel..."
                                     />
-                                    <p className="text-xs text-slate-500">Hämta din nyckel på dataportalen.trafikverket.se</p>
                                 </div>
                             </div>
 
+                            {/* Counties */}
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                                 <div className="flex items-center gap-3 mb-2">
                                     <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Geografisk bevakning (Län)</h3>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Regional bevakning</h3>
                                 </div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Välj vilka län du vill ta emot händelser för från Trafikverket.</p>
-
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                                     {SWEDISH_COUNTIES.map((county) => (
                                         <label
                                             key={county.id}
                                             className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${selectedCountiesList.includes(county.id)
                                                 ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
-                                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                                                 }`}
                                         >
                                             <input
@@ -413,168 +369,74 @@ export default function Settings() {
                                                 checked={selectedCountiesList.includes(county.id)}
                                                 onChange={() => toggleCounty(county.id)}
                                             />
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedCountiesList.includes(county.id) ? 'bg-blue-600 border-blue-600' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
-                                                }`}>
-                                                {selectedCountiesList.includes(county.id) && <Check className="w-3 h-3 text-white" />}
-                                            </div>
                                             <span className="text-sm font-medium">{county.name}</span>
                                         </label>
                                     ))}
                                 </div>
-                                <div className="flex justify-between items-center pt-2">
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                                        {selectedCountiesList.length} valda län
-                                    </p>
+                            </div>
+
+                            {/* MQTT */}
+                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
+                                <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={() => setSettings({ ...settings, selected_counties: SWEDISH_COUNTIES.map(c => c.id).join(',') })}
-                                        className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                                        onClick={() => setSettings({ ...settings, mqtt_enabled: settings.mqtt_enabled === 'true' ? 'false' : 'true' })}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.mqtt_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
                                     >
-                                        Välj alla
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
                                 </div>
                             </div>
 
-                            )}
-                        </div>
-
-                    <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                            <div className="flex items-center gap-3">
-                                <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                            {/* Reset Confirm */}
+                            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-6 rounded-2xl space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                                    <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Farlig zon</h3>
+                                </div>
+                                {!showResetConfirm ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowResetConfirm(true)}
+                                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition-colors text-sm"
+                                    >
+                                        Rensa allt (Factory Reset)
+                                    </button>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-red-700 dark:text-red-300">Är du helt säker? Detta raderar allt permanent.</p>
+                                        <div className="flex gap-2">
+                                            <button onClick={performFactoryReset} className="bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold">Ja, rensa</button>
+                                            <button onClick={() => setShowResetConfirm(false)} className="bg-slate-200 dark:bg-slate-700 px-3 py-2 rounded-lg text-xs">Avbryt</button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Message Display inside Admin */}
+                            {message && (
+                                <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {message.text}
+                                </div>
+                            )}
+
+                            {/* Save Button */}
                             <button
                                 type="button"
-                                onClick={() => {
-                                    const isEnabled = settings.mqtt_enabled === 'true';
-                                    setSettings({ ...settings, mqtt_enabled: isEnabled ? 'false' : 'true' });
-                                }}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.mqtt_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
                             >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`}
-                                />
+                                {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <><Save className="w-5 h-5" /> Spara systeminställningar</>}
                             </button>
                         </div>
-
-                        {settings.mqtt_enabled === 'true' && (
-                            <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Host</label>
-                                        <input
-                                            type="text"
-                                            value={settings.mqtt_host ?? ''}
-                                            onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
-                                        <input
-                                            type="text"
-                                            value={settings.mqtt_port ?? ''}
-                                            onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                            placeholder="1883"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path (Traffic Events)</label>
-                                    <input
-                                        type="text"
-                                        value={settings.mqtt_topic ?? ''}
-                                        onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                    />
-                                </div>
-
-                                {/* Road Conditions MQTT Settings */}
-                                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Skicka väglag till MQTT</label>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const isEnabled = settings.mqtt_rc_enabled === 'true';
-                                                setSettings({ ...settings, mqtt_rc_enabled: isEnabled ? 'false' : 'true' });
-                                            }}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.mqtt_rc_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_rc_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`}
-                                            />
-                                        </button>
-                                    </div>
-
-                                    {settings.mqtt_rc_enabled === 'true' && (
-                                        <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Path (Väglag)</label>
-                                            <input
-                                                type="text"
-                                                value={settings.mqtt_rc_topic ?? 'trafikinfo/road_conditions'}
-                                                onChange={(e) => setSettings({ ...settings, mqtt_rc_topic: e.target.value })}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                placeholder="trafikinfo/road_conditions"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700/50 pt-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Username (Optional)</label>
-                                        <input
-                                            type="text"
-                                            value={settings.mqtt_username ?? ''}
-                                            onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                            placeholder="mqtt_user"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Password (Optional)</label>
-                                        <input
-                                            type="password"
-                                            value={settings.mqtt_password ?? ''}
-                                            onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                            placeholder="••••••••"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {message && (
-                        <div className={`p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20' : 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/20'}`}>
-                            {message.type === 'success' ? <ShieldCheck className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                            <span className="text-sm font-medium">{message.text}</span>
-                        </div>
                     )}
-
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-                    >
-                        {saving ? (
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                            <>
-                                <Save className="w-5 h-5" />
-                                Spara inställningar
-                            </>
-                        )}
-                    </button>
                 </div>
             </div>
-            )}
         </div>
     )
 }
