@@ -450,8 +450,64 @@ export default function Settings() {
                                 </div>
 
                                 {settings.mqtt_enabled === 'true' && (
-                                    <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[10px] text-blue-600 dark:text-blue-400">
-                                        ℹ️ Tryck på <strong>Spara systeminställningar</strong> nedan för att verkställa ändringar i MQTT-kopplingen.
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Broker Host</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.mqtt_host ?? 'localhost'}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                    placeholder="localhost"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
+                                                <input
+                                                    type="number"
+                                                    value={settings.mqtt_port ?? '1883'}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                    placeholder="1883"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Användarnamn</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.mqtt_username ?? ''}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                    placeholder="Valfritt"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Lösenord</label>
+                                                <input
+                                                    type="password"
+                                                    value={settings.mqtt_password ?? ''}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                    placeholder="Valfritt"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Root</label>
+                                            <input
+                                                type="text"
+                                                value={settings.mqtt_topic ?? 'trafikinfo/events'}
+                                                onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                                placeholder="trafikinfo/events"
+                                            />
+                                        </div>
+                                        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[10px] text-blue-600 dark:text-blue-400">
+                                            ℹ️ Tryck på <strong>Spara systeminställningar</strong> nedan för att verkställa ändringar i MQTT-kopplingen.
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -237,7 +237,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
     useEffect(() => {
         // eslint-disable-next-line
-        fetchEvents(true) // Initial load with reset
+        fetchEvents(true) // Initial load and re-fetch on filter changes
 
         const eventSource = new EventSource(`${API_BASE}/stream`)
 
@@ -299,7 +299,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         return () => {
             eventSource.close()
         }
-    }, [mode]) // Re-fetch and re-connect SSE when mode changes
+    }, [mode, activeCounties, activeMessageTypes, activeSeverities]) // Re-fetch when filters or mode change
 
     useEffect(() => {
         // Handle deep linking from props
@@ -518,6 +518,27 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
             <div className="grid gap-4">
                 <AnimatePresence initial={false}>
+                    {filteredEvents.length === 0 && !loading && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex flex-col items-center justify-center py-20 bg-slate-50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800"
+                        >
+                            <AlertCircle className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-4" />
+                            <h3 className="text-lg font-medium text-slate-900 dark:text-white">Inga händelser hittades</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs text-center mt-2">
+                                Prova att ändra dina filter eller välj fler län i inställningarna.
+                            </p>
+                            {(activeFilterCount > 0) && (
+                                <button
+                                    onClick={clearFilters}
+                                    className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+                                >
+                                    Nollställ filter
+                                </button>
+                            )}
+                        </motion.div>
+                    )}
                     {filteredEvents.map((event) => (
                         <motion.div
                             key={event.id}
