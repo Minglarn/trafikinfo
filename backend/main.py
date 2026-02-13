@@ -1,4 +1,4 @@
-VERSION = "26.2.42"
+VERSION = "26.2.43"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -105,7 +105,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.42")
+app = FastAPI(title="Trafikinfo API", version="26.2.43")
 
 class LoginRequest(BaseModel):
     password: str

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar } from 'lucide-react'
 
-const BottomNav = ({ activeTab, setActiveTab, counts = {} }) => {
+const BottomNav = ({ activeTab, setActiveTab, counts = {}, setupRequired }) => {
     const tabs = [
         { id: 'feed', icon: Activity, label: 'Realtid' },
         { id: 'planned', icon: Calendar, label: 'Planerat' },
