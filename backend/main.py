@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, time
 from sqlalchemy import func
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
+from pyvapid import Vapid
 import base64
 
 from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription, ClientInterest
@@ -1583,16 +1584,16 @@ def get_vapid_keys(db: Session):
                 password=None
             )
             
-            # RE-SERIALIZE to TraditionalOpenSSL (SEC1) which is often more compatible for EC keys in older libs
+            # RE-SERIALIZE to standard PKCS8 (consistent format)
             clean_private_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL, # Changed from PKCS8
+                format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization.NoEncryption()
             ).decode('utf-8')
             
-            # If the re-serialized version is different from what's in DB, save it back!
+            # If the re-serialized version is drastically different from what's in DB (e.g. was SEC1), save it back!
             if clean_private_pem.strip() != raw_val.strip():
-                logger.info("Updating VAPID private key in DB with cleaned format.")
+                logger.info("Updating VAPID private key in DB with normalized PKCS8 format.")
                 private_key_setting.value = clean_private_pem
                 db.commit()
             
@@ -1610,10 +1611,10 @@ def get_vapid_keys(db: Session):
         logger.info("Generating new VAPID keys...")
         pk = ec.generate_private_key(ec.SECP256R1())
         
-        # VAPID private key in TraditionalOpenSSL format
+        # VAPID private key in standard PKCS8 format
         clean_private_pem = pk.private_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL, # Changed from PKCS8
+            format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
         ).decode('utf-8')
         
@@ -1706,9 +1707,12 @@ def unsubscribe(payload: dict, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session):
-    private_key, _ = get_vapid_keys(db)
+    private_key_pem, _ = get_vapid_keys(db)
     
     try:
+        # EXPLICIT VAPID OBJECT: Bypass pywebpush string parsing which is causing ASN.1 errors
+        vapid_obj = Vapid.from_pem(private_key_pem.encode('utf-8'))
+        
         webpush(
             subscription_info={
                 "endpoint": subscription.endpoint,
@@ -1722,7 +1726,7 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
                 "message": message,
                 "url": url
             }),
-            vapid_private_key=private_key.strip(), # Ensure string and stripped
+            vapid_key=vapid_obj,
             vapid_claims={
                 "sub": "mailto:dev@trafikinfo-flux.local"
             }
