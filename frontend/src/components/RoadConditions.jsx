@@ -495,16 +495,28 @@ function RoadConditions() {
 
                                     {/* Expanded Camera Area */}
                                     {isCameraOpen && rc.camera_snapshot && (
-                                        <div className="relative bg-black aspect-video sm:aspect-[21/9] border-t border-slate-200 dark:border-slate-700">
+                                        <div className="relative bg-slate-900 aspect-video rounded-b-xl overflow-hidden border-t border-slate-200 dark:border-slate-700 group/expanded">
+                                            {/* Blurred Background to eliminate "sorgkanter" */}
+                                            <div className="absolute inset-0 overflow-hidden">
+                                                <img
+                                                    src={rc.snapshot_url}
+                                                    alt=""
+                                                    className="w-full h-full object-cover blur-3xl opacity-40 scale-110"
+                                                />
+                                            </div>
+
+                                            {/* Main Image */}
                                             <img
                                                 src={rc.snapshot_url}
                                                 alt={rc.camera_name || "Väglagskamera"}
-                                                className="w-full h-full object-contain"
+                                                className="relative w-full h-full object-contain z-10"
                                                 loading="lazy"
                                             />
-                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                                                <p className="text-white text-xs font-medium flex items-center gap-2">
-                                                    <Camera className="w-3 h-3" />
+
+                                            {/* Overlay Info */}
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 z-20 opacity-0 group-hover/expanded:opacity-100 transition-opacity duration-300">
+                                                <p className="text-white text-sm font-bold flex items-center gap-2">
+                                                    <Camera className="w-4 h-4 text-blue-400" />
                                                     {rc.camera_name || `Kamera vid väg ${rc.road_number}`}
                                                 </p>
                                             </div>
