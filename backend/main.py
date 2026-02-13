@@ -480,7 +480,14 @@ async def download_camera_snapshot(url: str, event_id: str, county_no: int, expl
     # Organize snapshots by county
     county_dir = os.path.join(SNAPSHOTS_DIR, str(county_no))
     if not os.path.exists(county_dir):
-        os.makedirs(county_dir, exist_ok=True)
+        try:
+            os.makedirs(county_dir, exist_ok=True)
+            logger.info(f"Created snapshot directory for county {county_no}: {county_dir}")
+        except Exception as e:
+            logger.error(f"Failed to create snapshot directory {county_dir}: {e}")
+            return None
+    else:
+        logger.debug(f"Snapshot directory exists for county {county_no}: {county_dir}")
 
     # Prioritize explicit fullsize URL from API
     fullsize_url = explicit_fullsize_url or url
