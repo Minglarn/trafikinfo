@@ -504,14 +504,13 @@ async def download_camera_snapshot(url: str, event_id: str, county_no: int, expl
             # Check if fullsize is valid (200 OK AND sufficiently large)
             is_valid_fullsize = False
             if response.status_code == 200:
-                # 3KB is a very safe floor for "any" image, 
-                # but thumbnails are usually 2-5KB and fullsize are 30KB+.
-                # We'll stick to 5KB as a "is this really fullsize" indicator.
+                # 5KB is a very safe floor for "real" image
                 if len(response.content) >= 5000:
                     is_valid_fullsize = True
-                is_valid_fullsize = len(response.content) >= 30000  # High-res should be 30KB+ (usually 100KB+)
-                if not is_valid_fullsize:
-                    logger.warning(f"Snapshot from {fullsize_url} is unexpectedly small ({len(response.content)} bytes), below 30KB threshold for fullsize.")
+                
+                # Warn if suspiciously small for a fullsize image, but don't reject it if >5KB
+                if len(response.content) < 15000:
+                    logger.info(f"Snapshot from {fullsize_url} is small ({len(response.content)} bytes), but accepted as fullsize.")
             else:
                 logger.error(f"Failed to download from {fullsize_url}: Status {response.status_code}")
             
@@ -1759,7 +1758,9 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             continue
             
         if type == "event":
-            if data.get('severity_code', 0) < sub.min_severity:
+            # Handle None in severity_code
+            severity = data.get('severity_code')
+            if (severity or 0) < sub.min_severity:
                 continue
             title = f"⚠️ {data.get('title', 'Trafikhändelse')}"
             message = data.get('location', '')
