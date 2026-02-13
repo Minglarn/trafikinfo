@@ -1211,13 +1211,13 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             county_list = [int(c.strip()) for c in counties.split(",") if c.strip().isdigit()]
             if county_list:
                 query = query.filter(TrafficEvent.county_no.in_(county_list))
-    # ### 1. Robust PWA Push Notifications & v26.2.48 Fixes
-    # - **VAPID Storage Fix**: Resolved the "ASN.1 parsing error" by switching to raw 32-byte VAPID keys.
-    # - **Settings Regression Fix**: Restored missing MQTT configuration fields.
-    # - **Feed Reactivity Fix**: Fixed a bug where the event feed didn't refresh when changing filters.
-    # - **Runtime Error Fix**: Fixed a crash caused by a missing `AlertCircle` import.
-    # - **Improved Feedback**: Added a "No events found" message to the feed.
-    # d) -> All events on date
+        except Exception as e:
+            logger.error(f"Error parsing counties filter: {e}")
+    
+    # Check if we should filter for "active" events only
+    # Main feed (no params) -> Active only
+    # History view (hours provided) -> All events in window
+    # Search view (date provided) -> All events on date
     
     if date:
         try:
