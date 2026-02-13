@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flux-v26.2.46';
+const CACHE_NAME = 'flux-v26.2.53';
 const ASSETS = [
     '/',
     '/index.html',
@@ -56,7 +56,7 @@ self.addEventListener('push', (event) => {
         const title = data.title || 'Trafikinfo Flux';
         const options = {
             body: data.message,
-            icon: '/logo.png',
+            icon: data.icon || '/logo.png',
             badge: '/logo.png',
             data: {
                 url: data.url

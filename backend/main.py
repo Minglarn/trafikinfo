@@ -1,4 +1,4 @@
-VERSION = "26.2.46"
+VERSION = "26.2.53"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -106,7 +106,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.52")
+app = FastAPI(title="Trafikinfo API", version="26.2.53")
 
 class LoginRequest(BaseModel):
     password: str
@@ -1706,7 +1706,7 @@ def unsubscribe(payload: dict, db: Session = Depends(get_db)):
         db.commit()
     return {"status": "ok"}
 
-async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session):
+async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None):
     private_key_pem, _ = get_vapid_keys(db)
     
     try:
@@ -1724,7 +1724,8 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
             data=json.dumps({
                 "title": title,
                 "message": message,
-                "url": url
+                "url": url,
+                "icon": icon
             }),
             vapid_private_key=vapid_obj,
             vapid_claims={
@@ -1777,12 +1778,14 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             title = f"⚠️ {data.get('title', 'Trafikhändelse')}"
             message = data.get('location', '')
             url = data.get('event_url', '/')
+            icon = data.get('icon_url')
         else: # road_condition
             title = f"❄️ Väglag: {data.get('condition_text', 'Varning')}"
             message = f"{data.get('location_text', '')}: {data.get('warning', '')}. {data.get('measure', '')}"
             url = "/?tab=road-conditions" # Default to road conditions tab
+            icon = data.get('icon_url')
 
-        await send_push_notification(sub, title, message, url, db)
+        await send_push_notification(sub, title, message, url, db, icon=icon)
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):
