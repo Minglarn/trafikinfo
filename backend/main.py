@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, time
 from sqlalchemy import func
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
-from pyvapid import Vapid
+from py_vapid import Vapid
 import base64
 
 from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription, ClientInterest
