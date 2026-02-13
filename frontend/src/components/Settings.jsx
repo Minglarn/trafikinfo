@@ -58,6 +58,27 @@ export default function Settings() {
         localStorage.setItem('localCounties', localCounties.join(','))
     }, [localCounties])
 
+    // Sync client interest to backend (Family Model)
+    useEffect(() => {
+        const syncInterest = async () => {
+            let clientId = localStorage.getItem('clientId')
+            if (!clientId) {
+                clientId = crypto.randomUUID()
+                localStorage.setItem('clientId', clientId)
+            }
+            try {
+                await axios.post(`${API_BASE}/client/interest`, {
+                    client_id: clientId,
+                    counties: localCounties.join(',')
+                })
+            } catch (error) {
+                console.error('Failed to sync client interest:', error)
+            }
+        }
+        const timeoutId = setTimeout(syncInterest, 2000) // Debounce 2s
+        return () => clearTimeout(timeoutId)
+    }, [localCounties])
+
     const performFactoryReset = async () => {
         if (!isLoggedIn) return
         try {
@@ -353,17 +374,6 @@ export default function Settings() {
                                     />
                                     <p className="text-xs text-slate-500">Sökområde för att hämta närliggande kameror.</p>
                                 </div>
-                                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Bevakade län (Globalt)</label>
-                                    <input
-                                        type="text"
-                                        value={settings.selected_counties ?? ''}
-                                        onChange={(e) => setSettings({ ...settings, selected_counties: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                        placeholder="t.ex. 1,4,12"
-                                    />
-                                    <p className="text-xs text-slate-500 italic">Vilka län servern hämtar data för från Trafikverket.</p>
-                                </div>
                             </div>
 
                             {/* Data storage */}
@@ -557,6 +567,6 @@ export default function Settings() {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     )
 }

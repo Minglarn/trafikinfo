@@ -105,7 +105,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.51")
+app = FastAPI(title="Trafikinfo API", version="26.2.52")
 
 class LoginRequest(BaseModel):
     password: str
@@ -311,6 +311,11 @@ def start_worker(api_key: str, county_ids: list = None):
     if rc_stream:
         rc_stream.stop_streaming()
     
+    # If no counties are selected (Family Model), do not start streams.
+    if not county_ids:
+        logger.info("No active counties selected by any client. Background workers idle.")
+        return
+
     tv_stream = TrafikverketStream(api_key)
     
     # Start two streams: one for Situation (default) and one for RoadCondition
@@ -348,36 +353,41 @@ def start_worker(api_key: str, county_ids: list = None):
 dynamic_worker_task = None
 
 async def dynamic_worker_manager(api_key: str):
-    """Periodically check if we need to restart workers due to new subscribers selecting different counties."""
+    """Periodically check if we need to restart workers due to new subscribers or client interests."""
     current_counties = set()
     while True:
         try:
-            await asyncio.sleep(300) # Every 5 minutes
             db = SessionLocal()
             try:
-                # 1. Get system counties
-                system_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-                system_counties = set(system_setting.value.split(",")) if system_setting and system_setting.value else set()
-                
-                # 2. Get subscriber counties
+                # 1. Get subscriber counties
                 subs = db.query(PushSubscription).all()
                 subscriber_counties = set()
                 for sub in subs:
                     if sub.counties:
                         subscriber_counties.update(sub.counties.split(","))
                 
+                # 2. Get active client interests (Family Model)
+                clients = db.query(ClientInterest).all()
+                client_counties = set()
+                for client in clients:
+                    if client.counties:
+                        client_counties.update(client.counties.split(","))
+
                 # 3. Combine
-                needed_counties = system_counties.union(subscriber_counties)
+                needed_counties = subscriber_counties.union(client_counties)
                 
                 # 4. If changed, restart
                 if needed_counties != current_counties:
                     logger.info(f"Detected change in required counties: {current_counties} -> {needed_counties}. Restarting workers...")
                     current_counties = needed_counties
-                    start_worker(api_key, list(needed_counties) if needed_counties else None)
+                    start_worker(api_key, list(needed_counties) if needed_counties else [])
             finally:
                 db.close()
+            
+            await asyncio.sleep(60) # Check every minute for responsiveness
         except Exception as e:
             logger.error(f"Error in dynamic_worker_manager: {e}")
+            await asyncio.sleep(60)
 
 async def periodic_camera_sync():
     """Background task to sync cameras with DB every 5 minutes."""
@@ -685,7 +695,7 @@ async def event_processor():
                                 target_fullsize = fullsize_url # might be None, but download_camera_snapshot handles it
                                 
                                 logger.debug(f"Downloading fresh snapshot for updated event {ev['external_id']}")
-                                snapshot_file = await download_camera_snapshot(target_url, ev['external_id'], target_fullsize)
+                                snapshot_file = await download_camera_snapshot(target_url, ev['external_id'], ev.get('county_no', 0), target_fullsize)
                                 
                                 if snapshot_file:
                                     existing.camera_url = target_url
@@ -1355,6 +1365,22 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
         })
     return result
 
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    id = Column(Integer, primary_key=True, index=True)
+    endpoint = Column(String, unique=True, index=True)
+    p256dh = Column(String)
+    auth = Column(String)
+    counties = Column(String) # Comma-separated list of county IDs
+    min_severity = Column(Integer, default=1)
+    ua_hash = Column(String) # Hash of User-Agent to group devices if needed
+
+class ClientInterest(Base):
+    __tablename__ = "client_interests"
+    client_id = Column(String, primary_key=True, index=True) # UUID
+    counties = Column(String) # Comma-separated list
+    last_active = Column(DateTime, default=datetime.utcnow)
+
 @app.get("/api/road-conditions")
 def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     query = db.query(RoadCondition)
@@ -1477,15 +1503,24 @@ async def update_settings(settings: dict, db: Session = Depends(get_db), admin=D
         if "api_key" in settings or "selected_counties" in settings:
             # Re-fetch both to restart properly
             curr_key = db.query(Settings).filter(Settings.key == "api_key").first()
-            curr_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
             
-            key_val = curr_key.value if curr_key else ""
-            county_ids = ["1", "4"]
-            if curr_counties and curr_counties.value:
-                county_ids = curr_counties.value.split(",")
+            api_key = curr_key.value if curr_key else ""
             
-            if key_val:
-                start_worker(key_val, county_ids)
+            # Start dynamic county manager (Family Model)
+            global dynamic_worker_task
+            if not dynamic_worker_task or dynamic_worker_task.done():
+                dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key))
+            
+            if not api_key:
+                logger.warning("No API key found in settings. Workers will not start until configured.")
+            else:
+                # The dynamic_worker_manager will call start_worker with the correct counties
+                # We need to call it once here to initialize everything
+                curr_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                county_ids = ["1", "4"]
+                if curr_counties and curr_counties.value:
+                    county_ids = curr_counties.value.split(",")
+                start_worker(api_key, county_ids)
         
         # Update MQTT config if any related setting changed
         mqtt_updates = {}
@@ -1529,7 +1564,15 @@ def get_vapid_keys(db: Session):
     private_key_setting = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
     public_key_setting = db.query(Settings).filter(Settings.key == "vapid_public_key").first()
     
+    # Check if keys exist and are valid (PEM format)
+    needs_generation = False
     if not private_key_setting or not public_key_setting:
+        needs_generation = True
+    elif not private_key_setting.value.startswith("-----BEGIN PRIVATE KEY-----"):
+        logger.warning("Detected invalid VAPID private key format (not PEM). Regenerating keys...")
+        needs_generation = True
+        
+    if needs_generation:
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
         
@@ -1551,15 +1594,19 @@ def get_vapid_keys(db: Session):
         
         if not private_key_setting:
             db.add(Settings(key="vapid_private_key", value=private_pem))
+            # Refresh checking var
+            private_key_setting = Settings(key="vapid_private_key", value=private_pem) 
         else:
             private_key_setting.value = private_pem
             
         if not public_key_setting:
             db.add(Settings(key="vapid_public_key", value=public_key_b64))
+            public_key_setting = Settings(key="vapid_public_key", value=public_key_b64)
         else:
             public_key_setting.value = public_key_b64
             
         db.commit()
+        logger.info("VAPID keys generated/updated successfully.")
         return private_pem, public_key_b64
         
     return private_key_setting.value, public_key_setting.value
@@ -1587,7 +1634,36 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
         )
         db.add(new_sub)
     db.commit()
-    return {"status": "ok"}
+    return {"status": "ok", "count": len(subs)}
+
+class ClientInterestRequest(BaseModel):
+    client_id: str
+    counties: str
+
+@app.post("/api/client/interest")
+async def register_client_interest(payload: ClientInterestRequest, db: Session = Depends(get_db)):
+    """Register user's current county interest (Family Model)"""
+    try:
+        interest = db.query(ClientInterest).filter(ClientInterest.client_id == payload.client_id).first()
+        if interest:
+            interest.counties = payload.counties
+            interest.last_active = datetime.utcnow()
+        else:
+            interest = ClientInterest(client_id=payload.client_id, counties=payload.counties)
+            db.add(interest)
+        
+        db.commit()
+        logger.info(f"Client {payload.client_id} interested in: {payload.counties}")
+        
+        # Trigger worker check immediately (optional but nice for responsiveness)
+        # We can't easily trigger the loop but it runs every 5 min. 
+        # For immediate response, we could check here.
+        # But let's rely on the loop or a manual trigger if critical.
+        
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error registering client interest: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/push/unsubscribe")
 def unsubscribe(payload: dict, db: Session = Depends(get_db)):
@@ -1732,6 +1808,22 @@ if os.path.exists("static"):
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse("static/index.html")
+
+@app.on_event("startup")
+async def startup_event():
+    # Helper to check if we have API key
+    db = SessionLocal()
+    try:
+        api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
+        if api_key_setting and api_key_setting.value:
+             # Start dynamic manager immediately (Family Model)
+             global dynamic_worker_task
+             if not dynamic_worker_task or dynamic_worker_task.done():
+                dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key_setting.value))
+        else:
+             logger.warning("No API key configured on startup. Background workers paused.")
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     import uvicorn
