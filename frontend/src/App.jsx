@@ -35,20 +35,36 @@ function AppContent() {
     cameras: 0
   })
 
-  // Fetch status and counts
+  // 1. Initial status and setup redirect
   React.useEffect(() => {
-    const checkStatus = async () => {
+    const initStatus = async () => {
       try {
         const response = await fetch('/api/status')
         if (response.ok) {
           const data = await response.json()
           setSetupRequired(data.setup_required)
-          if (data.setup_required && activeTab !== 'settings') {
+          if (data.setup_required) {
             setActiveTab('settings')
           }
         }
       } catch (error) {
-        console.error('Failed to fetch status:', error)
+        console.error('Failed to init status:', error)
+      }
+    }
+    initStatus()
+  }, []) // Only on mount
+
+  // 2. Continuous status and counts polling
+  React.useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch('/api/status')
+        if (response.ok) {
+          const data = await response.json()
+          setSetupRequired(data.setup_required)
+        }
+      } catch (error) {
+        console.error('Failed to poll status:', error)
       }
     }
 
@@ -60,20 +76,19 @@ function AppContent() {
           setCounts(data)
         }
       } catch (e) {
-        console.error("Counts fetch error", e)
+        console.error("Counts poll error", e)
       }
     }
 
-    checkStatus()
-    fetchCounts()
-    // Check every 30 seconds
-    const statusInterval = setInterval(checkStatus, 30000)
+    fetchCounts() // Immediate first fetch for counts
+    const statusInterval = setInterval(fetchStatus, 30000)
     const countsInterval = setInterval(fetchCounts, 30000)
     return () => {
       clearInterval(statusInterval)
       clearInterval(countsInterval)
     }
-  }, [activeTab])
+  }, []) // Stable polling intervals
+
 
   // Report Base URL and handle Deep Links
   React.useEffect(() => {
