@@ -1837,6 +1837,41 @@ def get_status(db: Session = Depends(get_db)):
 def get_version():
     return {"version": VERSION}
 
+@app.post("/api/debug/push-test")
+async def debug_push_test(db: Session = Depends(get_db)):
+    """Triggers a manual push notification test using the last event in DB."""
+    # Fetch last event
+    last_event = db.query(TrafficEvent).order_by(TrafficEvent.created_at.desc()).first()
+    if not last_event:
+        return {"status": "error", "message": "No events found in DB to test with"}
+
+    subs = db.query(PushSubscription).all()
+    if not subs:
+        return {"status": "error", "message": "No subscriptions found"}
+
+    results = []
+    
+    # Construct payload similar to notify_subscribers
+    title = f"🧪 TEST: {last_event.title}"
+    # Ensure message is safe
+    message = last_event.location or "Ingen plats"
+    url = f"/?event_id={last_event.external_id}"
+    
+    logger.info(f"[DEBUG-PUSH] STARTING TEST. Sending to {len(subs)} subscribers. Title: {title}")
+
+    for sub in subs:
+        endpoint_masked = sub.endpoint[:30] + "..." if len(sub.endpoint) > 30 else sub.endpoint
+        try:
+            # We call the existing function
+            await send_push_notification(sub, title, message, url, db)
+            results.append({"endpoint": endpoint_masked, "status": "sent (check logs for success/fail)"})
+            logger.info(f"[DEBUG-PUSH] Sent to {sub.id} ({endpoint_masked})")
+        except Exception as e:
+            results.append({"endpoint": endpoint_masked, "status": f"failed: {str(e)}"})
+            logger.error(f"[DEBUG-PUSH] FAILED for {sub.id}: {e}")
+
+    return {"status": "completed", "results": results, "event_used": last_event.title}
+
 # Static files and SPA fallback
 if os.path.exists("static"):
     app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
