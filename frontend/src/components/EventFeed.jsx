@@ -5,6 +5,7 @@ import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as Histo
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
+import EventModal from './EventModal'
 
 const API_BASE = '/api'
 
@@ -32,7 +33,18 @@ const SEVERITY_COLORS = {
     'Mycket stor påverkan': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
 }
 
-import EventModal from './EventModal'
+// Helper for safe date formatting
+const safeFormat = (dateStr, fmt) => {
+    if (!dateStr) return ''
+    try {
+        const date = new Date(dateStr)
+        if (isNaN(date.getTime())) return ''
+        return format(date, fmt)
+    } catch (e) {
+        console.error('Date formatting error:', e, dateStr)
+        return ''
+    }
+}
 
 export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 'realtid' }) {
     const [events, setEvents] = useState([])
@@ -689,14 +701,14 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                         )}
 
                                         <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
-                                            title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${format(new Date(event.updated_at), 'yyyy-MM-dd HH:mm')}` : `Skapad: ${format(new Date(event.created_at), 'yyyy-MM-dd HH:mm')}`}>
+                                            title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${safeFormat(event.updated_at, 'yyyy-MM-dd HH:mm')}` : `Skapad: ${safeFormat(event.created_at, 'yyyy-MM-dd HH:mm')}`}>
                                             <Clock className="w-3 h-3" />
                                             {event.updated_at && event.updated_at !== event.created_at ? (
                                                 <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                                    {format(new Date(event.updated_at), 'HH:mm')}
+                                                    {safeFormat(event.updated_at, 'HH:mm')}
                                                 </span>
                                             ) : (
-                                                <span>{format(new Date(event.created_at), 'HH:mm')}</span>
+                                                <span>{safeFormat(event.created_at, 'HH:mm')}</span>
                                             )}
                                         </span>
                                     </div>
@@ -729,10 +741,10 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 {(event.start_time || event.end_time) && (
                                                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                                         <span>Gäller:</span>
-                                                        {event.start_time && <span className="text-slate-700 dark:text-slate-400">{format(new Date(event.start_time), 'd MMM HH:mm')}</span>}
+                                                        {event.start_time && <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.start_time, 'd MMM HH:mm')}</span>}
                                                         <span>→</span>
                                                         {event.end_time ? (
-                                                            <span className="text-slate-700 dark:text-slate-400">{format(new Date(event.end_time), 'd MMM HH:mm')}</span>
+                                                            <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.end_time, 'd MMM HH:mm')}</span>
                                                         ) : (
                                                             <span className="italic">Tillsvidare</span>
                                                         )}
@@ -750,7 +762,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                             <div className="space-y-1">
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                                        Uppdatering {format(new Date(version.version_timestamp), 'd MMM HH:mm:ss')}
+                                                                        Uppdatering {safeFormat(version.version_timestamp, 'd MMM HH:mm:ss')}
                                                                     </span>
                                                                     {version.severity_text && (
                                                                         <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${SEVERITY_COLORS[version.severity_text] || ''}`}>
