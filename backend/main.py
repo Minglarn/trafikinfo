@@ -1619,7 +1619,7 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
         )
         db.add(new_sub)
     db.commit()
-    return {"status": "ok", "count": len(subs)}
+    return {"status": "ok", "count": db.query(PushSubscription).count()}
 
 class ClientInterestRequest(BaseModel):
     client_id: str
