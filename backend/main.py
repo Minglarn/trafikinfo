@@ -1553,6 +1553,9 @@ async def report_base_url(payload: dict, db: Session = Depends(get_db)):
         
     return {"status": "ok", "base_url": base_url}
 
+# Mount snapshots directory
+app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")
+
 def get_vapid_keys(db: Session):
     private_key_setting = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
     public_key_setting = db.query(Settings).filter(Settings.key == "vapid_public_key").first()
@@ -1560,6 +1563,9 @@ def get_vapid_keys(db: Session):
     # Check if keys exist and are valid (PEM format)
     needs_generation = False
     
+    clean_private_pem = None
+    clean_public_b64 = None
+
     if not private_key_setting or not public_key_setting or not private_key_setting.value:
         needs_generation = True
     else:
@@ -1572,10 +1578,20 @@ def get_vapid_keys(db: Session):
             if isinstance(pem_data, str):
                 pem_data = pem_data.encode('utf-8')
                 
-            serialization.load_pem_private_key(
+            private_key = serialization.load_pem_private_key(
                 pem_data,
                 password=None
             )
+            
+            # RE-SERIALIZE to ensure perfect formatting for pywebpush
+            clean_private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            ).decode('utf-8')
+            
+            clean_public_b64 = public_key_setting.value.strip()
+            
         except Exception as e:
             logger.warning(f"Detected invalid/corrupt VAPID private key: {e}. Regenerating...")
             needs_generation = True
@@ -1589,7 +1605,7 @@ def get_vapid_keys(db: Session):
         pk = ec.generate_private_key(ec.SECP256R1())
         
         # VAPID private key in PEM format (accepted by pywebpush)
-        private_pem = pk.private_bytes(
+        clean_private_pem = pk.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
@@ -1602,25 +1618,24 @@ def get_vapid_keys(db: Session):
         )
         
         # Use URL-safe Base64 without padding for the public key string (client-side requirement)
-        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
+        clean_public_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
         if not private_key_setting:
-            private_key_setting = Settings(key="vapid_private_key", value=private_pem)
+            private_key_setting = Settings(key="vapid_private_key", value=clean_private_pem)
             db.add(private_key_setting)
         else:
-            private_key_setting.value = private_pem
+            private_key_setting.value = clean_private_pem
             
         if not public_key_setting:
-            public_key_setting = Settings(key="vapid_public_key", value=public_key_b64)
+            public_key_setting = Settings(key="vapid_public_key", value=clean_public_b64)
             db.add(public_key_setting)
         else:
-            public_key_setting.value = public_key_b64
+            public_key_setting.value = clean_public_b64
             
         db.commit()
         logger.info("VAPID keys generated/updated successfully.")
-        return private_pem, public_key_b64
         
-    return private_key_setting.value.strip(), public_key_setting.value.strip()
+    return clean_private_pem, clean_public_b64
 
 @app.get("/api/push/vapid-public-key")
 def get_vapid_public_key(db: Session = Depends(get_db)):
