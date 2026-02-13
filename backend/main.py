@@ -105,7 +105,7 @@ class PushSubscriptionSchema(BaseModel):
     counties: str = ""
     min_severity: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.48")
+app = FastAPI(title="Trafikinfo API", version="26.2.49")
 
 class LoginRequest(BaseModel):
     password: str
@@ -197,6 +197,13 @@ async def startup_event():
     selected_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
     
     mqtt_enabled = db.query(Settings).filter(Settings.key == "mqtt_enabled").first()
+    
+    # FORCED CLEAR of old VAPID keys if they are not in PEM format
+    vapid_priv = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
+    if vapid_priv and not vapid_priv.value.startswith("-----BEGIN"):
+        logger.info("Outdated VAPID key format detected. Clearing for regeneration...")
+        db.query(Settings).filter(Settings.key.in_(["vapid_private_key", "vapid_public_key"])).delete(synchronize_session=False)
+        db.commit()
     
     mqtt_config = {
         "enabled": mqtt_enabled.value.lower() == "true" if mqtt_enabled else False
@@ -325,12 +332,52 @@ def start_worker(api_key: str, county_ids: list = None):
 
     # Start camera sync
     global camera_sync_task
-    camera_sync_task = asyncio.create_task(periodic_camera_sync())
+    if not camera_sync_task or camera_sync_task.done():
+        camera_sync_task = asyncio.create_task(periodic_camera_sync())
     
     # Start icon sync
     asyncio.create_task(sync_icons())
     
-    logger.info(f"Trafikinfo Flux v{VERSION} started")
+    # Start dynamic county manager
+    global dynamic_worker_task
+    if not dynamic_worker_task or dynamic_worker_task.done():
+        dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key))
+    
+    logger.info(f"Trafikinfo Flux v{VERSION} started with counties: {county_ids if county_ids else 'ALL'}")
+
+dynamic_worker_task = None
+
+async def dynamic_worker_manager(api_key: str):
+    """Periodically check if we need to restart workers due to new subscribers selecting different counties."""
+    current_counties = set()
+    while True:
+        try:
+            await asyncio.sleep(300) # Every 5 minutes
+            db = SessionLocal()
+            try:
+                # 1. Get system counties
+                system_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                system_counties = set(system_setting.value.split(",")) if system_setting and system_setting.value else set()
+                
+                # 2. Get subscriber counties
+                subs = db.query(PushSubscription).all()
+                subscriber_counties = set()
+                for sub in subs:
+                    if sub.counties:
+                        subscriber_counties.update(sub.counties.split(","))
+                
+                # 3. Combine
+                needed_counties = system_counties.union(subscriber_counties)
+                
+                # 4. If changed, restart
+                if needed_counties != current_counties:
+                    logger.info(f"Detected change in required counties: {current_counties} -> {needed_counties}. Restarting workers...")
+                    current_counties = needed_counties
+                    start_worker(api_key, list(needed_counties) if needed_counties else None)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in dynamic_worker_manager: {e}")
 
 async def periodic_camera_sync():
     """Background task to sync cameras with DB every 5 minutes."""
@@ -415,22 +462,21 @@ async def refresh_cameras(api_key: str):
     # Keep legacy for stability during transition if needed
     pass
 
-async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_url: str = None):
-    """Download camera image and save it to the snapshots directory."""
+async def download_camera_snapshot(url: str, event_id: str, county_no: int, explicit_fullsize_url: str = None):
+    """Download camera image and save it to the snapshots directory, organized by county."""
     if not url:
         return None
     
-    # Prioritize explicit fullsize URL from API, otherwise try to guess it
+    # Organize snapshots by county
+    county_dir = os.path.join(SNAPSHOTS_DIR, str(county_no))
+    if not os.path.exists(county_dir):
+        os.makedirs(county_dir, exist_ok=True)
+
+    # Prioritize explicit fullsize URL from API
     fullsize_url = explicit_fullsize_url or url
-    filename = f"{event_id}_{int(datetime.now().timestamp())}"
-    if explicit_fullsize_url and "api.trafikinfo.trafikverket.se" in url:
-        # Just to differentiate in logs and potentially filename if we wanted
-        pass
-    
-    # Ensure filename is unique if called multiple times for same event
-    # We'll use the camera URL hash or just allow the caller to provide a more specific event_id
-    filename = f"{filename}.jpg"
-    filepath = os.path.join(SNAPSHOTS_DIR, filename)
+    filename = f"{event_id}_{int(datetime.now().timestamp())}.jpg"
+    relative_path = f"{county_no}/{filename}"
+    filepath = os.path.join(SNAPSHOTS_DIR, relative_path)
     
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -470,7 +516,7 @@ async def download_camera_snapshot(url: str, event_id: str, explicit_fullsize_ur
                     f.write(response.content)
                 
                 logger.debug(f"Saved snapshot to {filepath} ({content_size} bytes)")
-                return filename
+                return relative_path
             else:
                 logger.warning(f"Failed to download snapshot from {url}: {response.status_code}")
     except Exception as e:
@@ -524,9 +570,6 @@ async def event_processor():
                             except:
                                 has_missing_extra = True
 
-                        if not existing.extra_cameras or has_missing_extra or loc_changed:
-                            needs_camera_sync = True
-
                     if needs_camera_sync:
                         # Find nearby cameras
                         nearby_cams = find_nearby_cameras(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
@@ -546,7 +589,7 @@ async def event_processor():
                                     
                                 # Ensure we have a safe ID for the filename
                                 cam_id_safe = str(c.get('id', idx)).replace(":", "_")
-                                c_snap = await download_camera_snapshot(cam_url, f"{ev['external_id']}_{cam_id_safe}", c.get('fullsize_url'))
+                                c_snap = await download_camera_snapshot(cam_url, f"{ev['external_id']}_{cam_id_safe}", ev.get('county_no', 0), c.get('fullsize_url'))
                                 extra_cams_data.append({
                                     "id": c.get('id'),
                                     "name": c.get('name'),
@@ -654,10 +697,10 @@ async def event_processor():
                                 pass
                         else:
                             # No significant change and no sync needed
-                            if existing.camera_url and not existing.camera_snapshot:
-                                existing.camera_snapshot = await download_camera_snapshot(existing.camera_url, ev['external_id'], None)
-                            if extra_cameras_json:
-                                existing.extra_cameras = extra_cameras_json
+                            if camera_url and not existing.camera_snapshot:
+                                existing.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], ev.get('county_no', 0), fullsize_url)
+                        
+                        existing.extra_cameras = extra_cameras_json
 
                         db.commit()
                         new_event = existing
@@ -685,13 +728,13 @@ async def event_processor():
                             extra_cameras=extra_cameras_json
                         )
                         db.add(new_event)
-                        db.commit() 
-                        
-                        # Download snapshot
+                        db.commit()                        # Save primary snapshot
+                        snapshot = None
                         if camera_url:
-                            new_event.camera_snapshot = await download_camera_snapshot(camera_url, ev['external_id'], fullsize_url)
-                            db.commit()
+                            snapshot = await download_camera_snapshot(camera_url, ev['external_id'], ev.get('county_no', 0), fullsize_url)
                         
+                        new_event.camera_snapshot = snapshot
+                        db.commit()
                         db.refresh(new_event)
 
                     # MQTT & Broadcast (Unified for New & Updated)
@@ -875,7 +918,7 @@ async def road_condition_processor():
                              if camera_url:
                                  target_id = existing.id if existing else rc['id']
                                  fullsize_url = primary.get('fullsize_url')
-                                 camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{target_id}", fullsize_url)
+                                 camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{target_id}", rc.get('county_no', 0), fullsize_url)
 
                     final_rc = None
                     if existing:
@@ -1491,9 +1534,13 @@ def get_vapid_keys(db: Session):
         from cryptography.hazmat.primitives.asymmetric import ec
         
         pk = ec.generate_private_key(ec.SECP256R1())
-        # VAPID private key is just the 32-byte D value
-        private_bytes = pk.private_numbers().private_value.to_bytes(32, 'big')
-        private_key_b64 = base64.urlsafe_b64encode(private_bytes).decode('utf-8').rstrip('=')
+        
+        # VAPID private key in PEM format (accepted by pywebpush)
+        private_pem = pk.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode('utf-8')
         
         # Public key for VAPID is the 65-byte uncompressed point (0x04 + X + Y)
         public_key_bytes = pk.public_key().public_bytes(
@@ -1503,9 +1550,9 @@ def get_vapid_keys(db: Session):
         public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
         if not private_key_setting:
-            db.add(Settings(key="vapid_private_key", value=private_key_b64))
+            db.add(Settings(key="vapid_private_key", value=private_pem))
         else:
-            private_key_setting.value = private_key_b64
+            private_key_setting.value = private_pem
             
         if not public_key_setting:
             db.add(Settings(key="vapid_public_key", value=public_key_b64))
@@ -1513,7 +1560,7 @@ def get_vapid_keys(db: Session):
             public_key_setting.value = public_key_b64
             
         db.commit()
-        return private_key_b64, public_key_b64
+        return private_pem, public_key_b64
         
     return private_key_setting.value, public_key_setting.value
 
