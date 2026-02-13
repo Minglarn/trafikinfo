@@ -131,6 +131,12 @@ class PushSubscription(Base):
     counties = Column(String) # Comma separated list of county numbers
     min_severity = Column(Integer, default=1)
 
+class ClientInterest(Base):
+    __tablename__ = "client_interests"
+    client_id = Column(String, primary_key=True, index=True) # UUID
+    counties = Column(String) # Comma-separated list
+    last_active = Column(DateTime, default=datetime.datetime.utcnow)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     migrate_db()
@@ -144,6 +150,8 @@ def init_db():
         RoadCondition.__table__.create(bind=engine)
     if "push_subscriptions" not in inspector.get_table_names():
         PushSubscription.__table__.create(bind=engine)
+    if "client_interests" not in inspector.get_table_names():
+        ClientInterest.__table__.create(bind=engine)
 
 def migrate_db():
     from sqlalchemy import inspect, text

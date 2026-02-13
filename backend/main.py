@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 import base64
 
-from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription, ClientInterest
 from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras, parse_road_condition
 
@@ -1365,21 +1365,6 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
         })
     return result
 
-class PushSubscription(Base):
-    __tablename__ = "push_subscriptions"
-    id = Column(Integer, primary_key=True, index=True)
-    endpoint = Column(String, unique=True, index=True)
-    p256dh = Column(String)
-    auth = Column(String)
-    counties = Column(String) # Comma-separated list of county IDs
-    min_severity = Column(Integer, default=1)
-    ua_hash = Column(String) # Hash of User-Agent to group devices if needed
-
-class ClientInterest(Base):
-    __tablename__ = "client_interests"
-    client_id = Column(String, primary_key=True, index=True) # UUID
-    counties = Column(String) # Comma-separated list
-    last_active = Column(DateTime, default=datetime.utcnow)
 
 @app.get("/api/road-conditions")
 def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
