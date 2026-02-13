@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext'
 const API_BASE = '/api'
 
 const SWEDISH_COUNTIES = [
-    { id: '0', name: 'Alla län' },
     { id: '1', name: 'Stockholms län' },
     { id: '2', name: 'Stockholms län (Legacy)' },
     { id: '3', name: 'Uppsala län' },
@@ -38,6 +37,7 @@ export default function Settings() {
         mqtt_host: 'localhost',
         mqtt_port: '1883',
         mqtt_topic: 'trafikinfo/events',
+        mqtt_enabled: 'false',
         selected_counties: '1,4', // Default
         retention_days: '30' // Default 30 days
     })
@@ -46,6 +46,17 @@ export default function Settings() {
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [pushEnabled, setPushEnabled] = useState(false)
     const [subscribing, setSubscribing] = useState(false)
+    const [status, setStatus] = useState(null)
+
+    // NEW: Local state for user's own preferred counties (for notifications)
+    const [localCounties, setLocalCounties] = useState(() => {
+        const saved = localStorage.getItem('localCounties')
+        return saved ? saved.split(',') : ['1', '4']
+    })
+
+    useEffect(() => {
+        localStorage.setItem('localCounties', localCounties.join(','))
+    }, [localCounties])
 
     const performFactoryReset = async () => {
         if (!isLoggedIn) return
@@ -58,16 +69,15 @@ export default function Settings() {
             setMessage({ type: 'error', text: 'Kunde inte återställa systemet.' })
         }
     }
-    const toggleCounty = (id) => {
-        const currentCounties = settings.selected_counties ? settings.selected_counties.split(',') : []
-        let newCounties
-        if (currentCounties.includes(id)) {
-            newCounties = currentCounties.filter(c => c !== id)
-        } else {
-            newCounties = [...currentCounties, id]
-        }
-        setSettings({ ...settings, selected_counties: newCounties.join(',') })
+
+    const toggleLocalCounty = (id) => {
+        setLocalCounties(prev =>
+            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+        )
     }
+
+    const selectAllCounties = () => setLocalCounties(SWEDISH_COUNTIES.map(c => c.id))
+    const clearCounties = () => setLocalCounties([])
 
     const [soundEnabled, setSoundEnabled] = useState(false)
     const [soundFile, setSoundFile] = useState('chime1.mp3')
@@ -92,6 +102,9 @@ export default function Settings() {
                 })
             })
         }
+
+        // Fetch current system status (for MQTT connection check)
+        axios.get(`${API_BASE}/status`).then(res => setStatus(res.data)).catch(() => { })
     }, [])
 
     const urlBase64ToUint8Array = (base64String) => {
@@ -145,7 +158,7 @@ export default function Settings() {
                 await axios.post(`${API_BASE}/push/subscribe`, {
                     endpoint: subscription.endpoint,
                     keys: { p256dh, auth },
-                    counties: settings.selected_counties,
+                    counties: localCounties.join(','), // Use user's local selection
                     min_severity: 1
                 })
                 setPushEnabled(true)
@@ -177,13 +190,14 @@ export default function Settings() {
         try {
             await axios.post(`${API_BASE}/settings`, settings)
             setMessage({ type: 'success', text: 'Inställningarna har sparats!' })
+            // Refresh status to show MQTT connection update
+            const res = await axios.get(`${API_BASE}/status`)
+            setStatus(res.data)
         } catch (error) {
             setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' })
         }
         setSaving(false)
     }
-
-    const selectedCountiesList = settings.selected_counties ? settings.selected_counties.split(',') : []
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 pb-20 relative">
@@ -252,18 +266,36 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* Regional bevakning (Counties) - Public now */}
+                    {/* Regional bevakning (Counties) - Multi-user friendly */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
-                        <div className="flex items-center gap-3 mb-2">
-                            <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Regional bevakning</h3>
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                            <div className="flex items-center gap-3">
+                                <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Min bevakning</h3>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={selectAllCounties}
+                                    className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg hover:bg-blue-500/20 transition-colors"
+                                >
+                                    Alla län
+                                </button>
+                                <button
+                                    onClick={clearCounties}
+                                    className="text-[10px] uppercase font-bold text-slate-500 bg-slate-500/10 px-2 py-1 rounded-lg hover:bg-slate-500/20 transition-colors"
+                                >
+                                    Rensa val
+                                </button>
+                            </div>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Välj vilka län du vill bevaka. Inställningen sparas lokalt för dina push-notiser.</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Välj dina regioner. Dessa används för dina personliga push-notiser.
+                        </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                             {SWEDISH_COUNTIES.map((county) => (
                                 <label
                                     key={county.id}
-                                    className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${selectedCountiesList.includes(county.id)
+                                    className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${localCounties.includes(county.id)
                                         ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
                                         : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                                         }`}
@@ -271,12 +303,16 @@ export default function Settings() {
                                     <input
                                         type="checkbox"
                                         className="hidden"
-                                        checked={selectedCountiesList.includes(county.id)}
-                                        onChange={() => toggleCounty(county.id)}
+                                        checked={localCounties.includes(county.id)}
+                                        onChange={() => toggleLocalCounty(county.id)}
                                     />
                                     <span className="text-sm font-medium">{county.name}</span>
                                 </label>
                             ))}
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                            <span>{localCounties.length} län valda</span>
+                            <span className="italic">Sparas i din webbläsare</span>
                         </div>
                     </div>
 
@@ -303,7 +339,7 @@ export default function Settings() {
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
                                 <div className="flex items-center gap-3 mb-2">
                                     <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Generellt</h3>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Systemets grunddata</h3>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Kameraradie (km)</label>
@@ -315,7 +351,18 @@ export default function Settings() {
                                         min="1"
                                         max="50"
                                     />
-                                    <p className="text-xs text-slate-500">Sökområde för att matcha kameror mot händelser.</p>
+                                    <p className="text-xs text-slate-500">Sökområde för att hämta närliggande kameror.</p>
+                                </div>
+                                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Bevakade län (Globalt)</label>
+                                    <input
+                                        type="text"
+                                        value={settings.selected_counties ?? ''}
+                                        onChange={(e) => setSettings({ ...settings, selected_counties: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
+                                        placeholder="t.ex. 1,4,12"
+                                    />
+                                    <p className="text-xs text-slate-500 italic">Vilka län servern hämtar data för från Trafikverket.</p>
                                 </div>
                             </div>
 
@@ -376,13 +423,22 @@ export default function Settings() {
                                 </div>
                             </div>
 
-
                             {/* MQTT */}
                             <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
                                 <div className="flex items-center justify-between gap-3 mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-3">
+                                            <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
+                                        </div>
+                                        {status?.mqtt && (
+                                            <div className="flex items-center gap-1.5 mt-1 ml-8">
+                                                <div className={`w-1.5 h-1.5 rounded-full ${status.mqtt.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                                    {status.mqtt.connected ? 'Ansluten' : 'Frånkopplad'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
@@ -392,6 +448,12 @@ export default function Settings() {
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
                                 </div>
+
+                                {settings.mqtt_enabled === 'true' && (
+                                    <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[10px] text-blue-600 dark:text-blue-400">
+                                        ℹ️ Tryck på <strong>Spara systeminställningar</strong> nedan för att verkställa ändringar i MQTT-kopplingen.
+                                    </div>
+                                )}
                             </div>
 
                             {/* Reset Confirm */}

@@ -16,7 +16,10 @@ function RoadConditions() {
     const observerTarget = useRef(null)
 
     // Filtering state
-    const [selectedCounties, setSelectedCounties] = useState([])
+    const [selectedCounties, setSelectedCounties] = useState(() => {
+        const saved = localStorage.getItem('localCounties')
+        return saved ? saved.split(',') : []
+    })
     const [roadFilter, setRoadFilter] = useState('')
     const [allowedCounties, setAllowedCounties] = useState([])
 
@@ -171,18 +174,13 @@ function RoadConditions() {
     }
 
     const toggleCounty = (countyId) => {
+        const idStr = countyId.toString()
         setSelectedCounties(prev => {
             if (countyId === 'Alla') return []
-
-            // If currently empty (showing all), and clicking a county, select just that one
-            // If clicking 'Alla', clear selection
-
-            const isSelected = prev.includes(countyId)
-            if (isSelected) {
-                return prev.filter(id => id !== countyId)
-            } else {
-                return [...prev, countyId]
-            }
+            const isSelected = prev.includes(idStr)
+            const next = isSelected ? prev.filter(id => id !== idStr) : [...prev, idStr]
+            localStorage.setItem('localCounties', next.join(','))
+            return next
         })
     }
 
@@ -276,13 +274,13 @@ function RoadConditions() {
                             Alla län
                         </button>
                         {allowedCounties.map(county => {
-                            const isSelected = selectedCounties.includes(county.id)
+                            const isSelected = selectedCounties.includes(county.id.toString())
                             return (
                                 <button
                                     key={county.id}
                                     onClick={() => toggleCounty(county.id)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isSelected
-                                        ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900'
+                                        ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                                         }`}
                                 >

@@ -44,7 +44,10 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
-    const [activeCounties, setActiveCounties] = useState([])
+    const [activeCounties, setActiveCounties] = useState(() => {
+        const saved = localStorage.getItem('localCounties')
+        return saved ? saved.split(',').map(id => parseInt(id)) : []
+    })
     const [showFilters, setShowFilters] = useState(false)
     const [activeTabs, setActiveTabs] = useState({}) // { eventId: 'current' | 'history' }
     const [eventHistory, setEventHistory] = useState({}) // { externalId: [] }
@@ -53,7 +56,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
     // Constants for Counties
     const COUNTIES = [
-        { id: 0, name: 'Alla län' },
         { id: 1, name: 'Stockholm' },
         { id: 2, name: 'Stockholm' }, // Handle legacy ID 2 as Stockholm
         { id: 3, name: 'Uppsala' },
@@ -150,9 +152,11 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     }
 
     const toggleCounty = (id) => {
-        setActiveCounties(prev =>
-            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-        )
+        setActiveCounties(prev => {
+            const next = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+            localStorage.setItem('localCounties', next.join(','))
+            return next
+        })
     }
 
     const clearFilters = () => {

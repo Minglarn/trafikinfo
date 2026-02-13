@@ -1491,13 +1491,11 @@ def get_vapid_keys(db: Session):
         from cryptography.hazmat.primitives.asymmetric import ec
         
         pk = ec.generate_private_key(ec.SECP256R1())
-        private_key_pem = pk.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
+        # VAPID private key is just the 32-byte D value
+        private_bytes = pk.private_numbers().private_value.to_bytes(32, 'big')
+        private_key_b64 = base64.urlsafe_b64encode(private_bytes).decode('utf-8').rstrip('=')
         
-        # Public key for VAPID needs to be the uncompressed point (65 bytes)
+        # Public key for VAPID is the 65-byte uncompressed point (0x04 + X + Y)
         public_key_bytes = pk.public_key().public_bytes(
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
@@ -1505,9 +1503,9 @@ def get_vapid_keys(db: Session):
         public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
         if not private_key_setting:
-            db.add(Settings(key="vapid_private_key", value=private_key_pem))
+            db.add(Settings(key="vapid_private_key", value=private_key_b64))
         else:
-            private_key_setting.value = private_key_pem
+            private_key_setting.value = private_key_b64
             
         if not public_key_setting:
             db.add(Settings(key="vapid_public_key", value=public_key_b64))
@@ -1515,7 +1513,7 @@ def get_vapid_keys(db: Session):
             public_key_setting.value = public_key_b64
             
         db.commit()
-        return private_key_pem, public_key_b64
+        return private_key_b64, public_key_b64
         
     return private_key_setting.value, public_key_setting.value
 
