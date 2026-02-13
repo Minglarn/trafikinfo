@@ -1473,6 +1473,38 @@ def get_settings(db: Session = Depends(get_db)):
         res["api_key"] = "" # Secret removed for GitHub safety
     return res
 
+@app.get("/api/status/counts")
+def get_status_counts(db: Session = Depends(get_db)):
+    now = datetime.now()
+    
+    # Base query for non-expired events
+    active_events_query = db.query(TrafficEvent).filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+    
+    # Realtid: Started AND (End is NULL OR Duration < 5 days)
+    realtid_count = active_events_query.filter(
+        (TrafficEvent.start_time <= now) & 
+        ((TrafficEvent.end_time == None) | (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5))
+    ).count()
+    
+    # Planned: Upcoming (start in future) OR Long-term (duration >= 5 days)
+    planned_count = active_events_query.filter(
+        (TrafficEvent.start_time > now) | 
+        ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
+    ).count()
+    
+    # Road Conditions: Active only (not expired)
+    rc_count = db.query(RoadCondition).filter((RoadCondition.end_time == None) | (RoadCondition.end_time > now)).count()
+    
+    # Cameras: Total count
+    camera_count = db.query(Camera).count()
+    
+    return {
+        "feed": realtid_count,
+        "planned": planned_count,
+        "road-conditions": rc_count,
+        "cameras": camera_count
+    }
+
 @app.get("/api/status")
 def get_status(db: Session = Depends(get_db)):
     global tv_stream

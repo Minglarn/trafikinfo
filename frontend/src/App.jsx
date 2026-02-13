@@ -27,7 +27,15 @@ function AppContent() {
   // Setup state
   const [setupRequired, setSetupRequired] = useState(false)
 
-  // Fetch status and check if setup is required
+  // Tab Counts State
+  const [counts, setCounts] = useState({
+    feed: 0,
+    planned: 0,
+    'road-conditions': 0,
+    cameras: 0
+  })
+
+  // Fetch status and counts
   React.useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -43,10 +51,28 @@ function AppContent() {
         console.error('Failed to fetch status:', error)
       }
     }
+
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch('/api/status/counts')
+        if (res.ok) {
+          const data = await res.json()
+          setCounts(data)
+        }
+      } catch (e) {
+        console.error("Counts fetch error", e)
+      }
+    }
+
     checkStatus()
+    fetchCounts()
     // Check every 30 seconds
-    const interval = setInterval(checkStatus, 30000)
-    return () => clearInterval(interval)
+    const statusInterval = setInterval(checkStatus, 30000)
+    const countsInterval = setInterval(fetchCounts, 30000)
+    return () => {
+      clearInterval(statusInterval)
+      clearInterval(countsInterval)
+    }
   }, [activeTab])
 
   // Report Base URL and handle Deep Links
@@ -99,6 +125,7 @@ function AppContent() {
         theme={theme}
         toggleTheme={toggleTheme}
         onOpenLogin={() => setIsLoginModalOpen(true)}
+        counts={counts}
       />
 
       {/* Main Content Area */}
@@ -117,7 +144,7 @@ function AppContent() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} />
 
       <LoginModal
         isOpen={isLoginModalOpen}

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar } from 'lucide-react'
 
-const BottomNav = ({ activeTab, setActiveTab }) => {
+const BottomNav = ({ activeTab, setActiveTab, counts = {} }) => {
     const tabs = [
         { id: 'feed', icon: Activity, label: 'Realtid' },
         { id: 'planned', icon: Calendar, label: 'Planerat' },
@@ -15,6 +15,7 @@ const BottomNav = ({ activeTab, setActiveTab }) => {
             {tabs.map((item) => {
                 const Icon = item.icon
                 const isActive = activeTab === item.id
+                const count = counts[item.id] || 0
 
                 return (
                     <button
@@ -25,7 +26,14 @@ const BottomNav = ({ activeTab, setActiveTab }) => {
                             : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400'
                             }`}
                     >
-                        <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''} transition-transform`} />
+                        <div className="relative">
+                            <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''} transition-transform`} />
+                            {count > 0 && (
+                                <span className="absolute -top-1.5 -right-2 bg-blue-600 text-white text-[8px] font-black px-1 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center min-w-[16px] h-4">
+                                    {count > 99 ? '99+' : count}
+                                </span>
+                            )}
+                        </div>
                         <span className={`text-[10px] font-bold mt-1 transition-all ${isActive ? 'opacity-100' : 'opacity-70'}`}>
                             {item.label}
                         </span>

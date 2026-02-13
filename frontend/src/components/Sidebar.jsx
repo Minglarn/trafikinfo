@@ -4,7 +4,7 @@ import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarC
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
-export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin, counts }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { isLoggedIn, logout } = useAuth()
 
@@ -18,7 +18,6 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
         { id: 'settings', label: 'Inställningar', icon: Settings },
     ]
 
-    // Poll system status
     const [status, setStatus] = useState({
         trafikverket: { connected: false },
         mqtt: { connected: false }
@@ -36,9 +35,10 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
                 console.error("Status fetch error", e)
             }
         }
+
         fetchStatus()
-        const interval = setInterval(fetchStatus, 5000)
-        return () => clearInterval(interval)
+        const statusInterval = setInterval(fetchStatus, 5000)
+        return () => clearInterval(statusInterval)
     }, [])
 
     return (
@@ -72,20 +72,31 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all font-medium ${isActive
+                            className={`w-full flex items-center justify-between p-3 rounded-xl transition-all font-medium ${isActive
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                         >
-                            <Icon className="w-6 h-6 min-w-6" />
-                            {!isCollapsed && (
-                                <motion.span
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="whitespace-nowrap"
-                                >
-                                    {item.label}
-                                </motion.span>
+                            <div className="flex items-center gap-4">
+                                <Icon className="w-6 h-6 min-w-6" />
+                                {!isCollapsed && (
+                                    <motion.span
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="whitespace-nowrap"
+                                    >
+                                        {item.label}
+                                    </motion.span>
+                                )}
+                            </div>
+
+                            {counts[item.id] > 0 && (
+                                <div className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${isActive
+                                    ? 'bg-white text-blue-600'
+                                    : 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                                    }`}>
+                                    {counts[item.id] > 99 ? '99+' : counts[item.id]}
+                                </div>
                             )}
                         </button>
                     )
