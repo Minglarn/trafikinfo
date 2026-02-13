@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.30-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.40-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -14,6 +14,8 @@ Ett modernt system för att visa trafikinformation från Trafikverket i realtid.
 ## Funktioner
 
 - **Historik**: Sökbar databas över alla historiska händelser och versionsändringar.
+- **Väglag**: Full kontroll på vinterväglag, halka och snöröjning med kamerabilder och mätstationer.
+- **Planerat**: Separat vy för långsiktiga vägarbeten och kommande händelser.
 
 ## Kom igång med Docker Compose
 
@@ -96,9 +98,36 @@ Payloaden innehåller nu färdiga länkar för notiser:
 }
 ```
 
-### Exempel på Automation i Home Assistant
+### Road Conditions (Väglag) MQTT Payload
+Information om väglag publiceras på `trafikinfo/road_conditions` (standard).
 
-Använd följande YAML för att få snygga notiser med bild i din telefon när något händer:
+```json
+{
+  "id": 6000,
+  "external_id": "GUID7ac91d88-b9b6-4409-b6ff-8e4d4e3a7c1d",
+  "condition_code": 3,
+  "condition_text": "Lössnö",
+  "measure": "Halkbekämpning pågår",
+  "warning": "Risk för halka",
+  "cause": "Snöfall",
+  "location_text": "Lämmetshöjen",
+  "icon_id": "roadConditionSnow",
+  "icon_url": "http://192.168.1.50:7081/api/icons/roadConditionSnow.png",
+  "road_number": "E18",
+  "start_time": "2026-02-13T07:54:00",
+  "end_time": null,
+  "latitude": 59.324,
+  "longitude": 14.231,
+  "county_no": 17,
+  "camera_url": "http://192.168.1.50:7081/api/snapshots/GUID396...jpg",
+  "camera_name": "Lämmetshöjen",
+  "camera_snapshot": "GUID396...jpg",
+  "timestamp": "2026-02-13T08:55:12"
+}
+```
+
+### Exempel på Automation i Home Assistant
+Använd följande YAML för att få notiser om trafikolyckor:
 
 ```yaml
 alias: "Trafikavisering: Olycka"
@@ -118,6 +147,27 @@ action:
         clickAction: "{{ trigger.payload_json.event_url }}"
         tag: "{{ trigger.payload_json.external_id }}"
         icon_url: "{{ trigger.payload_json.mdi_icon }}" # Använd mdi_icon för native HA-stöd (slipp Basic Auth)
+```
+
+#### Automation för Väglag (Halka)
+Få aviseringar när väglaget försämras i dina bevakade län:
+
+```yaml
+alias: "Trafikavisering: Halka"
+trigger:
+  - platform: mqtt
+    topic: "trafikinfo/road_conditions"
+condition:
+  - condition: template
+    value_template: "{{ trigger.payload_json.warning != none }}"
+action:
+  - service: notify.mobile_app_din_telefon
+    data:
+      title: "❄️ Väglag: {{ trigger.payload_json.condition_text }}"
+      message: "{{ trigger.payload_json.location_text }}: {{ trigger.payload_json.warning }}. {{ trigger.payload_json.measure }}"
+      data:
+        image: "{{ trigger.payload_json.camera_url }}"
+        tag: "{{ trigger.payload_json.external_id }}"
 ```
 
 > [!TIP]
