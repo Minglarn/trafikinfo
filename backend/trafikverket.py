@@ -298,8 +298,13 @@ def parse_road_condition(json_data):
                     latitude = float(match.group(2))
 
             # County
-            counties = rc.get('CountyNo', [])
-            county_no = counties[0] if counties and isinstance(counties, list) else (counties if isinstance(counties, int) else 0)
+            # County
+            raw_counties = rc.get('CountyNo', [])
+            county_no = 0
+            if isinstance(raw_counties, list) and len(raw_counties) > 0:
+                county_no = raw_counties[0]
+            elif isinstance(raw_counties, int):
+                county_no = raw_counties
 
             condition = {
                 "id": rc_id,
