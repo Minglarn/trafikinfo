@@ -1,12 +1,14 @@
 fastapi
 uvicorn
-paho-mqtt
 httpx
 sse-starlette
 sqlalchemy
 python-dotenv
 pydantic
-pydantic-settings
-asyncio
+python-multipart
+uvicorn
+gunicorn
+py-vapid
+cryptography
 pywebpush
 cryptography
