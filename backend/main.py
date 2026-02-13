@@ -47,13 +47,16 @@ os.makedirs(ICONS_DIR, exist_ok=True)
 
 # Defaults for fresh install
 DEFAULTS = {
-    "camera_radius_km": "5.0",
-    "selected_counties": "1,4",  # Stockholm & Södermanland
+    "camera_radius_km": "8.0",
+    "selected_counties": "1",  # Stockholm
     "mqtt_enabled": "false",
     "mqtt_host": "localhost",
     "mqtt_port": "1883",
-    "mqtt_topic": "trafikinfo/events",
-    "retention_days": "30"
+    "mqtt_topic": "trafikinfo/traffic",
+    "mqtt_rc_topic": "trafikinfo/road_conditions",
+    "retention_days": "30",
+    "push_notifications_enabled": "false",
+    "sound_notifications_enabled": "false"
 }
 
 MDI_ICON_MAP = {
@@ -105,6 +108,8 @@ class PushSubscriptionSchema(BaseModel):
     keys: dict # contains p256dh and auth
     counties: str = ""
     min_severity: int = 1
+    topic_realtid: int = 1
+    topic_road_condition: int = 1
 
 app = FastAPI(title="Trafikinfo API", version="26.2.53")
 
@@ -171,65 +176,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-    
-    # Load settings & seed from environment if database is empty
-    db = SessionLocal()
-    
-    # Seed defaults if database keys are missing
-    for key, val in DEFAULTS.items():
-        existing = db.query(Settings).filter(Settings.key == key).first()
-        if not existing:
-            logger.info(f"Seeding default setting '{key}' = '{val}'")
-            db.add(Settings(key=key, value=val))
-
-    db.commit()
-
-    # Re-fetch all settings after seeding
-    api_key_set = db.query(Settings).filter(Settings.key == "api_key").first()
-    mqtt_host = db.query(Settings).filter(Settings.key == "mqtt_host").first()
-    mqtt_port = db.query(Settings).filter(Settings.key == "mqtt_port").first()
-    mqtt_user = db.query(Settings).filter(Settings.key == "mqtt_username").first()
-    mqtt_pass = db.query(Settings).filter(Settings.key == "mqtt_password").first()
-    mqtt_topic = db.query(Settings).filter(Settings.key == "mqtt_topic").first()
-    selected_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
-    
-    mqtt_enabled = db.query(Settings).filter(Settings.key == "mqtt_enabled").first()
-    
-    # FORCED CLEAR of old VAPID keys if they are not in PEM format
-    vapid_priv = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
-    if vapid_priv and not vapid_priv.value.startswith("-----BEGIN"):
-        logger.info("Outdated VAPID key format detected. Clearing for regeneration...")
-        db.query(Settings).filter(Settings.key.in_(["vapid_private_key", "vapid_public_key"])).delete(synchronize_session=False)
-        db.commit()
-    
-    mqtt_config = {
-        "enabled": mqtt_enabled.value.lower() == "true" if mqtt_enabled else False
-    }
-    if mqtt_host: mqtt_config["host"] = mqtt_host.value
-    if mqtt_port: mqtt_config["port"] = int(mqtt_port.value)
-    if mqtt_user: mqtt_config["username"] = mqtt_user.value
-    if mqtt_pass: mqtt_config["password"] = mqtt_pass.value
-    if mqtt_topic: mqtt_config["topic"] = mqtt_topic.value
-
-    # Parse selected counties (stored as comma-separated string)
-    county_ids = ["1", "4"] # Default Stockholm/Södermanland
-    if selected_counties and selected_counties.value:
-        try:
-            county_ids = selected_counties.value.split(",")
-        except:
-            pass
-
-    if mqtt_config:
-        mqtt_client.update_config(mqtt_config)
-    
-    if api_key_set and api_key_set.value:
-        start_worker(api_key_set.value, county_ids)
-    
-    db.close()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -1657,13 +1603,17 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
         existing.auth = subscription.keys.get('auth')
         existing.counties = subscription.counties
         existing.min_severity = subscription.min_severity
+        existing.topic_realtid = subscription.topic_realtid
+        existing.topic_road_condition = subscription.topic_road_condition
     else:
         new_sub = PushSubscription(
             endpoint=subscription.endpoint,
-            p256dh=subscription.keys.get('p256dh'),
-            auth=subscription.keys.get('auth'),
+            p256dh=subscription.keys.get("p256dh"),
+            auth=subscription.keys.get("auth"),
             counties=subscription.counties,
-            min_severity=subscription.min_severity
+            min_severity=subscription.min_severity,
+            topic_realtid=subscription.topic_realtid,
+            topic_road_condition=subscription.topic_road_condition
         )
         db.add(new_sub)
     db.commit()
@@ -1771,6 +1721,8 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             continue
             
         if type == "event":
+            if not sub.topic_realtid:
+                continue
             # Handle None in severity_code
             severity = data.get('severity_code')
             if (severity or 0) < sub.min_severity:
@@ -1780,6 +1732,8 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             url = data.get('event_url', '/')
             icon = data.get('icon_url')
         else: # road_condition
+            if not sub.topic_road_condition:
+                continue
             title = f"❄️ Väglag: {data.get('condition_text', 'Varning')}"
             message = f"{data.get('location_text', '')}: {data.get('warning', '')}. {data.get('measure', '')}"
             url = "/?tab=road-conditions" # Default to road conditions tab
@@ -1855,37 +1809,78 @@ def get_version():
 @app.get("/api/debug/push-test")
 async def debug_push_test(db: Session = Depends(get_db)):
     """Triggers a manual push notification test using the last event in DB."""
-    # Fetch last event
-    last_event = db.query(TrafficEvent).order_by(TrafficEvent.created_at.desc()).first()
+    last_event = db.query(TrafficEvent).order_by(TrafficEvent.id.desc()).first()
     if not last_event:
-        return {"status": "error", "message": "No events found in DB to test with"}
-
-    subs = db.query(PushSubscription).all()
-    if not subs:
-        return {"status": "error", "message": "No subscriptions found"}
-
-    results = []
+        return {"error": "No events in DB"}
     
-    # Construct payload similar to notify_subscribers
-    title = f"🧪 TEST: {last_event.title}"
-    # Ensure message is safe
-    message = last_event.location or "Ingen plats"
-    url = f"/?event_id={last_event.external_id}"
+    # Fake mqtt_data for testing logic in notify_subscribers
+    test_data = {
+        "title": f"🧪 TEST: {last_event.title}",
+        "location": last_event.location or "Ingen plats",
+        "event_url": f"/?event_id={last_event.external_id}",
+        "icon_url": f"/api/icons/{last_event.icon_id}.png" if last_event.icon_id else None,
+        "severity_code": last_event.severity_code,
+        "county_no": last_event.county_no
+    }
     
-    logger.info(f"[DEBUG-PUSH] STARTING TEST. Sending to {len(subs)} subscribers. Title: {title}")
+    await notify_subscribers(test_data, db, type="event")
+    return {"status": "sent", "event": last_event.title}
 
-    for sub in subs:
-        endpoint_masked = sub.endpoint[:30] + "..." if len(sub.endpoint) > 30 else sub.endpoint
-        try:
-            # We call the existing function
-            await send_push_notification(sub, title, message, url, db)
-            results.append({"endpoint": endpoint_masked, "status": "sent (check logs for success/fail)"})
-            logger.info(f"[DEBUG-PUSH] Sent to {sub.id} ({endpoint_masked})")
-        except Exception as e:
-            results.append({"endpoint": endpoint_masked, "status": f"failed: {str(e)}"})
-            logger.error(f"[DEBUG-PUSH] FAILED for {sub.id}: {e}")
+class ResetRequest(BaseModel):
+    confirm: bool
 
-    return {"status": "completed", "results": results, "event_used": last_event.title}
+@app.post("/api/reset")
+async def reset_system(request: ResetRequest, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Refined Factory Reset: Wipes dynamic data, preserves MQTT/API keys, sets defaults."""
+    if not request.confirm:
+        raise HTTPException(status_code=400, detail="Bekräftelse krävs.")
+    
+    try:
+        # 1. Clear dynamic tables
+        db.query(TrafficEvent).delete()
+        db.query(TrafficEventVersion).delete()
+        db.query(Camera).delete()
+        db.query(RoadCondition).delete()
+        db.query(ClientInterest).delete()
+        db.query(PushSubscription).delete()
+        
+        # 2. Reset specific settings to required defaults 
+        # (while preserving api_key, mqtt_*, admin_password)
+        resets = {
+            "push_notifications_enabled": "false",
+            "sound_notifications_enabled": "false",
+            "selected_counties": "1", # Stockholms Län
+            "camera_radius_km": "8.0",
+            "retention_days": "30"
+        }
+        
+        for key, value in resets.items():
+            setting = db.query(Settings).filter(Settings.key == key).first()
+            if setting:
+                setting.value = value
+            else:
+                db.add(Settings(key=key, value=value))
+        
+        db.commit()
+        
+        # 3. Clear Snapshots directory
+        if os.path.exists(SNAPSHOTS_DIR):
+            import shutil
+            for filename in os.listdir(SNAPSHOTS_DIR):
+                file_path = os.path.join(SNAPSHOTS_DIR, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    logger.error(f"Failed to delete {file_path}: {e}")
+                    
+        logger.info("System Refined Reset performed by admin.")
+        return {"status": "ok", "message": "Systemet har återställts (Inställningar för API/MQTT behölls)."}
+    except Exception as e:
+        logger.error(f"Reset failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Static files and SPA fallback
 if os.path.exists("static"):
@@ -1903,17 +1898,54 @@ if os.path.exists("static"):
 
 @app.on_event("startup")
 async def startup_event():
-    # Helper to check if we have API key
+    # 1. Initialize Database
+    init_db()
+    
     db = SessionLocal()
     try:
-        api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
-        if api_key_setting and api_key_setting.value:
-             # Start dynamic manager immediately (Family Model)
+        # 2. Seed default settings
+        for key, val in DEFAULTS.items():
+            existing = db.query(Settings).filter(Settings.key == key).first()
+            if not existing:
+                logger.info(f"Seeding default setting '{key}' = '{val}'")
+                db.add(Settings(key=key, value=val))
+        db.commit()
+
+        # 3. Handle VAPID legacy cleanup
+        vapid_priv = db.query(Settings).filter(Settings.key == "vapid_private_key").first()
+        if vapid_priv and not vapid_priv.value.startswith("-----BEGIN"):
+            logger.info("Outdated VAPID key format detected. Clearing for regeneration...")
+            db.query(Settings).filter(Settings.key.in_(["vapid_private_key", "vapid_public_key"])).delete(synchronize_session=False)
+            db.commit()
+
+        # 4. Configure MQTT
+        mqtt_enabled = db.query(Settings).filter(Settings.key == "mqtt_enabled").first()
+        mqtt_host = db.query(Settings).filter(Settings.key == "mqtt_host").first()
+        mqtt_port = db.query(Settings).filter(Settings.key == "mqtt_port").first()
+        mqtt_user = db.query(Settings).filter(Settings.key == "mqtt_username").first()
+        mqtt_pass = db.query(Settings).filter(Settings.key == "mqtt_password").first()
+        mqtt_topic = db.query(Settings).filter(Settings.key == "mqtt_topic").first()
+
+        mqtt_config = {
+            "enabled": mqtt_enabled.value.lower() == "true" if mqtt_enabled else False
+        }
+        if mqtt_host: mqtt_config["host"] = mqtt_host.value
+        if mqtt_port: mqtt_config["port"] = int(mqtt_port.value)
+        if mqtt_user: mqtt_config["username"] = mqtt_user.value
+        if mqtt_pass: mqtt_config["password"] = mqtt_pass.value
+        if mqtt_topic: mqtt_config["topic"] = mqtt_topic.value
+        mqtt_client.update_config(mqtt_config)
+
+        # 5. Start Workers (Family Model)
+        api_key_set = db.query(Settings).filter(Settings.key == "api_key").first()
+        if api_key_set and api_key_set.value:
              global dynamic_worker_task
              if not dynamic_worker_task or dynamic_worker_task.done():
-                dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key_setting.value))
+                logger.info("Starting Dynamic Worker Manager (Family Model)...")
+                dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key_set.value))
         else:
-             logger.warning("No API key configured on startup. Background workers paused.")
+             logger.warning("No API key configured. Workers waiting for configuration.")
+
     finally:
         db.close()
 

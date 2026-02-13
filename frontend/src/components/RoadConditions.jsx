@@ -51,11 +51,19 @@ function RoadConditions() {
             setAllowedCounties(ALL_COUNTIES.filter(c => ids.includes(c.id.toString())))
         }
         fetchMonitored()
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('App returned to foreground (RoadConditions), refreshing data...')
+                fetchConditions(true)
+            }
+        }
         window.addEventListener('storage', fetchMonitored)
         window.addEventListener('focus', fetchMonitored)
+        document.addEventListener('visibilitychange', handleVisibilityChange)
         return () => {
             window.removeEventListener('storage', fetchMonitored)
             window.removeEventListener('focus', fetchMonitored)
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [])
 

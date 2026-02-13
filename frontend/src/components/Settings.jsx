@@ -36,7 +36,7 @@ export default function Settings() {
         api_key: '',
         mqtt_host: 'localhost',
         mqtt_port: '1883',
-        mqtt_topic: 'trafikinfo/events',
+        mqtt_topic: 'trafikinfo/traffic',
         mqtt_enabled: 'false',
         mqtt_rc_enabled: 'false',
         mqtt_rc_topic: 'trafikinfo/road_conditions',
@@ -49,6 +49,8 @@ export default function Settings() {
     const [pushEnabled, setPushEnabled] = useState(false)
     const [subscribing, setSubscribing] = useState(false)
     const [status, setStatus] = useState(null)
+    const [topicRealtid, setTopicRealtid] = useState(true)
+    const [topicRoadCondition, setTopicRoadCondition] = useState(true)
 
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
@@ -84,7 +86,7 @@ export default function Settings() {
     const performFactoryReset = async () => {
         if (!isLoggedIn) return
         try {
-            await axios.delete(`${API_BASE}/reset`)
+            await axios.post(`${API_BASE}/reset`, { confirm: true })
             setMessage({ type: 'success', text: 'Systemet har återställts via Factory Reset.' })
             setShowResetConfirm(false)
         } catch (error) {
@@ -182,7 +184,9 @@ export default function Settings() {
                     endpoint: subscription.endpoint,
                     keys: { p256dh, auth },
                     counties: localCounties.join(','), // Use user's local selection
-                    min_severity: 1
+                    min_severity: 1,
+                    topic_realtid: topicRealtid ? 1 : 0,
+                    topic_road_condition: topicRoadCondition ? 1 : 0
                 })
                 setPushEnabled(true)
             }
@@ -260,6 +264,20 @@ export default function Settings() {
                         </p>
                         <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10 p-3 rounded-xl text-xs text-blue-700 dark:text-blue-300">
                             <strong>Tips för iOS:</strong> Du måste först "Lägg till på hemskärmen" för att kunna aktivera notiser.
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ämnen att bevaka:</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${topicRealtid ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-60'}`}>
+                                    <input type="checkbox" checked={topicRealtid} onChange={() => setTopicRealtid(!topicRealtid)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Realtid</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${topicRoadCondition ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-60'}`}>
+                                    <input type="checkbox" checked={topicRoadCondition} onChange={() => setTopicRoadCondition(!topicRoadCondition)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Väglag</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, text as sa_text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
@@ -130,6 +130,8 @@ class PushSubscription(Base):
     # Filter settings per subscription
     counties = Column(String) # Comma separated list of county numbers
     min_severity = Column(Integer, default=1)
+    topic_realtid = Column(Integer, default=1) # 1=Enabled, 0=Disabled
+    topic_road_condition = Column(Integer, default=1)
 
 class ClientInterest(Base):
     __tablename__ = "client_interests"
@@ -154,8 +156,19 @@ def init_db():
         ClientInterest.__table__.create(bind=engine)
 
 def migrate_db():
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
     inspector = inspect(engine)
+    
+    # Migration for push_subscriptions topics
+    if "push_subscriptions" in inspector.get_table_names():
+        existing_cols = [c['name'] for c in inspector.get_columns("push_subscriptions")]
+        with engine.begin() as conn:
+            if "topic_realtid" not in existing_cols:
+                print("Migrating push_subscriptions: Adding topic_realtid")
+                conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_realtid INTEGER DEFAULT 1"))
+            if "topic_road_condition" not in existing_cols:
+                print("Migrating push_subscriptions: Adding topic_road_condition")
+                conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_road_condition INTEGER DEFAULT 1"))
     
     # Migration for traffic_events
     if "traffic_events" in inspector.get_table_names():
@@ -184,32 +197,31 @@ def migrate_db():
             "updated_at": "DATETIME"
         }
         
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             for col_name, col_type in expected_columns.items():
                 if col_name not in existing_columns:
                     print(f"Migrating database: Adding missing column '{col_name}'")
                     try:
-                        conn.execute(text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
+                        conn.execute(sa_text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
                         
                         # Backfill updated_at with created_at if just added
                         if col_name == "updated_at":
                             print("Backfilling updated_at with created_at...")
-                            conn.execute(text("UPDATE traffic_events SET updated_at = created_at WHERE updated_at IS NULL"))
-                        conn.commit()
+                            conn.execute(sa_text("UPDATE traffic_events SET updated_at = created_at WHERE updated_at IS NULL"))
                     except Exception as e:
                         print(f"Error adding column {col_name}: {e}")
 
             # Also migrate versions table
             if "traffic_event_versions" in inspector.get_table_names():
                 v_columns = [c['name'] for c in inspector.get_columns("traffic_event_versions")]
-                for col_name, col_type in expected_columns.items():
-                    if col_name not in v_columns and col_name not in ["pushed_to_mqtt", "updated_at"]:
-                        print(f"Migrating versions: Adding missing column '{col_name}'")
-                        try:
-                            conn.execute(text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
-                            conn.commit()
-                        except Exception as e:
-                            print(f"Error adding column {col_name} to versions: {e}")
+                with engine.begin() as conn_v:
+                    for col_name, col_type in expected_columns.items():
+                        if col_name not in v_columns and col_name not in ["pushed_to_mqtt", "updated_at"]:
+                            print(f"Migrating versions: Adding missing column '{col_name}'")
+                            try:
+                                conn_v.execute(sa_text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
+                            except Exception as e:
+                                print(f"Error adding column {col_name} to versions: {e}")
 
     # Migration for road_conditions
     if "road_conditions" in inspector.get_table_names():
@@ -225,12 +237,11 @@ def migrate_db():
             "location_text": "VARCHAR"
         }
         
-        with engine.connect() as conn:
+        with engine.begin() as conn_rc:
             for col_name, col_type in rc_expected.items():
                 if col_name not in rc_columns:
                     print(f"Migrating road_conditions: Adding missing column '{col_name}'")
                     try:
-                        conn.execute(text(f"ALTER TABLE road_conditions ADD COLUMN {col_name} {col_type}"))
-                        conn.commit()
+                        conn_rc.execute(sa_text(f"ALTER TABLE road_conditions ADD COLUMN {col_name} {col_type}"))
                     except Exception as e:
                         print(f"Error adding column {col_name} to road_conditions: {e}")

@@ -309,11 +309,20 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         eventSource.onerror = (err) => {
             console.error('SSE Error:', err)
             setIsConnected(false)
-            eventSource.close()
+            // DON'T close() - native EventSource will auto-reconnect if we leave it open
         }
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('App returned to foreground, refreshing data...')
+                fetchEvents(true)
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
 
         return () => {
             eventSource.close()
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [mode, activeCounties, activeMessageTypes, activeSeverities]) // Re-fetch when filters or mode change
 
