@@ -1185,7 +1185,7 @@ async def proxy_camera_image(camera_id: str, fullsize: bool = False):
     return StreamingResponse(stream_image(), media_type="image/jpeg")
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, counties: str = None, db: Session = Depends(get_db)):
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, counties: str = None, type: str = "realtid", db: Session = Depends(get_db)):
     query = db.query(TrafficEvent)
     
     # Filter by counties if provided (comma separated)
@@ -1213,11 +1213,27 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
         except ValueError as e:
             logger.error(f"Invalid date format: {date}. Error: {e}")
     else:
-        # If 'hours' is NOT provided, it's the main feed -> Filter out expired events
+        # If 'hours' is NOT provided, it's the main feed (Realtid or Planerat)
         # If 'hours' IS provided (even 0 for all history), we show everything (including expired)
         if hours is None:
             now = datetime.now()
+            # Common filter: Not expired
             query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
+            
+            # Type-specific filters
+            if type == "planned":
+                # Upcoming (start in future) OR Long-term (duration >= 5 days)
+                query = query.filter(
+                    (TrafficEvent.start_time > now) | 
+                    ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
+                )
+            else: # realtid (default)
+                # Started AND (End is NULL OR Duration < 5 days)
+                query = query.filter(TrafficEvent.start_time <= now)
+                query = query.filter(
+                    (TrafficEvent.end_time == None) | 
+                    (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5)
+                )
         
         # Apply time window if specified (hours > 0)
         # If hours=0 (All History), no cutoff is applied

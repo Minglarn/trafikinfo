@@ -1,13 +1,12 @@
 import React from 'react'
-import { Activity, Camera, BarChart2, History, Settings, Snowflake } from 'lucide-react'
+import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar } from 'lucide-react'
 
 const BottomNav = ({ activeTab, setActiveTab }) => {
     const tabs = [
         { id: 'feed', icon: Activity, label: 'Realtid' },
+        { id: 'planned', icon: Calendar, label: 'Planerat' },
         { id: 'road-conditions', icon: Snowflake, label: 'Väglag' },
         { id: 'cameras', icon: Camera, label: 'Kamera' },
-        { id: 'statistics', icon: BarChart2, label: 'Statistik' },
-        { id: 'history', icon: History, label: 'Historik' },
         { id: 'settings', icon: Settings, label: 'Inställn.' },
     ]
 

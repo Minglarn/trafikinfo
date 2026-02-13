@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
@@ -34,7 +34,7 @@ const SEVERITY_COLORS = {
 
 import EventModal from './EventModal'
 
-export default function EventFeed({ initialEventId, onClearInitialEvent }) {
+export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 'realtid' }) {
     const [events, setEvents] = useState([])
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -188,7 +188,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
 
             // Pass counties filter to backend if set
             const countyParam = activeCounties.length > 0 ? `&counties=${activeCounties.join(',')}` : ''
-            const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}${countyParam}`)
+            const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}${countyParam}&type=${mode}`)
             const newEvents = response.data
 
             if (reset) {
@@ -251,6 +251,16 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                         return prev;
                     }
 
+                    // Check if event matches current mode
+                    const now = new Date();
+                    const start = new Date(newEvent.start_time);
+                    const end = newEvent.end_time ? new Date(newEvent.end_time) : null;
+                    const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+                    const isPlanned = start > now || durationDays >= 5;
+
+                    if (mode === 'planned' && !isPlanned) return prev;
+                    if (mode === 'realtid' && isPlanned) return prev;
+
                     const index = prev.findIndex(e => e.external_id === newEvent.external_id)
                     let newEvents = [...prev]
 
@@ -285,7 +295,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
         return () => {
             eventSource.close()
         }
-    }, [])
+    }, [mode]) // Re-fetch and re-connect SSE when mode changes
 
     useEffect(() => {
         // Handle deep linking from props
@@ -373,9 +383,18 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Realtidsflöde</h2>
-                    <p className="text-slate-500 dark:text-slate-400">Aktuella händelser på de svenska vägarna</p>
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-600/20">
+                        {mode === 'planned' ? <Calendar className="w-6 h-6 text-white" /> : <Activity className="w-6 h-6 text-white" />}
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {mode === 'planned' ? 'Planerat' : 'Realtid'}
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {mode === 'planned' ? 'Kommande och långvariga händelser' : 'Trafikhändelser i realtid'}
+                        </p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Filter Toggle */}
@@ -569,6 +588,25 @@ export default function EventFeed({ initialEventId, onClearInitialEvent }) {
                                         </div>
 
                                         {/* New Badge (< 1h old) */}
+
+                                        {/* Long-term / Upcoming Badge */}
+                                        {(() => {
+                                            const now = new Date();
+                                            const start = new Date(event.start_time);
+                                            const end = event.end_time ? new Date(event.end_time) : null;
+                                            const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+                                            if (start > now) return (
+                                                <span className="bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-purple-200 dark:border-purple-500/20">
+                                                    Kommande / Planerat
+                                                </span>
+                                            );
+                                            if (durationDays >= 5) return (
+                                                <span className="bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-500/20">
+                                                    Långtidsarbete
+                                                </span>
+                                            );
+                                            return null;
+                                        })()}
 
                                         {/* Road Number Badge */}
                                         {event.road_number && (

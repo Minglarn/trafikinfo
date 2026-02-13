@@ -18,8 +18,9 @@ function RoadConditions() {
     // Filtering state
     const [selectedCounties, setSelectedCounties] = useState([])
     const [roadFilter, setRoadFilter] = useState('')
+    const [allowedCounties, setAllowedCounties] = useState([])
 
-    const COUNTIES = [
+    const ALL_COUNTIES = [
         { id: 1, name: "Stockholm" },
         { id: 3, name: "Uppsala" },
         { id: 4, name: "Södermanland" },
@@ -42,6 +43,28 @@ function RoadConditions() {
         { id: 24, name: "Västerbotten" },
         { id: 25, name: "Norrbotten" },
     ]
+
+    // Fetch settings to filter allowed counties
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await fetch('/api/settings')
+                const settings = await response.json()
+                const selected = settings.selected_counties ? settings.selected_counties.split(',') : []
+
+                if (selected.includes('0') || selected.length === 0) {
+                    setAllowedCounties(ALL_COUNTIES)
+                } else {
+                    const filtered = ALL_COUNTIES.filter(c => selected.includes(c.id.toString()))
+                    setAllowedCounties(filtered)
+                }
+            } catch (err) {
+                console.error('Failed to fetch settings:', err)
+                setAllowedCounties(ALL_COUNTIES) // Fallback to all
+            }
+        }
+        fetchSettings()
+    }, [])
 
     useEffect(() => {
         // Initial fetch or re-fetch when county changes
@@ -252,15 +275,15 @@ function RoadConditions() {
                         >
                             Alla län
                         </button>
-                        {COUNTIES.map(county => {
+                        {allowedCounties.map(county => {
                             const isSelected = selectedCounties.includes(county.id)
                             return (
                                 <button
                                     key={county.id}
                                     onClick={() => toggleCounty(county.id)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isSelected
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                        : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                        ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                                         }`}
                                 >
                                     {county.name}
@@ -355,7 +378,7 @@ function RoadConditions() {
                                                             {/* County Badge */}
                                                             {rc.county_no && (
                                                                 <span className="text-[10px] items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 hidden sm:flex">
-                                                                    {COUNTIES.find(c => c.id === rc.county_no)?.name || `Län ${rc.county_no}`}
+                                                                    {ALL_COUNTIES.find(c => c.id === rc.county_no)?.name || `Län ${rc.county_no}`}
                                                                 </span>
                                                             )}
                                                         </div>
