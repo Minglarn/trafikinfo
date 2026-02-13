@@ -4,7 +4,7 @@ import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarC
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
-export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin, counts }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin, counts, setupRequired }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { isLoggedIn, logout } = useAuth()
 
