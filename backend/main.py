@@ -1837,7 +1837,7 @@ def get_status(db: Session = Depends(get_db)):
 def get_version():
     return {"version": VERSION}
 
-@app.post("/api/debug/push-test")
+@app.get("/api/debug/push-test")
 async def debug_push_test(db: Session = Depends(get_db)):
     """Triggers a manual push notification test using the last event in DB."""
     # Fetch last event
