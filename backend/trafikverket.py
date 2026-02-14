@@ -122,14 +122,22 @@ class TrafikverketStream:
                 logger.error(f"Failed to fetch icons: {e}")
                 return []
 
-    async def fetch_weather_stations(self):
+    async def fetch_weather_stations(self, county_ids: list = None):
         """Fetches all weather measurepoints from Road.WeatherInfo"""
+        filter_block = '<EQ name="Deleted" value="false" />'
+        if county_ids:
+            # Filter out '0' (Alla län) just in case it's passed
+            valid_ids = [cid for cid in county_ids if str(cid) != "0"]
+            if valid_ids:
+                conditions = "".join([f'<EQ name="CountyNo" value="{cid}" />' for cid in valid_ids])
+                filter_block = f'<AND>{filter_block}<OR>{conditions}</OR></AND>'
+
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='1.0' namespace='Road.WeatherInfo'>
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
                 <FILTER>
-                    <EQ name="Deleted" value="false" />
+                    {filter_block}
                 </FILTER>
                 <INCLUDE>Id</INCLUDE>
                 <INCLUDE>Name</INCLUDE>
@@ -142,6 +150,8 @@ class TrafikverketStream:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                if response.status_code >= 400:
+                    logger.error(f"Weather API Error {response.status_code}: {response.text}")
                 response.raise_for_status()
                 data = response.json()
                 return data['RESPONSE']['RESULT'][0]['WeatherMeasurepoint']

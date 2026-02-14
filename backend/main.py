@@ -455,11 +455,17 @@ async def periodic_weather_sync():
                 
                 api_key = api_key_setting.value
                 
+                # Get selected counties for filtering
+                counties_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                county_ids = []
+                if counties_setting and counties_setting.value:
+                    county_ids = [c.strip() for c in counties_setting.value.split(",") if c.strip()]
+
                 # 1. Sync Stations (Metadata) - only if we have few or none, or once a day
                 from database import WeatherMeasurepoint
                 from trafikverket import calculate_distance
                 
-                stations = await tv_stream.fetch_weather_stations()
+                stations = await tv_stream.fetch_weather_stations(county_ids=county_ids)
                 logger.debug(f"Fetched {len(stations) if stations else 0} weather stations.")
                 if stations:
                     for s in stations:
