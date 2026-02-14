@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flux-v26.2.71';
+const CACHE_NAME = 'trafikinfo-cache-v26.2.73';
 const ASSETS = [
     '/',
     '/index.html',

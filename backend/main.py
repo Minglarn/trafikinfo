@@ -1,4 +1,4 @@
-VERSION = "26.2.71"
+VERSION = "26.2.73"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -792,6 +792,9 @@ async def event_processor():
                             except:
                                 has_missing_extra = True
 
+                        if loc_changed or has_missing_extra:
+                            needs_camera_sync = True
+
                     if needs_camera_sync:
                         # Find nearby cameras
                         nearby_cams = find_nearby_cameras(ev.get('latitude'), ev.get('longitude'), cameras, target_road=ev.get('road_number'), max_dist_km=max_dist)
@@ -1182,15 +1185,8 @@ async def road_condition_processor():
                     camera_name = None
                     camera_snapshot = None
                     
-                    # Camera matching logic (same as events)
-                    needs_camera_sync = False
-                    if not existing:
+                    if rc.get('latitude') and rc.get('longitude'):
                         needs_camera_sync = True
-                    else:
-                        # Re-check if location changed
-                        if (rc.get('latitude') and existing.latitude != rc.get('latitude')) or \
-                           (rc.get('longitude') and existing.longitude != rc.get('longitude')):
-                            needs_camera_sync = True
                             
                     if needs_camera_sync:
                          nearby_cams = find_nearby_cameras(rc.get('latitude'), rc.get('longitude'), cameras, target_road=rc.get('road_number'), max_dist_km=max_dist)

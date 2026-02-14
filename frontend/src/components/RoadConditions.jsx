@@ -441,24 +441,6 @@ function RoadConditions() {
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            {rc.weather && (
-                                                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20 shadow-sm">
-                                                                    <Thermometer className="w-3 h-3" />
-                                                                    <span>
-                                                                        {(rc.weather.air_temperature ?? rc.weather.temp) != null
-                                                                            ? Number(rc.weather.air_temperature ?? rc.weather.temp).toFixed(1)
-                                                                            : '?'}°C
-                                                                    </span>
-                                                                    <div className="w-px h-2.5 bg-blue-200 dark:bg-blue-500/30"></div>
-                                                                    <Wind className="w-3 h-3" />
-                                                                    <span>
-                                                                        {rc.weather.wind_speed != null ? Number(rc.weather.wind_speed).toFixed(1) : '?'}
-                                                                        <span className="text-[10px] font-normal opacity-70 ml-0.5">
-                                                                            {(rc.weather.wind_direction ?? rc.weather.wind_dir) ?? ''}
-                                                                        </span>
-                                                                    </span>
-                                                                </div>
-                                                            )}
                                                         </div>
                                                     </div>
 
@@ -540,14 +522,43 @@ function RoadConditions() {
                                                         </div>
 
                                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                                            {/* Road Temperature */}
+                                                            {/* Road Temp */}
                                                             {rc.weather.road_temperature !== undefined && (
-                                                                <div className="flex flex-col">
+                                                                <div className="flex flex-col pr-3">
                                                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Vägtemp</span>
                                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                                         <Thermometer className="w-3.5 h-3.5 text-blue-500" />
                                                                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                                                                             {rc.weather.road_temperature != null ? Number(rc.weather.road_temperature).toFixed(1) : '?'}°C
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Air Temp */}
+                                                            {(rc.weather.air_temperature !== undefined || rc.weather.temp !== undefined) && (
+                                                                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700 pl-3 pr-3">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Lufttemp</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Thermometer className="w-3.5 h-3.5 text-blue-400" />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                            {(rc.weather.air_temperature ?? rc.weather.temp) != null ? Number(rc.weather.air_temperature ?? rc.weather.temp).toFixed(1) : '?'}°C
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Wind */}
+                                                            {(rc.weather.wind_speed !== undefined) && (
+                                                                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700 pl-3 pr-3">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Vind</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Wind className="w-3.5 h-3.5 text-slate-400" />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                            {rc.weather.wind_speed != null ? Number(rc.weather.wind_speed).toFixed(1) : '?'}
+                                                                            <span className="text-[10px] font-normal opacity-70 ml-0.5 uppercase">
+                                                                                {(rc.weather.wind_direction ?? rc.weather.wind_dir) ?? ''}
+                                                                            </span>
                                                                         </span>
                                                                     </div>
                                                                 </div>
