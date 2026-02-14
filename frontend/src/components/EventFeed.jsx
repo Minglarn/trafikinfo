@@ -678,6 +678,13 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                             return null;
                                         })()}
 
+                                        {/* Severity Badge */}
+                                        {event.severity_text && (
+                                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${SEVERITY_COLORS[event.severity_text] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                                {event.severity_text}
+                                            </span>
+                                        )}
+
                                         {/* Road Number Badge */}
                                         {event.road_number && (
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${event.road_number.startsWith('E')

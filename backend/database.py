@@ -145,6 +145,44 @@ class RoadCondition(Base):
     snow_depth = Column(Float)
     water_equivalent = Column(Float)
 
+class RoadConditionVersion(Base):
+    __tablename__ = "road_condition_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    road_condition_id = Column(String, index=True) # Link to RoadCondition.id
+    version_timestamp = Column(DateTime, default=datetime.datetime.now)
+
+    condition_code = Column(Integer)
+    condition_text = Column(String)
+    measure = Column(String)
+    warning = Column(String)
+    road_number = Column(String)
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    county_no = Column(Integer)
+    timestamp = Column(DateTime) # Original timestamp
+    
+    camera_url = Column(String)
+    camera_name = Column(String)
+    camera_snapshot = Column(String)
+    cause = Column(String) 
+    location_text = Column(String)
+    icon_id = Column(String)
+
+    # Persistent Weather
+    air_temperature = Column(Float)
+    wind_speed = Column(Float)
+    wind_direction = Column(String)
+    
+    # Surface Weather
+    road_temperature = Column(Float)
+    grip = Column(Float)
+    ice_depth = Column(Float)
+    snow_depth = Column(Float)
+    water_equivalent = Column(Float)
+
 class Settings(Base):
     __tablename__ = "settings"
 

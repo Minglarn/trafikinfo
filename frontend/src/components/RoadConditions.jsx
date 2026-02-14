@@ -399,9 +399,16 @@ function RoadConditions() {
                                                             </span>
                                                         </h3>
                                                         <div className="flex flex-col items-end gap-0.5">
-                                                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5">
-                                                                <Clock className="w-3.5 h-3.5" />
-                                                                <span>{formatValidity(rc.start_time, rc.end_time)}</span>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5">
+                                                                    <Clock className="w-3.5 h-3.5" />
+                                                                    <span>{formatValidity(rc.start_time, rc.end_time)}</span>
+                                                                </div>
+                                                                {rc.updated_at && (
+                                                                    <span className="text-[10px] text-slate-400">
+                                                                        Uppdaterad: {new Date(rc.updated_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             {rc.weather && (
                                                                 <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20 shadow-sm">

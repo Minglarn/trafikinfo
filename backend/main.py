@@ -20,7 +20,7 @@ from pywebpush import webpush, WebPushException
 from py_vapid import Vapid
 import base64
 
-from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, PushSubscription, ClientInterest
+from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, RoadConditionVersion, PushSubscription, ClientInterest
 from mqtt_client import mqtt_client
 from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_nearby_cameras, parse_road_condition
 
@@ -1231,64 +1231,148 @@ async def road_condition_processor():
                         # Fetch and persist weather for existing RC (Always refresh on update)
                         if existing.latitude and existing.longitude:
                             try:
-                                weather = await get_realtime_weather(existing.latitude, existing.longitude)
-                                if weather:
-                                    logger.info(f"Refreshed RC {rc['id']} weather: {weather.get('air_temperature')}°C")
-                                    existing.air_temperature = weather.get('air_temperature')
-                                    existing.wind_speed = weather.get('wind_speed')
-                                    existing.wind_direction = weather.get('wind_direction')
-                                    existing.road_temperature = weather.get('road_temperature')
-                                    existing.grip = weather.get('grip')
-                                    existing.ice_depth = weather.get('ice_depth')
-                                    existing.snow_depth = weather.get('snow_depth')
-                                    existing.water_equivalent = weather.get('water_equivalent')
+                                weather_data = await get_realtime_weather(existing.latitude, existing.longitude)
+                                if weather_data:
+                                    # Persistent Weather
+                                    existing.air_temperature = weather_data.get('air_temperature')
+                                    existing.wind_speed = weather_data.get('wind_speed')
+                                    existing.wind_direction = weather_data.get('wind_direction')
+                                    # Surface Weather
+                                    existing.road_temperature = weather_data.get('road_temperature')
+                                    existing.grip = weather_data.get('grip')
+                                    existing.ice_depth = weather_data.get('ice_depth')
+                                    existing.snow_depth = weather_data.get('snow_depth')
+                                    existing.water_equivalent = weather_data.get('water_equivalent')
                             except Exception as e:
-                                logger.error(f"Weather sync failed for existing RC {rc['id']}: {e}")
+                                logger.error(f"Error fetching weather for RC update {existing.id}: {e}")
+
+                        # Create version history
+                        version = RoadConditionVersion(
+                            road_condition_id = existing.id,
+                            condition_code = existing.condition_code,
+                            condition_text = existing.condition_text,
+                            measure = existing.measure,
+                            warning = existing.warning,
+                            road_number = existing.road_number,
+                            start_time = existing.start_time,
+                            end_time = existing.end_time,
+                            latitude = existing.latitude,
+                            longitude = existing.longitude,
+                            county_no = existing.county_no,
+                            timestamp = existing.timestamp,
+                            camera_url = existing.camera_url,
+                            camera_name = existing.camera_name,
+                            camera_snapshot = existing.camera_snapshot,
+                            cause = existing.cause,
+                            location_text = existing.location_text,
+                            icon_id = existing.icon_id,
+                            air_temperature = existing.air_temperature,
+                            wind_speed = existing.wind_speed,
+                            wind_direction = existing.wind_direction,
+                            road_temperature = existing.road_temperature,
+                            grip = existing.grip,
+                            ice_depth = existing.ice_depth,
+                            snow_depth = existing.snow_depth,
+                            water_equivalent = existing.water_equivalent
+                        )
+                        db.add(version)
+                        
+                        if rc.get('pushed_to_mqtt'):
+                             existing.pushed_to_mqtt = 1
 
                         db.commit()
                         final_rc = existing
                     else:
-                        new_rc = RoadCondition(
-                            id=rc['id'],
-                            condition_code=rc['condition_code'],
-                            condition_text=rc['condition_text'],
-                            measure=rc['measure'],
-                            warning=rc['warning'],
-                            cause=rc.get('cause'), 
-                            location_text=rc.get('location_text'),
-                            icon_id=rc.get('icon_id'), 
-                            road_number=rc.get('road_number'),
-                            start_time=datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
-                            end_time=datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None,
-                            latitude=rc.get('latitude'),
-                            longitude=rc.get('longitude'),
-                            county_no=rc.get('county_no'),
-                            timestamp=datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now(),
-                            camera_url=camera_url,
-                            camera_name=camera_name,
-                            camera_snapshot=camera_snapshot
-                        )
-                        db.add(new_rc)
+                        # Create new Road Condition
                         
-                        # Fetch and persist weather for new RC
-                        if new_rc.latitude and new_rc.longitude:
-                            try:
-                                weather = await get_realtime_weather(new_rc.latitude, new_rc.longitude)
-                                if weather:
-                                    new_rc.air_temperature = weather.get('air_temperature')
-                                    new_rc.wind_speed = weather.get('wind_speed')
-                                    new_rc.wind_direction = weather.get('wind_direction')
-                                    new_rc.road_temperature = weather.get('road_temperature')
-                                    new_rc.grip = weather.get('grip')
-                                    new_rc.ice_depth = weather.get('ice_depth')
-                                    new_rc.snow_depth = weather.get('snow_depth')
-                                    new_rc.water_equivalent = weather.get('water_equivalent')
-                            except Exception as e:
-                                logger.error(f"Weather sync failed for new RC {rc['id']}: {e}")
+                        # Fetch weather for NEW RC
+                        air_temp = None
+                        wind_spd = None
+                        wind_dir = None
+                        road_temp = None
+                        grip_val = None
+                        ice_dpth = None
+                        snow_dpth = None
+                        water_equiv = None
 
+                        if rc.get('latitude') and rc.get('longitude'):
+                            try:
+                                weather_data = await get_realtime_weather(rc['latitude'], rc['longitude'])
+                                if weather_data:
+                                    air_temp = weather_data.get('air_temperature')
+                                    wind_spd = weather_data.get('wind_speed')
+                                    wind_dir = weather_data.get('wind_direction')
+                                    road_temp = weather_data.get('road_temperature')
+                                    grip_val = weather_data.get('grip')
+                                    ice_dpth = weather_data.get('ice_depth')
+                                    snow_dpth = weather_data.get('snow_depth')
+                                    water_equiv = weather_data.get('water_equivalent')
+                            except Exception as e:
+                                logger.error(f"Error fetching weather for NEW RC {rc['id']}: {e}")
+
+                        final_rc = RoadCondition(
+                            id = rc['id'],
+                            condition_code = rc['condition_code'],
+                            condition_text = rc['condition_text'],
+                            measure = rc['measure'],
+                            warning = rc['warning'],
+                            cause = rc.get('cause'),
+                            location_text = rc.get('location_text'),
+                            icon_id = rc.get('icon_id'),
+                            road_number = rc['road_number'],
+                            start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None,
+                            end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None,
+                            latitude = rc.get('latitude'),
+                            longitude = rc.get('longitude'),
+                            county_no = rc.get('county_no'),
+                            timestamp = datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now(),
+                            camera_url = camera_url,
+                            camera_name = camera_name,
+                            camera_snapshot = camera_snapshot,
+                            air_temperature = air_temp,
+                            wind_speed = wind_spd,
+                            wind_direction = wind_dir,
+                            road_temperature = road_temp,
+                            grip = grip_val,
+                            ice_depth = ice_dpth,
+                            snow_depth = snow_dpth,
+                            water_equivalent = water_equiv
+                        )
+                        
+                        # Create version history for NEW RC
+                        version = RoadConditionVersion(
+                            road_condition_id = final_rc.id,
+                            condition_code = final_rc.condition_code,
+                            condition_text = final_rc.condition_text,
+                            measure = final_rc.measure,
+                            warning = final_rc.warning,
+                            road_number = final_rc.road_number,
+                            start_time = final_rc.start_time,
+                            end_time = final_rc.end_time,
+                            latitude = final_rc.latitude,
+                            longitude = final_rc.longitude,
+                            county_no = final_rc.county_no,
+                            timestamp = final_rc.timestamp,
+                            camera_url = final_rc.camera_url,
+                            camera_name = final_rc.camera_name,
+                            camera_snapshot = final_rc.camera_snapshot,
+                            cause = final_rc.cause,
+                            location_text = final_rc.location_text,
+                            icon_id = final_rc.icon_id,
+                            air_temperature = final_rc.air_temperature,
+                            wind_speed = final_rc.wind_speed,
+                            wind_direction = final_rc.wind_direction,
+                            road_temperature = final_rc.road_temperature,
+                            grip = final_rc.grip,
+                            ice_depth = final_rc.ice_depth,
+                            snow_depth = final_rc.snow_depth,
+                            water_equivalent = final_rc.water_equivalent
+                        )
+                        
+                        db.add(final_rc)
+                        db.add(version)
                         db.commit()
-                        final_rc = new_rc
-                    
+
                     # Prepare data for broadcast
                     icon_url = None
                     base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
@@ -1319,7 +1403,7 @@ async def road_condition_processor():
                             "snow_depth": final_rc.snow_depth,
                             "water_equivalent": final_rc.water_equivalent
                         }
-
+                    
                     # Normalize camera URL for output (Frontend & MQTT)
                     out_camera_url = None
                     if final_rc.camera_snapshot:
@@ -2179,8 +2263,16 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             message = " - ".join([p for p in parts if p])
             url = data.get('event_url', '/')
             icon = data.get('icon_url')
-            # Use camera_url (full URL) instead of camera_snapshot (filename) for the PWA notification image
-            image = data.get('camera_url') if sub.include_image else None
+            
+            # Use snapshot_url (local proxy) or external_camera_url (fallback)
+            if sub.include_image:
+                image = data.get('snapshot_url')
+                if not image:
+                    image = data.get('external_camera_url')
+                if not image:
+                    image = data.get('camera_url')
+            else:
+                image = None
             
         else: # road_condition
             if not sub.topic_road_condition:
@@ -2212,8 +2304,16 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             message = " - ".join([p for p in parts if p])
             url = "/?tab=road-conditions"
             icon = data.get('icon_url')
-            # Use camera_url (full URL) instead of camera_snapshot (filename) for the PWA notification image
-            image = data.get('camera_url') if sub.include_image else None
+            
+            # Use snapshot_url (local proxy) or external_camera_url (fallback)
+            if sub.include_image:
+                image = data.get('snapshot_url')
+                if not image:
+                    image = data.get('external_camera_url')
+                if not image:
+                    image = data.get('camera_url')
+            else:
+                image = None
 
         await send_push_notification(sub, title, message, url, db, icon=icon, image=image)
 
