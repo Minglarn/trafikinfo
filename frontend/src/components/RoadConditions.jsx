@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, Wind, ChevronDown, ChevronUp } from 'lucide-react'
+import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, Wind, ChevronDown, ChevronUp, Droplets, Zap, Gauge } from 'lucide-react'
 import EventMap from './EventMap'
 
 function RoadConditions() {
@@ -347,12 +347,12 @@ function RoadConditions() {
                                                                 <span>{formatValidity(rc.start_time, rc.end_time)}</span>
                                                             </div>
                                                             {rc.weather && (
-                                                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20">
+                                                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20 shadow-sm">
                                                                     <Thermometer className="w-3 h-3" />
-                                                                    <span>{rc.weather.temp}°C</span>
+                                                                    <span>{(rc.weather.air_temperature ?? rc.weather.temp) ?? '?'}°C</span>
                                                                     <div className="w-px h-2.5 bg-blue-200 dark:bg-blue-500/30"></div>
                                                                     <Wind className="w-3 h-3" />
-                                                                    <span>{rc.weather.wind_speed} <span className="text-[10px] font-normal opacity-70">{rc.weather.wind_dir}</span></span>
+                                                                    <span>{rc.weather.wind_speed ?? '?'} <span className="text-[10px] font-normal opacity-70">{(rc.weather.wind_direction ?? rc.weather.wind_dir) ?? ''}</span></span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -422,6 +422,64 @@ function RoadConditions() {
                                                     <div className="pl-3 border-l-2 border-blue-200 dark:border-blue-800 py-0.5">
                                                         <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Åtgärd</span>
                                                         <span className="text-slate-700 dark:text-slate-300">{rc.measure}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* VÄGYTA (Surface Data) */}
+                                                {(rc.weather && (rc.weather.road_temperature !== undefined || rc.weather.grip !== undefined)) && (
+                                                    <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-inner">
+                                                        <div className="flex items-center gap-2 mb-2.5">
+                                                            <div className="p-1 bg-blue-100 dark:bg-blue-900/40 rounded-md">
+                                                                <Gauge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                                            </div>
+                                                            <span className="text-[10px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">Vägyta & Friktion</span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                            {/* Road Temperature */}
+                                                            {rc.weather.road_temperature !== undefined && (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Vägtemp</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Thermometer className="w-3.5 h-3.5 text-blue-500" />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.road_temperature}°C</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Grip */}
+                                                            {rc.weather.grip !== undefined && (
+                                                                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700 pl-3">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Friktion</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Zap className={`w-3.5 h-3.5 ${rc.weather.grip < 0.25 ? 'text-red-500' : rc.weather.grip < 0.4 ? 'text-orange-500' : 'text-green-500'}`} />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.grip.toFixed(2)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Ice depth */}
+                                                            {rc.weather.ice_depth !== undefined && rc.weather.ice_depth > 0 && (
+                                                                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700 pl-3">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Isdjup</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Snowflake className="w-3.5 h-3.5 text-cyan-400" />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.ice_depth}mm</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Snow depth */}
+                                                            {rc.weather.snow_depth !== undefined && rc.weather.snow_depth > 0 && (
+                                                                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700 pl-3">
+                                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Snö</span>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                                        <Droplets className="w-3.5 h-3.5 text-blue-300" />
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.snow_depth}mm</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
 

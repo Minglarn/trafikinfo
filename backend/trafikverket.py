@@ -123,20 +123,14 @@ class TrafikverketStream:
                 return []
 
     async def fetch_weather_stations(self, county_ids: list = None):
-        """Fetches all weather measurepoints from Road.WeatherInfo"""
+        """Fetches all weather measurepoints from road.weatherinfo"""
+        # Note: County filtering in 2.1 is inconsistent; fetching all for local lookup
         filter_block = '<EQ name="Deleted" value="false" />'
-        if county_ids:
-            # Filter out '0' (Alla län) just in case it's passed
-            valid_ids = [cid for cid in county_ids if str(cid) != "0"]
-            if valid_ids:
-                # In Road.WeatherInfo 2.1, use CountyNo
-                conditions = "".join([f'<EQ name="CountyNo" value="{cid}" />' for cid in valid_ids])
-                filter_block = f'<AND>{filter_block}<OR>{conditions}</OR></AND>'
 
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='road.weatherinfo'>
                 <FILTER>
                     {filter_block}
                 </FILTER>
@@ -164,7 +158,7 @@ class TrafikverketStream:
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='road.weatherinfo'>
                 <FILTER>
                     <EQ name="Id" value="{sid}" />
                 </FILTER>

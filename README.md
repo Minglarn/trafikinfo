@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.53-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.54-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -16,7 +16,7 @@ Ett modernt system för att visa trafikinformation från Trafikverket i realtid.
 - **Push-notiser (PWA)**: Realtidsaviseringar direkt i din webbläsare eller telefon med dynamiska ikoner per händelsetyp.
 - **Family Model**: Smart bevakning där servern dynamiskt anpassar hämtning baserat på vad klientsidan (användarna) aktivt efterfrågar.
 - **Historik**: Sökbar databas över alla historiska händelser och versionsändringar.
-- **Väglag**: Full kontroll på vinterväglag, halka och snöröjning med kamerabilder och mätstationer.
+- **Väder & Väglag (Surface)**: Full kontroll på atmosfäriskt väder och vinterväglag. Nu med road temperature, friktion (grip), isdjup och snödjup direkt på väglagskorten.
 - **Planerat**: Separat vy för långsiktiga vägarbeten och kommande händelser.
 
 ## Kom igång med Docker Compose
@@ -124,7 +124,17 @@ Information om väglag publiceras på `trafikinfo/road_conditions` (standard).
   "camera_url": "http://192.168.1.50:7081/api/snapshots/GUID396...jpg",
   "camera_name": "Lämmetshöjen",
   "camera_snapshot": "GUID396...jpg",
-  "timestamp": "2026-02-13T08:55:12"
+  "timestamp": "2026-02-13T08:55:12",
+  "weather": {
+    "air_temperature": -2.1,
+    "road_temperature": -3.5,
+    "grip": 0.35,
+    "wind_speed": 4.5,
+    "wind_direction": "NE",
+    "ice_depth": 0.2,
+    "snow_depth": 0,
+    "water_equivalent": 0
+  }
 }
 ```
 

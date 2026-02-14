@@ -126,6 +126,13 @@ class RoadCondition(Base):
     air_temperature = Column(Float)
     wind_speed = Column(Float)
     wind_direction = Column(String)
+    
+    # Surface Weather
+    road_temperature = Column(Float)
+    grip = Column(Float)
+    ice_depth = Column(Float)
+    snow_depth = Column(Float)
+    water_equivalent = Column(Float)
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -271,7 +278,12 @@ def migrate_db():
             "location_text": "VARCHAR",
             "air_temperature": "FLOAT",
             "wind_speed": "FLOAT",
-            "wind_direction": "VARCHAR"
+            "wind_direction": "VARCHAR",
+            "road_temperature": "FLOAT",
+            "grip": "FLOAT",
+            "ice_depth": "FLOAT",
+            "snow_depth": "FLOAT",
+            "water_equivalent": "FLOAT"
         }
         
         with engine.begin() as conn_rc:

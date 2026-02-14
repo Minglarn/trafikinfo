@@ -109,15 +109,17 @@ export default function EventModal({ event, onClose }) {
                                     </span>
 
                                     {event.weather && (
-                                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-2 py-1 rounded-lg">
+                                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-2 py-1 rounded-lg shadow-sm">
                                             <div className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
                                                 <Thermometer className="w-3.5 h-3.5" />
-                                                <span className="text-xs font-bold">{event.weather.temp}°C</span>
+                                                <span className="text-xs font-bold">{(event.weather.air_temperature ?? event.weather.temp) ?? '?'}°C</span>
                                             </div>
                                             <div className="w-px h-3 bg-blue-200 dark:bg-blue-500/30"></div>
                                             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
                                                 <Wind className="w-3.5 h-3.5" />
-                                                <span className="text-xs font-medium">{event.weather.wind_speed} m/s {event.weather.wind_dir}</span>
+                                                <span className="text-xs font-medium">
+                                                    {event.weather.wind_speed ?? '?'} m/s {(event.weather.wind_direction ?? event.weather.wind_dir) ?? ''}
+                                                </span>
                                             </div>
                                         </div>
                                     )}

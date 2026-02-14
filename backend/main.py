@@ -13,7 +13,7 @@ import re
 import math
 import time
 from typing import List
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from sqlalchemy import func
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
@@ -597,10 +597,54 @@ async def get_realtime_weather(lat, lon):
                 if isinstance(d_obj, list) and d_obj: d_obj = d_obj[0]
                 w_dir = d_obj.get('Value')
 
+            # Extract Surface
+            road_temp = None
+            grip = None
+            ice_depth = None
+            snow_depth = None
+            water_equiv = None
+            
+            surface = obs.get('Surface', [])
+            if isinstance(surface, dict): surface = [surface]
+            if surface and len(surface) > 0:
+                surf = surface[0]
+                
+                # Road Temperature
+                st_obj = surf.get('Temperature', {})
+                if isinstance(st_obj, list) and st_obj: st_obj = st_obj[0]
+                road_temp = st_obj.get('Value')
+                
+                # Grip
+                g_obj = surf.get('Grip', {})
+                if isinstance(g_obj, list) and g_obj: g_obj = g_obj[0]
+                grip = g_obj.get('Value')
+                
+                # Ice Depth
+                id_obj = surf.get('IceDepth', {})
+                if isinstance(id_obj, list) and id_obj: id_obj = id_obj[0]
+                ice_depth = id_obj.get('Value')
+                
+                # Snow Depth
+                sd_obj = surf.get('SnowDepth', {})
+                if isinstance(sd_obj, list) and sd_obj: sd_obj = sd_obj[0]
+                if sd_obj:
+                    solid_obj = sd_obj.get('Solid', {})
+                    if isinstance(solid_obj, list) and solid_obj: solid_obj = solid_obj[0]
+                    snow_depth = solid_obj.get('Value')
+                    
+                    we_obj = sd_obj.get('WaterEquivalent', {})
+                    if isinstance(we_obj, list) and we_obj: we_obj = we_obj[0]
+                    water_equiv = we_obj.get('Value')
+
             weather_data = {
                 "air_temperature": temp,
                 "wind_speed": w_speed,
                 "wind_direction": deg_to_compass(float(w_dir)) if w_dir is not None else None,
+                "road_temperature": road_temp,
+                "grip": grip,
+                "ice_depth": ice_depth,
+                "snow_depth": snow_depth,
+                "water_equivalent": water_equiv,
                 "station_name": data.get('Name'),
                 "temp": temp, # Legacy compatibility
                 "wind_dir": deg_to_compass(float(w_dir)) if w_dir is not None else None # Legacy compatibility
@@ -1190,6 +1234,11 @@ async def road_condition_processor():
                                     new_rc.air_temperature = weather.get('air_temperature')
                                     new_rc.wind_speed = weather.get('wind_speed')
                                     new_rc.wind_direction = weather.get('wind_direction')
+                                    new_rc.road_temperature = weather.get('road_temperature')
+                                    new_rc.grip = weather.get('grip')
+                                    new_rc.ice_depth = weather.get('ice_depth')
+                                    new_rc.snow_depth = weather.get('snow_depth')
+                                    new_rc.water_equivalent = weather.get('water_equivalent')
                             except Exception as e:
                                 logger.error(f"Weather sync failed for new RC {rc['id']}: {e}")
 
@@ -1211,7 +1260,12 @@ async def road_condition_processor():
                         weather_data = {
                             "air_temperature": final_rc.air_temperature,
                             "wind_speed": final_rc.wind_speed,
-                            "wind_direction": final_rc.wind_direction
+                            "wind_direction": final_rc.wind_direction,
+                            "road_temperature": final_rc.road_temperature,
+                            "grip": final_rc.grip,
+                            "ice_depth": final_rc.ice_depth,
+                            "snow_depth": final_rc.snow_depth,
+                            "water_equivalent": final_rc.water_equivalent
                         }
 
                     # Normalize camera URL for output (Frontend & MQTT)
@@ -1666,7 +1720,12 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
         "weather": {
             "air_temperature": c.air_temperature,
             "wind_speed": c.wind_speed,
-            "wind_direction": c.wind_direction
+            "wind_direction": c.wind_direction,
+            "road_temperature": c.road_temperature,
+            "grip": c.grip,
+            "ice_depth": c.ice_depth,
+            "snow_depth": c.snow_depth,
+            "water_equivalent": c.water_equivalent
         } if c.air_temperature is not None else None
     } for c in conditions]
 
