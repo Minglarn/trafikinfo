@@ -56,8 +56,8 @@ self.addEventListener('push', (event) => {
         const title = data.title || 'Trafikinfo Flux';
         const options = {
             body: data.message,
-            icon: data.icon || '/logo.png',
-            badge: '/logo.png',
+            icon: data.icon || '/icon-192.png',
+            badge: '/notification-icon.png',
             data: {
                 url: data.url
             },

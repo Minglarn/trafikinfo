@@ -75,6 +75,8 @@ function RoadConditions() {
     }, [selectedCounties]) // Re-fetch when county changes
 
     // Sync monitored counties from localStorage
+    const API_BASE = '/api'
+
     const fetchConditions = useCallback(async (reset = false) => {
         try {
             if (!reset) setIsFetchingMore(true)
@@ -82,7 +84,7 @@ function RoadConditions() {
             const LIMIT = 50
 
             // Construct URL
-            let url = `/api/road-conditions?limit=${LIMIT}&offset=${currentOffset}`
+            let url = `${API_BASE}/road-conditions?limit=${LIMIT}&offset=${currentOffset}`
 
             // Handle multi-county selection
             if (selectedCounties.length > 0) {
@@ -115,6 +117,53 @@ function RoadConditions() {
             setIsFetchingMore(false)
         }
     }, [offset, selectedCounties])
+
+    // SSE for real-time updates
+    useEffect(() => {
+        const eventSource = new EventSource(`${API_BASE}/stream`)
+
+        eventSource.onmessage = (event) => {
+            try {
+                const newData = JSON.parse(event.data)
+                if (newData.event_type !== 'RoadCondition') return
+
+                setConditions(prev => {
+                    // Check if is expired
+                    if (newData.end_time && new Date(newData.end_time) < new Date()) {
+                        return prev.filter(c => c.id !== newData.id)
+                    }
+
+                    // Check if matches selectedCounties
+                    if (selectedCounties.length > 0 && !selectedCounties.includes(newData.county_no.toString())) {
+                        return prev.filter(c => c.id !== newData.id)
+                    }
+
+                    const index = prev.findIndex(c => c.id === newData.id)
+                    let newConditions = [...prev]
+
+                    if (index !== -1) {
+                        // Update existing in-place to avoid shift
+                        newConditions[index] = newData
+                    } else {
+                        // Add new to top
+                        newConditions = [newData, ...newConditions]
+                    }
+                    return newConditions
+                })
+
+            } catch (err) {
+                console.error('Error parsing SSE event in RoadConditions:', err)
+            }
+        }
+
+        eventSource.onerror = (err) => {
+            console.error('SSE Error in RoadConditions:', err)
+        }
+
+        return () => {
+            eventSource.close()
+        }
+    }, [selectedCounties])
 
     // Infinite Scroll Observer
     useEffect(() => {

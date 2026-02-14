@@ -1,4 +1,4 @@
-VERSION = "26.2.57"
+VERSION = "26.2.58"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1198,6 +1198,11 @@ async def road_condition_processor():
                                     existing.air_temperature = weather.get('air_temperature')
                                     existing.wind_speed = weather.get('wind_speed')
                                     existing.wind_direction = weather.get('wind_direction')
+                                    existing.road_temperature = weather.get('road_temperature')
+                                    existing.grip = weather.get('grip')
+                                    existing.ice_depth = weather.get('ice_depth')
+                                    existing.snow_depth = weather.get('snow_depth')
+                                    existing.water_equivalent = weather.get('water_equivalent')
                             except Exception as e:
                                 logger.error(f"Weather sync failed for existing RC {rc['id']}: {e}")
 
