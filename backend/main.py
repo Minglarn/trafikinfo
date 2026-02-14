@@ -1941,35 +1941,59 @@ def get_settings(db: Session = Depends(get_db)):
     return res
 
 @app.get("/api/status/counts")
-def get_status_counts(db: Session = Depends(get_db)):
+def get_status_counts(
+    since_feed: str = None, 
+    since_planned: str = None, 
+    since_road_conditions: str = None,
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
     now = datetime.now()
     
+    def parse_since(since_str):
+        if not since_str: return None
+        try:
+            return datetime.fromisoformat(since_str.replace('Z', '+00:00'))
+        except:
+            return None
+
+    s_feed = parse_since(since_feed)
+    s_planned = parse_since(since_planned)
+    s_rc = parse_since(since_road_conditions)
+
     # Base query for non-expired events
     active_events_query = db.query(TrafficEvent).filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
     
-    # Realtid: Started AND (End is NULL OR Duration < 5 days)
-    realtid_count = active_events_query.filter(
+    # Realtid
+    realtid_q = active_events_query.filter(
         (TrafficEvent.start_time <= now) & 
         ((TrafficEvent.end_time == None) | (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5))
-    ).count()
+    )
+    if s_feed:
+        realtid_q = realtid_q.filter(TrafficEvent.created_at > s_feed)
+    realtid_count = realtid_q.count()
     
-    # Planned: Upcoming (start in future) OR Long-term (duration >= 5 days)
-    planned_count = active_events_query.filter(
+    # Planned
+    planned_q = active_events_query.filter(
         (TrafficEvent.start_time > now) | 
         ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
-    ).count()
+    )
+    if s_planned:
+        # For planned, we care about when they were added to the system
+        planned_q = planned_q.filter(TrafficEvent.created_at > s_planned)
+    planned_count = planned_q.count()
     
-    # Road Conditions: Active only (not expired)
-    rc_count = db.query(RoadCondition).filter((RoadCondition.end_time == None) | (RoadCondition.end_time > now)).count()
-    
-    # Cameras: Total count
-    camera_count = db.query(Camera).count()
+    # Road Conditions
+    rc_q = db.query(RoadCondition).filter((RoadCondition.end_time == None) | (RoadCondition.end_time > now))
+    if s_rc:
+        rc_q = rc_q.filter(RoadCondition.timestamp > s_rc)
+    rc_count = rc_q.count()
     
     return {
         "feed": realtid_count,
         "planned": planned_count,
         "road-conditions": rc_count,
-        "cameras": camera_count
+        "cameras": 0 # Removed per user request
     }
 
 @app.get("/api/status")

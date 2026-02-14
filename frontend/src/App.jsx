@@ -35,6 +35,45 @@ function AppContent() {
     cameras: 0
   })
 
+  // 0. Last Seen State (Option A)
+  const [lastSeen, setLastSeen] = useState(() => {
+    const saved = localStorage.getItem('flux_lastSeen')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error("Failed to parse lastSeen", e)
+      }
+    }
+    // Default to far in past if never seen, so everything looks "new" first time
+    // Or set to now if we want a clean slate on first install
+    return {
+      feed: new Date().toISOString(),
+      planned: new Date().toISOString(),
+      'road-conditions': new Date().toISOString()
+    }
+  })
+
+  // Save lastSeen to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('flux_lastSeen', JSON.stringify(lastSeen))
+  }, [lastSeen])
+
+  // Update lastSeen when activeTab changes
+  React.useEffect(() => {
+    if (['feed', 'planned', 'road-conditions'].includes(activeTab)) {
+      setLastSeen(prev => ({
+        ...prev,
+        [activeTab]: new Date().toISOString()
+      }))
+      // Optimistically clear count for active tab
+      setCounts(prev => ({
+        ...prev,
+        [activeTab]: 0
+      }))
+    }
+  }, [activeTab])
+
   // 1. Initial status and setup redirect
   React.useEffect(() => {
     const initStatus = async () => {
@@ -70,7 +109,12 @@ function AppContent() {
 
     const fetchCounts = async () => {
       try {
-        const res = await fetch('/api/status/counts')
+        const params = new URLSearchParams()
+        if (lastSeen.feed) params.append('since_feed', lastSeen.feed)
+        if (lastSeen.planned) params.append('since_planned', lastSeen.planned)
+        if (lastSeen['road-conditions']) params.append('since_road_conditions', lastSeen['road-conditions'])
+
+        const res = await fetch(`/api/status/counts?${params.toString()}`)
         if (res.ok) {
           const data = await res.json()
           setCounts(data)
@@ -87,7 +131,7 @@ function AppContent() {
       clearInterval(statusInterval)
       clearInterval(countsInterval)
     }
-  }, []) // Stable polling intervals
+  }, [lastSeen]) // Add lastSeen as dependency to fetch with new timestamps
 
 
   // Report Base URL and handle Deep Links
