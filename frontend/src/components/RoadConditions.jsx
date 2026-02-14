@@ -55,19 +55,11 @@ function RoadConditions() {
             setAllowedCounties(ALL_COUNTIES.filter(c => ids.includes(c.id.toString())))
         }
         fetchMonitored()
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                console.log('App returned to foreground (RoadConditions), refreshing data...')
-                fetchConditions(true)
-            }
-        }
         window.addEventListener('storage', fetchMonitored)
         window.addEventListener('focus', fetchMonitored)
-        document.addEventListener('visibilitychange', handleVisibilityChange)
         return () => {
             window.removeEventListener('storage', fetchMonitored)
             window.removeEventListener('focus', fetchMonitored)
-            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [])
 
@@ -131,25 +123,36 @@ function RoadConditions() {
                 const newData = JSON.parse(event.data)
                 if (newData.event_type !== 'RoadCondition') return
 
+                console.log('SSE RoadCondition received:', newData.id, newData.condition_text)
+
                 setConditions(prev => {
                     // Check if is expired
                     if (newData.end_time && new Date(newData.end_time) < new Date()) {
+                        console.log('SSE filtering out expired condition:', newData.id)
                         return prev.filter(c => c.id !== newData.id)
                     }
 
                     // Check if matches selectedCounties
-                    if (selectedCounties.length > 0 && !selectedCounties.includes(newData.county_no.toString())) {
-                        return prev.filter(c => c.id !== newData.id)
+                    // Defensive: toString() could fail if county_no is null/undefined
+                    const incomingCounty = newData.county_no != null ? newData.county_no.toString() : null
+
+                    if (selectedCounties.length > 0) {
+                        if (!incomingCounty || !selectedCounties.includes(incomingCounty)) {
+                            console.log(`SSE filtering out condition ${newData.id} due to county mismatch. County: ${incomingCounty}, Selected: ${selectedCounties}`)
+                            return prev.filter(c => c.id !== newData.id)
+                        }
                     }
 
-                    const index = prev.findIndex(c => c.id === newData.id)
+                    // ID comparison should be safe as both are likely strings now, but we'll be careful
+                    const index = prev.findIndex(c => String(c.id) === String(newData.id))
 
                     if (index !== -1) {
+                        console.log('SSE updating existing condition:', newData.id)
                         // Remove existing so we can move updated to top
-                        const filtered = prev.filter(c => c.id !== newData.id)
+                        const filtered = prev.filter(c => String(c.id) !== String(newData.id))
                         return [newData, ...filtered]
                     } else {
-                        // Add new to top
+                        console.log('SSE adding new condition to top:', newData.id)
                         return [newData, ...prev]
                     }
                 })

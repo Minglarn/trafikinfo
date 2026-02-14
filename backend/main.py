@@ -1,4 +1,4 @@
-VERSION = "26.2.67"
+VERSION = "26.2.68"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1430,6 +1430,7 @@ async def road_condition_processor():
                         "camera_name": final_rc.camera_name,
                         "camera_snapshot": final_rc.camera_snapshot,
                         "timestamp": final_rc.timestamp.isoformat() if final_rc.timestamp else None,
+                        "updated_at": final_rc.updated_at.isoformat() if final_rc.updated_at else None,
                         "weather": weather_data
                     }
                     
@@ -1847,6 +1848,7 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
         "longitude": c.longitude,
         "county_no": c.county_no,
         "timestamp": c.timestamp,
+        "updated_at": c.updated_at,
         "camera_snapshot": c.camera_snapshot,
         "camera_name": c.camera_name,
         "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None,
