@@ -1217,6 +1217,9 @@ async def road_condition_processor():
                         existing.road_number = rc.get('road_number')
                         existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
                         existing.end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None
+                        existing.latitude = rc.get('latitude')
+                        existing.longitude = rc.get('longitude')
+                        existing.county_no = rc.get('county_no')
                         existing.timestamp = datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now()
                         existing.updated_at = datetime.now()
                         
@@ -1225,12 +1228,12 @@ async def road_condition_processor():
                             existing.camera_name = camera_name
                             existing.camera_snapshot = camera_snapshot
                         
-                        # Fetch and persist weather for existing RC
+                        # Fetch and persist weather for existing RC (Always refresh on update)
                         if existing.latitude and existing.longitude:
                             try:
                                 weather = await get_realtime_weather(existing.latitude, existing.longitude)
                                 if weather:
-                                    logger.info(f"Enriched existing RC {rc['id']} with weather: {weather.get('air_temperature')}°C")
+                                    logger.info(f"Refreshed RC {rc['id']} weather: {weather.get('air_temperature')}°C")
                                     existing.air_temperature = weather.get('air_temperature')
                                     existing.wind_speed = weather.get('wind_speed')
                                     existing.wind_direction = weather.get('wind_direction')
@@ -2081,6 +2084,15 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
         # EXPLICIT VAPID OBJECT: Bypass pywebpush string parsing which is causing ASN.1 errors
         vapid_obj = Vapid.from_pem(private_key_pem.encode('utf-8'))
         
+        payload = {
+            "title": title,
+            "message": message,
+            "url": url,
+            "icon": icon,
+            "image": image # Big image (camera snapshot)
+        }
+        logger.info(f"Sending push to {subscription.endpoint[:30]}... Image: {image}")
+
         webpush(
             subscription_info={
                 "endpoint": subscription.endpoint,
@@ -2089,13 +2101,7 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
                     "auth": subscription.auth
                 }
             },
-            data=json.dumps({
-                "title": title,
-                "message": message,
-                "url": url,
-                "icon": icon,
-                "image": image # Big image (camera snapshot)
-            }),
+            data=json.dumps(payload),
             vapid_private_key=vapid_obj,
             vapid_claims={
                 "sub": "mailto:dev@trafikinfo-flux.local"
@@ -2161,11 +2167,12 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
                 parts.append(data.get('location', ''))
             
             if sub.include_weather:
-                temp = data.get('air_temperature')
-                grip = data.get('grip')
+                weather = data.get('weather') or {}
+                temp = weather.get('air_temperature')
+                wind = weather.get('wind_speed')
                 weather_parts = []
                 if temp is not None: weather_parts.append(f"{temp}°C")
-                if grip is not None: weather_parts.append(f"Friktion: {grip}")
+                if wind is not None: weather_parts.append(f"🌬️ {wind} m/s")
                 if weather_parts:
                     parts.append(" | ".join(weather_parts))
             
@@ -2193,8 +2200,9 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
                 parts.append(main_msg)
                 
             if sub.include_weather:
-                temp = data.get('air_temperature')
-                grip = data.get('grip')
+                weather = data.get('weather') or {}
+                temp = weather.get('air_temperature')
+                grip = weather.get('grip')
                 weather_parts = []
                 if temp is not None: weather_parts.append(f"{temp}°C")
                 if grip is not None: weather_parts.append(f"Friktion: {grip}")
