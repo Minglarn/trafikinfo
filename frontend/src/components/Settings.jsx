@@ -100,7 +100,7 @@ export default function Settings() {
             }
             sync()
         }
-    }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition])
+    }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition, minSeverity])
 
     // Sync client interest to backend (Family Model)
     useEffect(() => {
@@ -362,8 +362,8 @@ export default function Settings() {
                                         key={level.id}
                                         onClick={() => setMinSeverity(level.id)}
                                         className={`px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all ${(minSeverity === level.id || (minSeverity === 4 && level.id === 3))
-                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-[1.02]'
-                                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-blue-300'
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-[1.02]'
+                                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-blue-300'
                                             }`}
                                     >
                                         {level.name}

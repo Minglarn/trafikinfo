@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flux-v26.2.65';
+const CACHE_NAME = 'flux-v26.2.66';
 const ASSETS = [
     '/',
     '/index.html',
