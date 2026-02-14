@@ -505,7 +505,9 @@ function RoadConditions() {
                                                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Vägtemp</span>
                                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                                         <Thermometer className="w-3.5 h-3.5 text-blue-500" />
-                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.road_temperature}°C</span>
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                            {rc.weather.road_temperature != null ? Number(rc.weather.road_temperature).toFixed(1) : '?'}°C
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -516,7 +518,9 @@ function RoadConditions() {
                                                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-bold">Friktion</span>
                                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                                         <Zap className={`w-3.5 h-3.5 ${rc.weather.grip < 0.25 ? 'text-red-500' : rc.weather.grip < 0.4 ? 'text-orange-500' : 'text-green-500'}`} />
-                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{rc.weather.grip.toFixed(2)}</span>
+                                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                            {rc.weather.grip != null ? Number(rc.weather.grip).toFixed(2) : '?'}
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             )}
