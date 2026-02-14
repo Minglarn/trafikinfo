@@ -1120,6 +1120,7 @@ async def event_processor():
                         "traffic_restriction_type": new_event.traffic_restriction_type,
                         "latitude": new_event.latitude,
                         "longitude": new_event.longitude,
+                        "county_no": new_event.county_no,
                         "camera_url": new_event.camera_url,
                         "camera_name": new_event.camera_name,
                         "camera_snapshot": new_event.camera_snapshot,

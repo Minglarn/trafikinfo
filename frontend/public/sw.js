@@ -1,9 +1,10 @@
-const CACHE_NAME = 'flux-v26.2.59';
+const CACHE_NAME = 'flux-v26.2.61';
 const ASSETS = [
     '/',
     '/index.html',
     '/icon-192.png',
     '/icon-512.png',
+    '/notification-icon.png',
     '/manifest.json'
 ];
 
