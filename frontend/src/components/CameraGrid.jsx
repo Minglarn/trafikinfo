@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Star, ExternalLink, X, Camera, RefreshCw, Lock } from 'lucide-react'
+import { Search, Star, ExternalLink, X, Camera, RefreshCw, Lock, Thermometer, Wind } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import axios from 'axios'
 import { format } from 'date-fns'
@@ -154,6 +154,15 @@ const CameraGrid = () => {
                 {camera.type && (
                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-medium uppercase tracking-wider">
                         {camera.type}
+                    </div>
+                )}
+                {camera.weather && (
+                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5 px-2 py-1 bg-blue-600/80 backdrop-blur-md rounded-lg text-[10px] text-white font-bold shadow-lg border border-white/20">
+                        <Thermometer className="w-3 h-3" />
+                        <span>{camera.weather.temp}°C</span>
+                        <div className="w-px h-2 bg-white/30"></div>
+                        <Wind className="w-3 h-3" />
+                        <span>{camera.weather.wind_speed} <span className="text-[8px] font-normal opacity-70">{camera.weather.wind_dir}</span></span>
                     </div>
                 )}
             </div>
@@ -359,6 +368,25 @@ const CameraGrid = () => {
                                                     </span>
                                                 )}
                                             </div>
+                                            {selectedCamera.weather && (
+                                                <div className="mt-4 flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] uppercase tracking-wider text-blue-500 font-bold">Temperatur</span>
+                                                        <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold">
+                                                            <Thermometer className="w-4 h-4" />
+                                                            <span className="text-lg">{selectedCamera.weather.temp}°C</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-px h-8 bg-blue-200 dark:bg-blue-500/30"></div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Vind</span>
+                                                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
+                                                            <Wind className="w-4 h-4" />
+                                                            <span>{selectedCamera.weather.wind_speed} m/s {selectedCamera.weather.wind_dir}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         {isLoggedIn && (
                                             <button

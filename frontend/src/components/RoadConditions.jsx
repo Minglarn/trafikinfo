@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, ChevronDown, ChevronUp } from 'lucide-react'
+import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, Wind, ChevronDown, ChevronUp } from 'lucide-react'
 import EventMap from './EventMap'
 
 function RoadConditions() {
@@ -346,6 +346,15 @@ function RoadConditions() {
                                                                 <Clock className="w-3.5 h-3.5" />
                                                                 <span>{formatValidity(rc.start_time, rc.end_time)}</span>
                                                             </div>
+                                                            {rc.weather && (
+                                                                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20">
+                                                                    <Thermometer className="w-3 h-3" />
+                                                                    <span>{rc.weather.temp}°C</span>
+                                                                    <div className="w-px h-2.5 bg-blue-200 dark:bg-blue-500/30"></div>
+                                                                    <Wind className="w-3 h-3" />
+                                                                    <span>{rc.weather.wind_speed} <span className="text-[10px] font-normal opacity-70">{rc.weather.wind_dir}</span></span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 

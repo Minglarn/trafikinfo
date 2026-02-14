@@ -122,6 +122,53 @@ class TrafikverketStream:
                 logger.error(f"Failed to fetch icons: {e}")
                 return []
 
+    async def fetch_weather_stations(self):
+        """Fetches all weather measurepoints from Road.WeatherInfo"""
+        query = f"""
+        <REQUEST>
+            <LOGIN authenticationkey='{self.api_key}' />
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='1.0' namespace='Road.WeatherInfo'>
+                <FILTER>
+                    <EQ name="Deleted" value="false" />
+                </FILTER>
+            </QUERY>
+        </REQUEST>
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                response.raise_for_status()
+                data = response.json()
+                return data['RESPONSE']['RESULT'][0]['WeatherMeasurepoint']
+            except Exception as e:
+                logger.error(f"Failed to fetch weather stations: {e}")
+                return []
+
+    async def fetch_weather_observations(self, station_ids: list = None):
+        """Fetches latest observations for given stations or all from Road.WeatherInfo"""
+        filter_block = ""
+        if station_ids:
+            conditions = "".join([f'<EQ name="MeasurepointId" value="{sid}" />' for sid in station_ids])
+            filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
+
+        query = f"""
+        <REQUEST>
+            <LOGIN authenticationkey='{self.api_key}' />
+            <QUERY objecttype='WeatherObservation' schemaversion='1.0' namespace='Road.WeatherInfo'>
+                {filter_block}
+            </QUERY>
+        </REQUEST>
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                response.raise_for_status()
+                data = response.json()
+                return data['RESPONSE']['RESULT'][0]['WeatherObservation']
+            except Exception as e:
+                logger.error(f"Failed to fetch weather observations: {e}")
+                return []
+
 
 def parse_situation(json_data):
     # Simplified parser for Trafikverket Situation object

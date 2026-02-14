@@ -9,6 +9,7 @@ import os
 import json
 import logging
 import httpx
+import re
 from typing import List
 from datetime import datetime, timedelta, time
 from sqlalchemy import func
@@ -23,7 +24,10 @@ from trafikverket import TrafikverketStream, parse_situation, get_cameras, find_
 
 # Setup logging
 debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
-logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG if debug_mode else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Silence noisy libraries unless in debug mode
@@ -168,7 +172,10 @@ tv_stream = None
 rc_stream = None
 rc_stream_task = None
 rc_processor_task = None
+icon_sync_task = None
+weather_sync_task = None
 cameras = []
+weather_stations = []
 
 def get_db():
     db = SessionLocal()
@@ -244,9 +251,18 @@ async def sync_icons():
     except Exception as e:
         logger.error(f"Error during icon sync: {e}")
 
+async def periodic_icon_sync():
+    """Background task to sync icons once per day."""
+    while True:
+        try:
+            await sync_icons()
+        except Exception as e:
+            logger.error(f"Error in periodic_icon_sync: {e}")
+        await asyncio.sleep(86400) # Once a day
+
 def start_worker(api_key: str, county_ids: list = None):
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream, cameras
-    global rc_stream, rc_stream_task, rc_processor_task
+    global rc_stream, rc_stream_task, rc_processor_task, weather_sync_task
     
     # Cancel all existing tasks cleanly
     tasks_to_cancel = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task, rc_stream_task, rc_processor_task] if t]
@@ -283,12 +299,18 @@ def start_worker(api_key: str, county_ids: list = None):
     processor_task = asyncio.create_task(event_processor())
 
     # Start camera sync
-    global camera_sync_task
+    global camera_sync_task, icon_sync_task
     if not camera_sync_task or camera_sync_task.done():
         camera_sync_task = asyncio.create_task(periodic_camera_sync())
     
     # Start icon sync
-    asyncio.create_task(sync_icons())
+    if not icon_sync_task or icon_sync_task.done():
+        icon_sync_task = asyncio.create_task(periodic_icon_sync())
+    
+    # Start weather sync
+    global weather_sync_task
+    if not weather_sync_task or weather_sync_task.done():
+        weather_sync_task = asyncio.create_task(periodic_weather_sync())
     
     # Start dynamic county manager
     global dynamic_worker_task
@@ -413,7 +435,132 @@ async def periodic_camera_sync():
         except Exception as e:
             logger.error(f"Error in periodic_camera_sync: {e}")
         
-        await asyncio.sleep(300) # Every 5 minutes
+        await asyncio.sleep(86400) # Every 24 hours (86400 seconds)
+
+def deg_to_compass(num):
+    val = int((num / 22.5) + .5)
+    arr = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    return arr[(val % 8)]
+
+async def periodic_weather_sync():
+    """Background task to sync weather data."""
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
+                if not api_key_setting or not api_key_setting.value:
+                    await asyncio.sleep(30)
+                    continue
+                
+                api_key = api_key_setting.value
+                
+                # 1. Sync Stations (Metadata) - only if we have few or none, or once a day
+                from database import WeatherMeasurepoint
+                from trafikverket import calculate_distance
+                
+                stations = await tv_stream.fetch_weather_stations()
+                if stations:
+                    for s in stations:
+                        sid = s.get('Id')
+                        wgs84 = s.get('Geometry', {}).get('WGS84')
+                        if not sid or not wgs84: continue
+                        
+                        match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                        if not match: continue
+                        
+                        lon = float(match.group(1))
+                        lat = float(match.group(2))
+                        
+                        existing = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
+                        if existing:
+                            existing.name = s.get('Name')
+                            existing.latitude = lat
+                            existing.longitude = lon
+                            existing.county_no = s.get('CountyNo', [0])[0] if isinstance(s.get('CountyNo'), list) and s.get('CountyNo') else 0
+                        else:
+                            new_s = WeatherMeasurepoint(
+                                id=sid,
+                                name=s.get('Name'),
+                                latitude=lat,
+                                longitude=lon,
+                                county_no=s.get('CountyNo', [0])[0] if isinstance(s.get('CountyNo'), list) and s.get('CountyNo') else 0
+                            )
+                            db.add(new_s)
+                    db.commit()
+
+                # 2. Sync Observations
+                observations = await tv_stream.fetch_weather_observations()
+                if observations:
+                    for obs in observations:
+                        sid = obs.get('MeasurepointId')
+                        
+                        # Handle Air (Temperature) robustly
+                        air = obs.get('Air')
+                        if isinstance(air, list) and air:
+                            air = air[0]
+                        elif not isinstance(air, dict):
+                            air = {}
+
+                        # Handle Wind robustly (can be list of sensors at different heights)
+                        wind = obs.get('Wind')
+                        if isinstance(wind, list) and wind:
+                            # Use the last one (often 10m height if both 6m and 10m are present)
+                            wind = wind[-1]
+                        elif not isinstance(wind, dict):
+                            wind = {}
+                        
+                        temp = air.get('Temperature', {}).get('Value')
+                        w_speed = wind.get('Speed', {}).get('Value')
+                        w_dir = wind.get('Direction', {}).get('Value')
+                        
+                        if sid:
+                            db_s = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
+                            if db_s:
+                                if temp is not None: db_s.air_temperature = float(temp)
+                                if w_speed is not None: db_s.wind_speed = float(w_speed)
+                                if w_dir is not None: db_s.wind_direction = deg_to_compass(float(w_dir))
+                                db_s.last_updated = datetime.now()
+                    db.commit()
+
+                # 3. Update global cache
+                global weather_stations
+                current_ws = db.query(WeatherMeasurepoint).all()
+                weather_stations = [{
+                    "id": w.id,
+                    "latitude": w.latitude,
+                    "longitude": w.longitude,
+                    "temp": w.air_temperature,
+                    "wind_speed": w.wind_speed,
+                    "wind_dir": w.wind_direction
+                } for w in current_ws if w.air_temperature is not None]
+                
+                logger.info(f"Weather sync complete: {len(weather_stations)} stations updated.")
+
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in periodic_weather_sync: {e}")
+        
+        await asyncio.sleep(900) # Every 15 minutes
+
+def get_nearest_weather(lat, lon, max_dist_km=20.0):
+    global weather_stations
+    if not lat or not lon or not weather_stations:
+        return None
+    
+    from trafikverket import calculate_distance
+    
+    nearest = None
+    min_dist = max_dist_km
+    
+    for ws in weather_stations:
+        dist = calculate_distance(lat, lon, ws['latitude'], ws['longitude'])
+        if dist < min_dist:
+            min_dist = dist
+            nearest = ws
+            
+    return nearest
 
 async def refresh_cameras(api_key: str):
     # Keep legacy for stability during transition if needed
@@ -703,6 +850,17 @@ async def event_processor():
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
                     
+                    # Attach weather info
+                    weather = get_nearest_weather(ev.get('latitude'), ev.get('longitude'))
+                    if weather:
+                        mqtt_data['weather'] = {
+                            "temp": weather['temp'],
+                            "wind_speed": weather['wind_speed'],
+                            "wind_dir": weather['wind_dir']
+                        }
+                    else:
+                        mqtt_data['weather'] = None
+                    
                     # Fetch base_url for absolute links
                     base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
                     base_url = base_url_setting.value if base_url_setting else ""
@@ -808,7 +966,8 @@ async def event_processor():
                         "camera_name": new_event.camera_name,
                         "camera_snapshot": new_event.camera_snapshot,
                         "extra_cameras": json.loads(new_event.extra_cameras) if new_event.extra_cameras else [],
-                        "history_count": history_count
+                        "history_count": history_count,
+                        "weather": mqtt_data.get('weather')
                     }
                     for queue in connected_clients:
                         await queue.put(event_data)
@@ -938,6 +1097,16 @@ async def road_condition_processor():
                         icon_id_with_ext = f"{rc['icon_id']}.png"
                         icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
 
+                    # Attach weather info
+                    weather = get_nearest_weather(final_rc.latitude, final_rc.longitude)
+                    weather_data = None
+                    if weather:
+                        weather_data = {
+                            "temp": weather['temp'],
+                            "wind_speed": weather['wind_speed'],
+                            "wind_dir": weather['wind_dir']
+                        }
+
                     # Normalize camera URL for output (Frontend & MQTT)
                     out_camera_url = None
                     if final_rc.camera_snapshot:
@@ -963,7 +1132,8 @@ async def road_condition_processor():
                         "camera_url": out_camera_url, # Points to local snapshot
                         "camera_name": final_rc.camera_name,
                         "camera_snapshot": final_rc.camera_snapshot,
-                        "timestamp": final_rc.timestamp.isoformat() if final_rc.timestamp else None
+                        "timestamp": final_rc.timestamp.isoformat() if final_rc.timestamp else None,
+                        "weather": weather_data
                     }
                     
                     # Notify subscribers for NEW/UPDATED road conditions with warnings
@@ -1100,14 +1270,23 @@ def get_cameras_api(
     # If only_favorites is requested, legacy-style return but with counts
     if only_favorites:
         favorites = base_query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
-        return {
-            "favorites": [{
+        fav_list = []
+        for c in favorites:
+            weather = get_nearest_weather(c.latitude, c.longitude)
+            fav_list.append({
                 "id": c.id, "name": c.name, "description": c.description, "location": c.location,
                 "type": c.type, 
                 "proxy_url": f"/api/cameras/{c.id}/image",
                 "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
-                "county_no": c.county_no, "is_favorite": True
-            } for c in favorites],
+                "county_no": c.county_no, "is_favorite": True,
+                "weather": {
+                    "temp": weather['temp'],
+                    "wind_speed": weather['wind_speed'],
+                    "wind_dir": weather['wind_dir']
+                } if weather else None
+            })
+        return {
+            "favorites": fav_list,
             "favorites_count": fav_count,
             "total_count": total_count,
             "other_count": total_count - fav_count
@@ -1120,24 +1299,37 @@ def get_cameras_api(
     # Order and Paginate
     # Default order: favorites first, then name
     query = base_query.order_by(Camera.is_favorite.desc(), Camera.name.asc())
-    cams = query.offset(offset).limit(limit).all()
+    cameras_list = query.offset(offset).limit(limit).all()
 
+    result = []
+    for cam in cameras_list:
+        # Get weather for each camera
+        weather = get_nearest_weather(cam.latitude, cam.longitude)
+        
+        result.append({
+            "id": cam.id,
+            "name": cam.name,
+            "description": cam.description,
+            "location": cam.location,
+            "type": cam.type,
+            "proxy_url": f"/api/cameras/{cam.id}/image",
+            "photo_time": cam.photo_time.isoformat() if cam.photo_time else None,
+            "latitude": cam.latitude,
+            "longitude": cam.longitude,
+            "county_no": cam.county_no,
+            "is_favorite": bool(cam.is_favorite),
+            "weather": {
+                "temp": weather['temp'],
+                "wind_speed": weather['wind_speed'],
+                "wind_dir": weather['wind_dir']
+            } if weather else None
+        })
+    
     return {
-        "cameras": [{
-            "id": c.id,
-            "name": c.name,
-            "description": c.description,
-            "location": c.location,
-            "type": c.type,
-            "proxy_url": f"/api/cameras/{c.id}/image",
-            "photo_time": c.photo_time,
-            "latitude": c.latitude,
-            "longitude": c.longitude,
-            "county_no": c.county_no,
-            "is_favorite": bool(c.is_favorite)
-        } for c in cams],
-        "total": total_count,
-        "favorites_count": fav_count,
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "cameras": result,
         "has_more": (offset + limit) < total_count
     }
 

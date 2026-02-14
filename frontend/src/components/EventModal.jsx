@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity, Camera, History as HistoryIcon } from 'lucide-react'
+import { X, MapPin, Info, Clock, AlertTriangle, ShieldCheck, Activity, Camera, History as HistoryIcon, Thermometer, Wind } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import axios from 'axios'
@@ -107,6 +107,20 @@ export default function EventModal({ event, onClose }) {
                                     <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">
                                         ID: {event.external_id?.split('-')[0]}
                                     </span>
+
+                                    {event.weather && (
+                                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-2 py-1 rounded-lg">
+                                            <div className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
+                                                <Thermometer className="w-3.5 h-3.5" />
+                                                <span className="text-xs font-bold">{event.weather.temp}°C</span>
+                                            </div>
+                                            <div className="w-px h-3 bg-blue-200 dark:bg-blue-500/30"></div>
+                                            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
+                                                <Wind className="w-3.5 h-3.5" />
+                                                <span className="text-xs font-medium">{event.weather.wind_speed} m/s {event.weather.wind_dir}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

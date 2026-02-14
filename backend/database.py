@@ -133,11 +133,25 @@ class PushSubscription(Base):
     topic_realtid = Column(Integer, default=1) # 1=Enabled, 0=Disabled
     topic_road_condition = Column(Integer, default=1)
 
-class ClientInterest(Base):
+class ClientInterest(Base) :
     __tablename__ = "client_interests"
     client_id = Column(String, primary_key=True, index=True) # UUID
     counties = Column(String) # Comma-separated list
     last_active = Column(DateTime, default=datetime.datetime.utcnow)
+
+class WeatherMeasurepoint(Base):
+    __tablename__ = "weather_measurepoints"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    county_no = Column(Integer)
+    
+    air_temperature = Column(Float)
+    wind_speed = Column(Float)
+    wind_direction = Column(String) # e.g. "NW"
+    last_updated = Column(DateTime)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -154,6 +168,8 @@ def init_db():
         PushSubscription.__table__.create(bind=engine)
     if "client_interests" not in inspector.get_table_names():
         ClientInterest.__table__.create(bind=engine)
+    if "weather_measurepoints" not in inspector.get_table_names():
+        WeatherMeasurepoint.__table__.create(bind=engine)
 
 def migrate_db():
     from sqlalchemy import inspect
