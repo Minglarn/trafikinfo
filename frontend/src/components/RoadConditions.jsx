@@ -114,45 +114,65 @@ function RoadConditions() {
         }
     }, [offset, selectedCounties])
 
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('RoadConditions app returned to foreground, refreshing...')
+                fetchConditions(true)
+                setRefreshKey(prev => prev + 1)
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [])
+
     // SSE for real-time updates
     useEffect(() => {
+        console.log(`Starting SSE stream for RoadConditions (refreshKey: ${refreshKey})...`)
         const eventSource = new EventSource(`${API_BASE}/stream`)
+
+        eventSource.onopen = () => {
+            console.log('SSE Stream connected (RoadConditions)')
+        }
 
         eventSource.onmessage = (event) => {
             try {
                 const newData = JSON.parse(event.data)
                 if (newData.event_type !== 'RoadCondition') return
 
-                console.log('SSE RoadCondition received:', newData.id, newData.condition_text)
+                console.log(`[SSE RoadCondition] Received: ${newData.id} (${newData.condition_text}) - Road: ${newData.road_number}, County: ${newData.county_no}`)
 
                 setConditions(prev => {
                     // Check if is expired
                     if (newData.end_time && new Date(newData.end_time) < new Date()) {
-                        console.log('SSE filtering out expired condition:', newData.id)
-                        return prev.filter(c => c.id !== newData.id)
+                        console.log(`[SSE RoadCondition] Filtering out expired: ${newData.id}`)
+                        return prev.filter(c => String(c.id) !== String(newData.id))
                     }
 
                     // Check if matches selectedCounties
-                    // Defensive: toString() could fail if county_no is null/undefined
                     const incomingCounty = newData.county_no != null ? newData.county_no.toString() : null
 
                     if (selectedCounties.length > 0) {
                         if (!incomingCounty || !selectedCounties.includes(incomingCounty)) {
-                            console.log(`SSE filtering out condition ${newData.id} due to county mismatch. County: ${incomingCounty}, Selected: ${selectedCounties}`)
-                            return prev.filter(c => c.id !== newData.id)
+                            console.log(`[SSE RoadCondition] Filtering out ${newData.id} due to county mismatch. County: ${incomingCounty}, Selected: ${selectedCounties}`)
+                            return prev.filter(c => String(c.id) !== String(newData.id))
                         }
                     }
 
-                    // ID comparison should be safe as both are likely strings now, but we'll be careful
                     const index = prev.findIndex(c => String(c.id) === String(newData.id))
 
                     if (index !== -1) {
-                        console.log('SSE updating existing condition:', newData.id)
-                        // Remove existing so we can move updated to top
+                        console.log(`[SSE RoadCondition] Updating existing card: ${newData.id}`)
                         const filtered = prev.filter(c => String(c.id) !== String(newData.id))
                         return [newData, ...filtered]
                     } else {
-                        console.log('SSE adding new condition to top:', newData.id)
+                        // Semantic comparison log for debugging
+                        const similarRoad = prev.find(c => c.road_number === newData.road_number && c.county_no === newData.county_no)
+                        if (similarRoad) {
+                            console.warn(`[SSE RoadCondition] Adding as NEW card because ID mismatch, but SAME road/county detected: New ID: ${newData.id}, Existing ID in UI: ${similarRoad.id}`)
+                        } else {
+                            console.log(`[SSE RoadCondition] Adding NEW card: ${newData.id}`)
+                        }
                         return [newData, ...prev]
                     }
                 })
@@ -163,21 +183,12 @@ function RoadConditions() {
         }
 
         eventSource.onerror = (err) => {
-            console.error('SSE Error in RoadConditions:', err)
+            console.error('SSE Error (RoadConditions):', err)
         }
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                console.log('RoadConditions app returned to foreground, refreshing...')
-                fetchConditions(true)
-                setRefreshKey(prev => prev + 1)
-            }
-        }
-        document.addEventListener('visibilitychange', handleVisibilityChange)
 
         return () => {
+            console.log('Closing SSE stream (RoadConditions)...')
             eventSource.close()
-            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [selectedCounties, refreshKey])
 

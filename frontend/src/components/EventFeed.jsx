@@ -251,14 +251,25 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     }, [])
 
     useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('EventFeed returned to foreground, triggering refresh...')
+                setRefreshKey(prev => prev + 1)
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [])
+
+    useEffect(() => {
         // eslint-disable-next-line
         fetchEvents(true) // Initial load and re-fetch on filter changes
 
-        console.log('Starting SSE stream...')
+        console.log(`Starting SSE stream for EventFeed (mode: ${mode}, refreshKey: ${refreshKey})...`)
         const eventSource = new EventSource(`${API_BASE}/stream`)
 
         eventSource.onopen = () => {
-            console.log('SSE Stream connected')
+            console.log('SSE Stream connected (EventFeed)')
             setIsConnected(true)
         }
 
@@ -311,23 +322,14 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         }
 
         eventSource.onerror = (err) => {
-            console.error('SSE Error:', err)
+            console.error('SSE Error (EventFeed):', err)
             setIsConnected(false)
             // DON'T close() - native EventSource will auto-reconnect if we leave it open
         }
 
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                console.log('App returned to foreground, refreshing data and stream...')
-                setRefreshKey(prev => prev + 1)
-            }
-        }
-        document.addEventListener('visibilitychange', handleVisibilityChange)
-
         return () => {
-            console.log('Closing SSE stream...')
+            console.log('Closing SSE stream (EventFeed)...')
             eventSource.close()
-            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [mode, activeCounties, activeMessageTypes, activeSeverities, refreshKey]) // Re-fetch when filters, mode, or visibility changes
 

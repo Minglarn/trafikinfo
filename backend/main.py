@@ -1,4 +1,4 @@
-VERSION = "26.2.68"
+VERSION = "26.2.69"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1161,21 +1161,21 @@ async def road_condition_processor():
                     # Sync with DB
                     existing = db.query(RoadCondition).filter(RoadCondition.id == rc['id']).first()
                     
-                    # DEDUPLICATION: Check for semantic match (Same Road + Condition + County + StartTime)
-                    # This prevents duplicates when Trafikverket rotates IDs
+                    # DEDUPLICATION: Check for semantic match (Same Road + County)
+                    # This prevents duplicates when Trafikverket rotates IDs or when the condition code changes.
                     if not existing:
                         query = db.query(RoadCondition).filter(
                             RoadCondition.road_number == rc.get('road_number'),
-                            RoadCondition.condition_code == rc['condition_code'],
                             RoadCondition.county_no == rc.get('county_no')
                         )
+                        # Optional: If we want to be more specific, match by start_time
                         if rc.get('start_time'):
                             st = datetime.fromisoformat(rc['start_time'])
                             query = query.filter(RoadCondition.start_time == st)
                         
                         semantic_match = query.first()
                         if semantic_match:
-                            logger.info(f"deduplication: Matched incoming RC {rc['id']} to existing {semantic_match.id}")
+                            logger.info(f"deduplication: Matched incoming RC {rc['id']} to existing {semantic_match.id} (Road: {rc.get('road_number')})")
                             existing = semantic_match
 
                     camera_url = None
