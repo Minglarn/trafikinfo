@@ -13,7 +13,7 @@ import re
 import math
 import time
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, time as dt_time, timedelta
 from sqlalchemy import func
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
@@ -121,7 +121,7 @@ class PushSubscriptionSchema(BaseModel):
     include_weather: int = 1
     include_location: int = 1
 
-app = FastAPI(title="Trafikinfo API", version="26.2.53")
+app = FastAPI(title="Trafikinfo API", version=VERSION)
 
 class LoginRequest(BaseModel):
     password: str
@@ -1627,8 +1627,8 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
     if date:
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d")
-            day_start = datetime.combine(target_date.date(), time.min)
-            day_end = datetime.combine(target_date.date(), time.max)
+            day_start = datetime.combine(target_date.date(), dt_time.min)
+            day_end = datetime.combine(target_date.date(), dt_time.max)
             logger.info(f"Day range for filter: {day_start} to {day_end}")
             # Find events created on this day
             query = query.filter(TrafficEvent.created_at >= day_start).filter(TrafficEvent.created_at <= day_end)
