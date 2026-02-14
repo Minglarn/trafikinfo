@@ -1,4 +1,4 @@
-VERSION = "26.2.69"
+VERSION = "26.2.70"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1812,10 +1812,6 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
 def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
     query = db.query(RoadCondition)
     
-    # Filter by configured counties by default for consistency
-    county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-    selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
-    
     if county_no:
         # Support comma-separated list of counties
         try:
@@ -1824,8 +1820,6 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
                 query = query.filter(RoadCondition.county_no.in_(req_counties))
         except:
             pass
-    elif selected_counties:
-        query = query.filter(RoadCondition.county_no.in_(selected_counties))
         
     conditions = query.order_by(RoadCondition.updated_at.desc()).offset(offset).limit(limit).all()
     

@@ -82,9 +82,12 @@ function RoadConditions() {
             // Construct URL
             let url = `${API_BASE}/road-conditions?limit=${LIMIT}&offset=${currentOffset}`
 
-            // Handle multi-county selection
+            // Handle multi-county selection: Use selectedCounties or fallback to monitored (allowedCounties)
             if (selectedCounties.length > 0) {
                 const countyParam = selectedCounties.join(',')
+                url += `&county_no=${countyParam}`
+            } else if (allowedCounties.length > 0) {
+                const countyParam = allowedCounties.map(c => c.id).join(',')
                 url += `&county_no=${countyParam}`
             }
 
@@ -112,7 +115,7 @@ function RoadConditions() {
             setLoading(false)
             setIsFetchingMore(false)
         }
-    }, [offset, selectedCounties])
+    }, [offset, selectedCounties, allowedCounties])
 
     useEffect(() => {
         const handleVisibilityChange = () => {
@@ -149,12 +152,15 @@ function RoadConditions() {
                         return prev.filter(c => String(c.id) !== String(newData.id))
                     }
 
-                    // Check if matches selectedCounties
+                    // Multi-user Filtering: Use selectedCounties or fall back to allowedCounties (monitored in Settings)
                     const incomingCounty = newData.county_no != null ? newData.county_no.toString() : null
+                    const filterList = selectedCounties.length > 0
+                        ? selectedCounties
+                        : allowedCounties.map(c => c.id.toString())
 
-                    if (selectedCounties.length > 0) {
-                        if (!incomingCounty || !selectedCounties.includes(incomingCounty)) {
-                            console.log(`[SSE RoadCondition] Filtering out ${newData.id} due to county mismatch. County: ${incomingCounty}, Selected: ${selectedCounties}`)
+                    if (filterList.length > 0) {
+                        if (!incomingCounty || !filterList.includes(incomingCounty)) {
+                            console.log(`[SSE RoadCondition] Filtering out ${newData.id} due to county mismatch. County: ${incomingCounty}, Enabled: ${filterList}`)
                             return prev.filter(c => String(c.id) !== String(newData.id))
                         }
                     }
