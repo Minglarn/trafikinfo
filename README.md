@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.61-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.73-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -9,15 +9,19 @@
 
 ![App Screenshot](screenshot.png)
 
-Ett modernt system för att visa trafikinformation från Trafikverket i realtid. Systemet består av en backend i Python (FastAPI) och en frontend i React (PWA).
+Ett modernt system för att visa trafikinformation från Trafikverket i realtid. Systemet består av en backend i Python (FastAPI) och en frontend i React (PWA) med fokus på hastighet, estetik och användarnytta.
 
 ## Funktioner
 
 - **Push-notiser (PWA)**: Realtidsaviseringar direkt i din webbläsare eller telefon med dynamiska ikoner per händelsetyp.
-- **Family Model**: Smart bevakning där servern dynamiskt anpassar hämtning baserat på vad klientsidan (användarna) aktivt efterfrågar.
-- **Historik**: Sökbar databas över alla historiska händelser och versionsändringar.
-- **Väder & Väglag (Surface)**: Full kontroll på atmosfäriskt väder och vinterväglag. Nu med road temperature, friktion (grip), isdjup och snödjup direkt på väglagskorten.
-- **Planerat**: Separat vy för långsiktiga vägarbeten och kommande händelser.
+- **Family Model & Multi-User Sync**: Inställningar och bevakade län synkas sömlöst mellan dina enheter. Varje användare kan ha sin egen unika bevakningslista.
+- **Markmarkerade län**: Kraftfull filtrering där du endast ser händelser och väglag för de län DU valt att bevaka.
+- **Väglag & Friktion (Road Conditions)**: Detaljerad information om yttemperatur, lufttemperatur, vind och friktion (grip). Allt samlat i en logisk grid för snabb överblick.
+- **Färska Kamerabilder**: Systemet hämtar automatiskt en ny kamerabild vid varje uppdatering av ett väglag, så att du alltid ser den senaste bilden.
+- **Realtidsflöde (SSE)**: Blixtsnabb uppdatering av trafikstörningar utan att behöva ladda om sidan.
+- **Historik**: Sökbar databas över alla historiska händelser och versionsändringar för att se hur en situation utvecklats över tid.
+- **MQTT-Integration**: Fullt stöd för Home Assistant och andra system via MQTT för både händelser och väglag.
+- **Vägkamera (Under arbete)**: En dedikerad vy för att bläddra bland alla trafik- och väglagskameror är under utveckling och kommer i en kommande uppdatering.
 
 ## Kom igång med Docker Compose
 
