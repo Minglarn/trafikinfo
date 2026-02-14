@@ -107,7 +107,7 @@ function AppContent() {
       }
     }
 
-    const fetchCounts = async () => {
+    const fetchCounts = async (isMounted) => {
       try {
         const params = new URLSearchParams()
         if (lastSeen.feed) params.append('since_feed', lastSeen.feed)
@@ -115,23 +115,29 @@ function AppContent() {
         if (lastSeen['road-conditions']) params.append('since_road_conditions', lastSeen['road-conditions'])
 
         const res = await fetch(`/api/status/counts?${params.toString()}`)
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json()
+          // Ensure active tab count is forced to 0 in case of timing issues
+          if (['feed', 'planned', 'road-conditions'].includes(activeTab)) {
+            data[activeTab] = 0
+          }
           setCounts(data)
         }
       } catch (e) {
-        console.error("Counts poll error", e)
+        if (isMounted) console.error("Counts poll error", e)
       }
     }
 
-    fetchCounts() // Immediate first fetch for counts
+    let isMounted = true
+    fetchCounts(isMounted) // Immediate first fetch for counts
     const statusInterval = setInterval(fetchStatus, 30000)
-    const countsInterval = setInterval(fetchCounts, 30000)
+    const countsInterval = setInterval(() => fetchCounts(isMounted), 30000)
     return () => {
+      isMounted = false
       clearInterval(statusInterval)
       clearInterval(countsInterval)
     }
-  }, [lastSeen]) // Add lastSeen as dependency to fetch with new timestamps
+  }, [lastSeen, activeTab]) // Add activeTab to dependencies to ensure force-clear works
 
 
   // Report Base URL and handle Deep Links

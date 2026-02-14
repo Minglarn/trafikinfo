@@ -1953,7 +1953,9 @@ def get_status_counts(
     def parse_since(since_str):
         if not since_str: return None
         try:
-            return datetime.fromisoformat(since_str.replace('Z', '+00:00'))
+            # Convert ISO string (UTC) to naive local datetime
+            dt = datetime.fromisoformat(since_str.replace('Z', '+00:00'))
+            return dt.astimezone().replace(tzinfo=None)
         except:
             return None
 

@@ -129,13 +129,14 @@ class TrafikverketStream:
             # Filter out '0' (Alla län) just in case it's passed
             valid_ids = [cid for cid in county_ids if str(cid) != "0"]
             if valid_ids:
-                conditions = "".join([f'<EQ name="CountyNo" value="{cid}" />' for cid in valid_ids])
+                # In Road.WeatherInfo, the field is often named 'County'
+                conditions = "".join([f'<EQ name="County" value="{cid}" />' for cid in valid_ids])
                 filter_block = f'<AND>{filter_block}<OR>{conditions}</OR></AND>'
 
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.0' namespace='Road.WeatherInfo'>
                 <FILTER>
                     {filter_block}
                 </FILTER>
