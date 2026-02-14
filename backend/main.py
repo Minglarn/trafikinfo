@@ -1,4 +1,4 @@
-VERSION = "26.2.64"
+VERSION = "26.2.65"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -113,7 +113,7 @@ class PushSubscriptionSchema(BaseModel):
     endpoint: str
     keys: dict # contains p256dh and auth
     counties: str = ""
-    min_severity: int = 1
+    min_severity: int = 3
     topic_realtid: int = 1
     topic_road_condition: int = 1
     include_severity: int = 1
@@ -2148,9 +2148,9 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
         if type == "event":
             if not sub.topic_realtid:
                 continue
-            # Handle None in severity_code
+            # Skip if severity_code is null or less than min_severity
             severity = data.get('severity_code')
-            if (severity or 0) < sub.min_severity:
+            if severity is None or severity < sub.min_severity:
                 continue
             
             # 1. Build Title

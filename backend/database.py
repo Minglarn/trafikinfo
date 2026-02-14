@@ -162,7 +162,7 @@ class PushSubscription(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     # Filter settings per subscription
     counties = Column(String) # Comma separated list of county numbers
-    min_severity = Column(Integer, default=1)
+    min_severity = Column(Integer, default=3)
     topic_realtid = Column(Integer, default=1) # 1=Enabled, 0=Disabled
     topic_road_condition = Column(Integer, default=1)
     # Customization preferences (1=Enabled, 0=Disabled)

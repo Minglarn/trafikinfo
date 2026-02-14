@@ -57,6 +57,7 @@ export default function Settings() {
     const [includeImage, setIncludeImage] = useState(() => localStorage.getItem('push_include_image') !== 'false')
     const [includeWeather, setIncludeWeather] = useState(() => localStorage.getItem('push_include_weather') !== 'false')
     const [includeLocation, setIncludeLocation] = useState(() => localStorage.getItem('push_include_location') !== 'false')
+    const [minSeverity, setMinSeverity] = useState(() => parseInt(localStorage.getItem('push_min_severity') || '3'))
 
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
@@ -73,6 +74,7 @@ export default function Settings() {
         localStorage.setItem('push_include_image', includeImage)
         localStorage.setItem('push_include_weather', includeWeather)
         localStorage.setItem('push_include_location', includeLocation)
+        localStorage.setItem('push_min_severity', minSeverity)
 
         // If push is enabled, sync preferences automatically
         if (pushEnabled) {
@@ -86,7 +88,7 @@ export default function Settings() {
                         endpoint: sub.endpoint,
                         keys: { p256dh, auth },
                         counties: localCounties.join(','),
-                        min_severity: 1,
+                        min_severity: minSeverity,
                         topic_realtid: topicRealtid ? 1 : 0,
                         topic_road_condition: topicRoadCondition ? 1 : 0,
                         include_severity: includeSeverity ? 1 : 0,
@@ -342,6 +344,35 @@ export default function Settings() {
                                     <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Plats/Position</span>
                                 </label>
                             </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 italic flex items-center gap-2">
+                                <AlertCircle className="w-3 h-3 text-blue-500" />
+                                Minsta allvarlighetsgrad:
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { id: 1, name: 'Ingen påverkan' },
+                                    { id: 2, name: 'Liten påverkan' },
+                                    { id: 3, name: 'Stor påverkan' },
+                                    { id: 5, name: 'Extrem påverkan' }
+                                ].map((level) => (
+                                    <button
+                                        key={level.id}
+                                        onClick={() => setMinSeverity(level.id)}
+                                        className={`px-3 py-2 rounded-xl border text-[10px] font-bold uppercase transition-all ${(minSeverity === level.id || (minSeverity === 4 && level.id === 3))
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-[1.02]'
+                                                : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-blue-300'
+                                            }`}
+                                    >
+                                        {level.name}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                                Sätts som standard till <strong>Stor påverkan</strong> för att minska antalet notiser.
+                            </p>
                         </div>
                     </div>
 
