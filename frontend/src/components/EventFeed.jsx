@@ -655,22 +655,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                             </button>
                                         </div>
 
-                                        {/* Weather Badge */}
-                                        {event.weather && (
-                                            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-2 py-1 rounded-lg shadow-sm">
-                                                <div className="flex items-center gap-1 text-blue-700 dark:text-blue-400">
-                                                    <Thermometer className="w-3.5 h-3.5" />
-                                                    <span className="text-xs font-bold">{(event.weather.air_temperature ?? event.weather.temp) ?? '?'}°C</span>
-                                                </div>
-                                                <div className="w-px h-3 bg-blue-200 dark:bg-blue-500/30"></div>
-                                                <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                                                    <Wind className="w-3.5 h-3.5" />
-                                                    <span className="text-xs font-medium">
-                                                        {event.weather.wind_speed ?? '?'} m/s {(event.weather.wind_direction ?? event.weather.wind_dir) ?? ''}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
 
                                         {/* New Badge (< 1h old) */}
 
@@ -930,6 +914,26 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Weather Detail below Camera/Map */}
+                                    {event.weather && (
+                                        <div className="mt-2.5 flex justify-end">
+                                            <div className="flex items-center gap-2 bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100/50 dark:border-blue-500/10 px-2.5 py-1 rounded-lg shadow-sm backdrop-blur-sm transition-all hover:bg-blue-100/30 dark:hover:bg-blue-500/10">
+                                                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400">
+                                                    <Thermometer className="w-3.5 h-3.5" />
+                                                    <span className="text-xs font-bold whitespace-nowrap">{(event.weather.air_temperature ?? event.weather.temp) ?? '?'}°C</span>
+                                                </div>
+                                                <div className="w-px h-3 bg-blue-200/50 dark:bg-blue-500/20"></div>
+                                                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                                    <Wind className="w-3.5 h-3.5" />
+                                                    <span className="text-xs font-semibold whitespace-nowrap flex items-center gap-1">
+                                                        {event.weather.wind_speed ?? '?'} <span className="text-[10px] opacity-60 font-medium">m/s</span>
+                                                        <span className="text-blue-600/70 dark:text-blue-400/70">{(event.weather.wind_direction ?? event.weather.wind_dir) ?? ''}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
