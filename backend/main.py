@@ -1,4 +1,4 @@
-VERSION = "26.2.59"
+VERSION = "26.2.60"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -309,10 +309,10 @@ def start_worker(api_key: str, county_ids: list = None):
     if not icon_sync_task or icon_sync_task.done():
         icon_sync_task = asyncio.create_task(periodic_icon_sync())
     
-    # Start weather sync
+    # Start weather sync (One-time initialization)
     global weather_sync_task
     if not weather_sync_task or weather_sync_task.done():
-        weather_sync_task = asyncio.create_task(periodic_weather_sync())
+        weather_sync_task = asyncio.create_task(initialize_weather_stations())
     
     # Start dynamic county manager
     global dynamic_worker_task
@@ -444,102 +444,82 @@ def deg_to_compass(num):
     arr = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     return arr[(val % 8)]
 
-async def periodic_weather_sync():
-    """Background task to sync weather data."""
-    while True:
+async def initialize_weather_stations():
+    """Run once on startup to cache station locations (metadata only)."""
+    try:
+        db = SessionLocal()
         try:
-            db = SessionLocal()
-            try:
+            # 1. Load from DB first
+            current_ws = db.query(WeatherMeasurepoint).all()
+            
+            # 2. If valid data exists, just load it into memory
+            if current_ws and len(current_ws) > 500:
+                logger.info(f"Loaded {len(current_ws)} weather stations from DB.")
+            else:
+                # 3. If DB is empty, fetch from API (metadata only, no observations)
                 api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
-                if not api_key_setting or not api_key_setting.value:
-                    await asyncio.sleep(30)
-                    continue
-                
-                api_key = api_key_setting.value
-                
-                # Get selected counties for filtering
-                counties_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-                county_ids = []
-                if counties_setting and counties_setting.value:
-                    county_ids = [c.strip() for c in counties_setting.value.split(",") if c.strip()]
+                if api_key_setting and api_key_setting.value:
+                    logger.info("Initializing weather stations from API...")
+                    
+                    # Get selected counties for filtering
+                    counties_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                    county_ids = []
+                    if counties_setting and counties_setting.value:
+                        county_ids = [c.strip() for c in counties_setting.value.split(",") if c.strip()]
 
-                # 1. Sync Stations (Metadata) - only if we have few or none, or once a day
-                from database import WeatherMeasurepoint
-                from trafikverket import calculate_distance
-                
-                stations = await tv_stream.fetch_weather_stations(county_ids=county_ids)
-                logger.debug(f"Fetched {len(stations) if stations else 0} weather stations.")
-                if stations:
-                    for s in stations:
-                        sid = s.get('Id')
-                        wgs84 = s.get('Geometry', {}).get('WGS84')
-                        if not sid or not wgs84: continue
-                        
-                        match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
-                        if not match: continue
-                        
-                        lon = float(match.group(1))
-                        lat = float(match.group(2))
-                        
-                        existing = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
-                        if not existing:
-                            existing = WeatherMeasurepoint(id=sid)
-                            db.add(existing)
+                    stations = await tv_stream.fetch_weather_stations(county_ids=county_ids)
+                    if stations:
+                        for s in stations:
+                            sid = s.get('Id')
+                            wgs84 = s.get('Geometry', {}).get('WGS84')
+                            if not sid or not wgs84: continue
+                            
+                            match = re.search(r"\(([\d\.]+)\s+([\d\.]+)", wgs84)
+                            if not match: continue
+                            
+                            lon = float(match.group(1))
+                            lat = float(match.group(2))
+                            
+                            existing = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
+                            if not existing:
+                                existing = WeatherMeasurepoint(id=sid)
+                                db.add(existing)
 
-                        existing.name = s.get('Name')
-                        existing.latitude = lat
-                        existing.longitude = lon
-                        
-                        # Handle CountyNo
-                        c_no = s.get('CountyNo')
-                        if isinstance(c_no, list) and c_no:
-                            existing.county_no = c_no[0]
-                        elif isinstance(c_no, int):
-                            existing.county_no = c_no
-                        else:
-                            existing.county_no = 0
+                            existing.name = s.get('Name')
+                            existing.latitude = lat
+                            existing.longitude = lon
+                            
+                            # Handle CountyNo
+                            c_no = s.get('CountyNo')
+                            if isinstance(c_no, list) and c_no:
+                                existing.county_no = c_no[0]
+                            elif isinstance(c_no, int):
+                                existing.county_no = c_no
+                            else:
+                                existing.county_no = 0
 
-                        # Update metadata ONLY
-                        existing.name = s.get('Name')
-                        existing.latitude = lat
-                        existing.longitude = lon
-                        
-                        # Handle CountyNo
-                        c_no = s.get('CountyNo')
-                        if isinstance(c_no, list) and c_no:
-                            existing.county_no = c_no[0]
-                        elif isinstance(c_no, int):
-                            existing.county_no = c_no
-                        else:
-                            existing.county_no = 0
-                        
-                        # We NO LONGER parse Observations here. 
-                        # Weather data is now fetched on-demand per event and stored in the event record.
-                        
-                    db.commit()
-
-                # 3. Update global cache
-                global weather_stations
-                current_ws = db.query(WeatherMeasurepoint).all()
-                logger.debug(f"Stations in DB: {len(current_ws)}")
-                weather_stations = {
-                    w.id: {
-                        "latitude": w.latitude,
-                        "longitude": w.longitude,
-                        "temp": w.air_temperature,
-                        "wind_speed": w.wind_speed,
-                        "wind_dir": w.wind_direction
-                    } for w in current_ws
-                }
-                
-                logger.info(f"Weather sync complete: {len(weather_stations)} stations cached.")
-
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Error in periodic_weather_sync: {e}")
-        
-        await asyncio.sleep(900) # Every 15 minutes
+                        db.commit()
+                        # Re-query
+                        current_ws = db.query(WeatherMeasurepoint).all()
+                        logger.info(f"Initialized {len(current_ws)} weather stations.")
+            
+            # 4. Populate global cache
+            global weather_stations
+            weather_stations = {
+                w.id: {
+                    "latitude": w.latitude,
+                    "longitude": w.longitude,
+                    # We only cache location. Data is fetched on demand.
+                    "temp": None,
+                    "wind_speed": None,
+                    "wind_dir": None
+                } for w in current_ws
+            }
+            
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error in initialize_weather_stations: {e}")
 
 # Weather Cache for real-time enrichment
 weather_cache = {} # sid -> {"data": dict, "expires": float}

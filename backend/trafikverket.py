@@ -137,7 +137,6 @@ class TrafikverketStream:
                 <INCLUDE>Id</INCLUDE>
                 <INCLUDE>Name</INCLUDE>
                 <INCLUDE>Geometry</INCLUDE>
-                <INCLUDE>Observation</INCLUDE>
             </QUERY>
         </REQUEST>
         """
