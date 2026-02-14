@@ -497,28 +497,23 @@ async def periodic_weather_sync():
                         else:
                             existing.county_no = 0
 
-                        # Parse nested Observation
-                        obs = s.get('Observation')
-                        if obs:
-                            # Handle Air (Temperature) robustly
-                            air = obs.get('Air')
-                            if isinstance(air, list) and air: air = air[0]
-                            elif not isinstance(air, dict): air = {}
-
-                            # Handle Wind robustly
-                            wind = obs.get('Wind')
-                            if isinstance(wind, list) and wind: wind = wind[-1]
-                            elif not isinstance(wind, dict): wind = {}
-                            
-                            temp = air.get('Temperature', {}).get('Value')
-                            w_speed = wind.get('Speed', {}).get('Value')
-                            w_dir = wind.get('Direction', {}).get('Value')
-
-                            if temp is not None: existing.air_temperature = float(temp)
-                            if w_speed is not None: existing.wind_speed = float(w_speed)
-                            if w_dir is not None: existing.wind_direction = deg_to_compass(float(w_dir))
-                            existing.last_updated = datetime.now()
-                            
+                        # Update metadata ONLY
+                        existing.name = s.get('Name')
+                        existing.latitude = lat
+                        existing.longitude = lon
+                        
+                        # Handle CountyNo
+                        c_no = s.get('CountyNo')
+                        if isinstance(c_no, list) and c_no:
+                            existing.county_no = c_no[0]
+                        elif isinstance(c_no, int):
+                            existing.county_no = c_no
+                        else:
+                            existing.county_no = 0
+                        
+                        # We NO LONGER parse Observations here. 
+                        # Weather data is now fetched on-demand per event and stored in the event record.
+                        
                     db.commit()
 
                 # 3. Update global cache
@@ -1387,25 +1382,13 @@ async def get_cameras_api(
         favorites = base_query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
         fav_list = []
         for c in favorites:
-            # For cameras, we use the last known weather from cache since they aren't "events"
-            weather = None
-            if c.latitude and c.longitude:
-                try:
-                    weather = await get_realtime_weather(c.latitude, c.longitude)
-                except Exception as we:
-                    logger.error(f"Weather lookup failed for favorite camera {c.id}: {we}")
-            
             fav_list.append({
                 "id": c.id, "name": c.name, "description": c.description, "location": c.location,
                 "type": c.type, 
                 "proxy_url": f"/api/cameras/{c.id}/image",
                 "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
                 "county_no": c.county_no, "is_favorite": True,
-                "weather": {
-                    "temp": weather['temp'],
-                    "wind_speed": weather['wind_speed'],
-                    "wind_dir": weather['wind_dir']
-                } if weather else None
+                "weather": None # Explicitly removed for performance/policy
             })
         return {
             "favorites": fav_list,
@@ -1425,14 +1408,6 @@ async def get_cameras_api(
 
     result = []
     for cam in cameras_list:
-        # Get weather for each camera
-        weather = None
-        if cam.latitude and cam.longitude:
-            try:
-                weather = await get_realtime_weather(cam.latitude, cam.longitude)
-            except Exception as we:
-                logger.error(f"Weather lookup failed for camera {cam.id}: {we}")
-        
         result.append({
             "id": cam.id,
             "name": cam.name,
@@ -1445,11 +1420,7 @@ async def get_cameras_api(
             "longitude": cam.longitude,
             "county_no": cam.county_no,
             "is_favorite": bool(cam.is_favorite),
-            "weather": {
-                "temp": weather['temp'],
-                "wind_speed": weather['wind_speed'],
-                "wind_dir": weather['wind_dir']
-            } if weather else None
+            "weather": None # Explicitly removed
         })
     
     return {
