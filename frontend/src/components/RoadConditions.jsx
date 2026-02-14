@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, Wind, ChevronDown, ChevronUp, Droplets, Zap, Gauge } from 'lucide-react'
+import { MapPin, Clock, AlertTriangle, Camera, Snowflake, Thermometer, Wind, ChevronDown, ChevronUp, Droplets, Zap, Gauge, Filter, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
 
 function RoadConditions() {
@@ -23,6 +24,7 @@ function RoadConditions() {
     })
     const [roadFilter, setRoadFilter] = useState('')
     const [allowedCounties, setAllowedCounties] = useState([])
+    const [showFilters, setShowFilters] = useState(false)
 
     const ALL_COUNTIES = [
         { id: 1, name: "Stockholm" },
@@ -332,48 +334,89 @@ function RoadConditions() {
                         </span>
                     </h2>
 
-                    {/* Road Filter Input */}
-                    <div className="w-full md:w-auto">
-                        <input
-                            type="text"
-                            placeholder="Filtrera väg..."
-                            value={roadFilter}
-                            onChange={(e) => setRoadFilter(e.target.value)}
-                            className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-4 w-full md:w-64 focus:ring-2 focus:ring-blue-500"
-                        />
+                    <div className="flex items-center gap-3">
+                        {/* Filter Toggle */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-2 transition-all ${showFilters || selectedCounties.length > 0
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20'
+                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                }`}
+                        >
+                            <Filter className="w-3.5 h-3.5" />
+                            Filter
+                            {selectedCounties.length > 0 && (
+                                <span className="bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                    {selectedCounties.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {/* Road Filter Input */}
+                        <div className="w-full md:w-auto">
+                            <input
+                                type="text"
+                                placeholder="Filtrera väg..."
+                                value={roadFilter}
+                                onChange={(e) => setRoadFilter(e.target.value)}
+                                className="text-sm rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 px-4 w-full md:w-48 focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
                     </div>
                 </div>
 
-                {/* County Filter Chips */}
-                <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Län</label>
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            onClick={() => toggleCounty('Alla')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedCounties.length === 0
-                                ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900'
-                                : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                                }`}
+                {/* County Filter Chips (Collapsible) */}
+                <AnimatePresence>
+                    {showFilters && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
                         >
-                            Alla län
-                        </button>
-                        {allowedCounties.map(county => {
-                            const isSelected = selectedCounties.includes(county.id.toString())
-                            return (
-                                <button
-                                    key={county.id}
-                                    onClick={() => toggleCounty(county.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isSelected
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                                        }`}
-                                >
-                                    {county.name}
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
+                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Län</label>
+                                    {selectedCounties.length > 0 && (
+                                        <button
+                                            onClick={() => toggleCounty('Alla')}
+                                            className="text-[10px] text-red-500 hover:text-red-600 font-bold flex items-center gap-1 transition-colors uppercase"
+                                        >
+                                            <X className="w-3 h-3" />
+                                            Rensa
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => toggleCounty('Alla')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedCounties.length === 0
+                                            ? 'bg-slate-800 text-white border-slate-800 dark:bg-white dark:text-slate-900 shadow-sm'
+                                            : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        Alla län
+                                    </button>
+                                    {allowedCounties.map(county => {
+                                        const isSelected = selectedCounties.includes(county.id.toString())
+                                        return (
+                                            <button
+                                                key={county.id}
+                                                onClick={() => toggleCounty(county.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isSelected
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                    : 'bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500'
+                                                    }`}
+                                            >
+                                                {county.name}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {activeConditions.length === 0 ? (
