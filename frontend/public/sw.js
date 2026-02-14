@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trafikinfo-cache-v26.2.75';
+const CACHE_NAME = 'trafikinfo-cache-v26.2.76';
 const ASSETS = [
     '/',
     '/index.html',
@@ -55,27 +55,36 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-    try {
-        const data = event.data.json();
-        const title = data.title || 'Trafikinfo Flux';
-        const options = {
-            body: data.message,
-            icon: data.icon || '/icon-192.png',
-            badge: '/notification-icon.png',
-            image: data.image, // Big picture
-            data: {
-                url: data.url
-            },
-            tag: data.url,
-            renotify: true
-        };
+    const promise = (async () => {
+        try {
+            const data = event.data.json();
+            const title = data.title || 'Trafikinfo Flux';
+            const options = {
+                body: data.message,
+                icon: data.icon || '/icon-192.png',
+                badge: '/notification-icon.png',
+                image: data.image, // Big picture
+                data: {
+                    url: data.url
+                },
+                tag: data.url,
+                renotify: true
+            };
 
-        event.waitUntil(
-            self.registration.showNotification(title, options)
-        );
-    } catch (e) {
-        console.error('Push data error:', e);
-    }
+            await self.registration.showNotification(title, options);
+        } catch (e) {
+            console.error('Push data error:', e);
+            // Fallback notification to satisfy "user visible only" requirement
+            // and ensure process isn't killed prematurely if data is malformed
+            await self.registration.showNotification('Trafikinfo Flux', {
+                body: 'Ny trafikuppdatering tillgänglig',
+                icon: '/icon-192.png',
+                badge: '/notification-icon.png'
+            });
+        }
+    })();
+
+    event.waitUntil(promise);
 });
 
 self.addEventListener('notificationclick', (event) => {
