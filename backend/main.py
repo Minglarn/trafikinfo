@@ -303,7 +303,7 @@ def start_worker(api_key: str, county_ids: list = None):
     # Start camera sync
     global camera_sync_task, icon_sync_task
     if not camera_sync_task or camera_sync_task.done():
-        camera_sync_task = asyncio.create_task(periodic_camera_sync())
+        camera_sync_task = asyncio.create_task(initialize_cameras())
     
     # Start icon sync
     if not icon_sync_task or icon_sync_task.done():
@@ -360,67 +360,69 @@ async def dynamic_worker_manager(api_key: str):
             logger.error(f"Error in dynamic_worker_manager: {e}")
             await asyncio.sleep(60)
 
-async def periodic_camera_sync():
-    """Background task to sync cameras with DB every 5 minutes."""
+async def initialize_cameras():
+    """Run once on startup (and theoretically weekly) to cache cameras."""
     while True:
         try:
             db = SessionLocal()
             try:
-                # 1. Get API Key and Selected Counties
-                api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
-                if not api_key_setting or not api_key_setting.value:
-                    await asyncio.sleep(30)
-                    continue
-                
-                api_key = api_key_setting.value
-                county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-                selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
-
-                # 2. Fetch from API
-                new_cameras = await get_cameras(api_key)
-                if not new_cameras:
-                    await asyncio.sleep(60)
-                    continue
-
-                # 3. Update DB
-                for cam_data in new_cameras:
-                    # Only sync if in selected counties (or if no counties selected)
-                    if not selected_counties or cam_data["county_no"] in selected_counties:
-                        existing = db.query(Camera).filter(Camera.id == cam_data["id"]).first()
-                        if existing:
-                            # Update fields but preserve is_favorite
-                            existing.name = cam_data["name"]
-                            existing.description = cam_data["description"]
-                            existing.location = cam_data["location"]
-                            existing.type = cam_data["type"]
-                            existing.photo_url = cam_data["url"]
-                            existing.fullsize_url = cam_data["fullsize_url"]
-                            existing.photo_time = datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None
-                            existing.latitude = cam_data["latitude"]
-                            existing.longitude = cam_data["longitude"]
-                            existing.county_no = cam_data["county_no"]
-                        else:
-                            # New camera
-                            new_cam = Camera(
-                                id=cam_data["id"],
-                                name=cam_data["name"],
-                                description=cam_data["description"],
-                                location=cam_data["location"],
-                                type=cam_data["type"],
-                                photo_url=cam_data["url"],
-                                fullsize_url=cam_data["fullsize_url"],
-                                photo_time=datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None,
-                                latitude=cam_data["latitude"],
-                                longitude=cam_data["longitude"],
-                                county_no=cam_data["county_no"]
-                            )
-                            db.add(new_cam)
-                
-                db.commit()
-                
-                # Update global list for event mapping (nearest camera lookup)
-                global cameras
+                # 1. Load from DB first
                 current_cameras = db.query(Camera).all()
+                
+                # 2. If valid data exists, just load it into memory
+                if current_cameras and len(current_cameras) > 100:
+                    logger.info(f"Loaded {len(current_cameras)} cameras from DB.")
+                else:
+                    # 3. If DB is empty, fetch from API
+                    api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
+                    if api_key_setting and api_key_setting.value:
+                        logger.info("Initializing cameras from API...")
+                        api_key = api_key_setting.value
+                        
+                        # Get selected counties (optional filtering for cameras, though user wants them all usually)
+                        county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+                        selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
+
+                        new_cameras = await get_cameras(api_key)
+                        if new_cameras:
+                             for cam_data in new_cameras:
+                                # Only sync if in selected counties (or if no counties selected)
+                                if not selected_counties or cam_data["county_no"] in selected_counties:
+                                    existing = db.query(Camera).filter(Camera.id == cam_data["id"]).first()
+                                    if existing:
+                                        existing.name = cam_data["name"]
+                                        existing.description = cam_data["description"]
+                                        existing.location = cam_data["location"]
+                                        existing.type = cam_data["type"]
+                                        existing.photo_url = cam_data["url"]
+                                        existing.fullsize_url = cam_data["fullsize_url"]
+                                        existing.photo_time = datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None
+                                        existing.latitude = cam_data["latitude"]
+                                        existing.longitude = cam_data["longitude"]
+                                        existing.county_no = cam_data["county_no"]
+                                    else:
+                                        new_cam = Camera(
+                                            id=cam_data["id"],
+                                            name=cam_data["name"],
+                                            description=cam_data["description"],
+                                            location=cam_data["location"],
+                                            type=cam_data["type"],
+                                            photo_url=cam_data["url"],
+                                            fullsize_url=cam_data["fullsize_url"],
+                                            photo_time=datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None,
+                                            latitude=cam_data["latitude"],
+                                            longitude=cam_data["longitude"],
+                                            county_no=cam_data["county_no"]
+                                        )
+                                        db.add(new_cam)
+                             
+                             db.commit()
+                             # Re-query
+                             current_cameras = db.query(Camera).all()
+                             logger.info(f"Initialized {len(current_cameras)} cameras from API.")
+
+                # 4. Populate global cache
+                global cameras
                 cameras = [{
                     "id": c.id,
                     "name": c.name,
@@ -430,14 +432,13 @@ async def periodic_camera_sync():
                     "fullsize_url": c.fullsize_url
                 } for c in current_cameras]
                 
-                logger.debug(f"Synced {len(current_cameras)} cameras to DB and global cache")
-
             finally:
                 db.close()
         except Exception as e:
-            logger.error(f"Error in periodic_camera_sync: {e}")
+            logger.error(f"Error in initialize_cameras: {e}")
         
-        await asyncio.sleep(86400) # Every 24 hours (86400 seconds)
+        # Run weekly (once every 7 days)
+        await asyncio.sleep(604800)
 
 def deg_to_compass(num):
     val = int((num / 22.5) + .5)
@@ -447,6 +448,7 @@ def deg_to_compass(num):
 async def initialize_weather_stations():
     """Run once on startup to cache station locations (metadata only)."""
     try:
+        from database import WeatherMeasurepoint
         db = SessionLocal()
         try:
             # 1. Load from DB first
@@ -539,8 +541,15 @@ async def get_realtime_weather(lat, lon):
             best_dist = d
             best_sid = sid
     
-    if not best_sid or best_dist > 0.2: # ~20km limit (approx 0.2 degrees lat/lon difference)
+    if not best_sid:
+        logger.warning(f"No weather station found in cache for {lat}, {lon}")
         return None
+        
+    if best_dist > 0.2: # ~20km limit
+        logger.warning(f"Nearest station {best_sid} too far: {best_dist:.4f} degrees")
+        return None
+    
+    logger.info(f"Matched {lat}, {lon} to station {best_sid} (dist: {best_dist:.4f})")
     
     # 2. Check Cache
     now = time.time()
@@ -554,6 +563,7 @@ async def get_realtime_weather(lat, lon):
         data = await tv_stream.fetch_weather_measurepoint(best_sid)
         if data and 'Observation' in data:
             obs = data['Observation']
+            logger.debug(f"Fetched observation for {best_sid}. Keys: {list(obs.keys())}")
             
             # Extract Air Temperature
             temp = None
@@ -626,10 +636,25 @@ async def get_realtime_weather(lat, lon):
                 "snow_depth": snow_depth,
                 "water_equivalent": water_equiv,
                 "station_name": data.get('Name'),
-                "temp": temp, # Legacy compatibility
-                "wind_dir": deg_to_compass(float(w_dir)) if w_dir is not None else None # Legacy compatibility
+                # Legacy compatibility
             }
+            weather_data["temp"] = temp
+            weather_data["wind_dir"] = weather_data["wind_direction"]
             
+            # Check if we have ANY meaningful data
+            has_data = any([
+                temp is not None, 
+                w_speed is not None, 
+                road_temp is not None, 
+                grip is not None,
+                ice_depth is not None,
+                snow_depth is not None
+            ])
+            
+            if not has_data:
+                logger.warning(f"Station {best_sid} returned no weather metrics.")
+                return None
+
             # Update Cache
             weather_cache[best_sid] = {
                 "data": weather_data,
@@ -961,11 +986,21 @@ async def event_processor():
                     
                     lat = ev.get('latitude')
                     lon = ev.get('longitude')
-                    if new_event.air_temperature is not None:
+                    has_weather = any([
+                        new_event.air_temperature is not None,
+                        new_event.wind_speed is not None,
+                        new_event.road_temperature is not None,
+                        new_event.grip is not None
+                    ])
+                    if has_weather:
                         mqtt_data["weather"] = {
                             "air_temperature": new_event.air_temperature,
                             "wind_speed": new_event.wind_speed,
-                            "wind_direction": new_event.wind_direction
+                            "wind_direction": new_event.wind_direction,
+                            "road_temperature": new_event.road_temperature,
+                            "grip": new_event.grip,
+                            "ice_depth": getattr(new_event, 'ice_depth', None),
+                            "snow_depth": getattr(new_event, 'snow_depth', None)
                         }
                     else:
                         mqtt_data['weather'] = None
@@ -1175,6 +1210,7 @@ async def road_condition_processor():
                             try:
                                 weather = await get_realtime_weather(existing.latitude, existing.longitude)
                                 if weather:
+                                    logger.info(f"Enriched existing RC {rc['id']} with weather: {weather.get('air_temperature')}°C")
                                     existing.air_temperature = weather.get('air_temperature')
                                     existing.wind_speed = weather.get('wind_speed')
                                     existing.wind_direction = weather.get('wind_direction')
@@ -1241,7 +1277,12 @@ async def road_condition_processor():
 
                     # Attach weather info from DB
                     weather_data = None
-                    if final_rc.air_temperature is not None:
+                    any_weather = any([
+                        final_rc.air_temperature is not None,
+                        final_rc.road_temperature is not None,
+                        final_rc.grip is not None
+                    ])
+                    if any_weather:
                         weather_data = {
                             "air_temperature": final_rc.air_temperature,
                             "wind_speed": final_rc.wind_speed,

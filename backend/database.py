@@ -47,6 +47,11 @@ class TrafficEvent(Base):
     air_temperature = Column(Float)
     wind_speed = Column(Float)
     wind_direction = Column(String)
+    road_temperature = Column(Float)
+    grip = Column(Float)
+    ice_depth = Column(Float)
+    snow_depth = Column(Float)
+    water_equivalent = Column(Float)
 
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
@@ -82,6 +87,11 @@ class TrafficEventVersion(Base):
     air_temperature = Column(Float)
     wind_speed = Column(Float)
     wind_direction = Column(String)
+    road_temperature = Column(Float)
+    grip = Column(Float)
+    ice_depth = Column(Float)
+    snow_depth = Column(Float)
+    water_equivalent = Column(Float)
 
 class Camera(Base):
     __tablename__ = "cameras"
@@ -173,6 +183,11 @@ class WeatherMeasurepoint(Base):
     air_temperature = Column(Float)
     wind_speed = Column(Float)
     wind_direction = Column(String) # e.g. "NW"
+    road_temperature = Column(Float)
+    grip = Column(Float)
+    ice_depth = Column(Float)
+    snow_depth = Column(Float)
+    water_equivalent = Column(Float)
     last_updated = Column(DateTime)
 
 def init_db():
@@ -194,103 +209,130 @@ def init_db():
         WeatherMeasurepoint.__table__.create(bind=engine)
 
 def migrate_db():
-    from sqlalchemy import inspect
-    inspector = inspect(engine)
-    
-    # Migration for push_subscriptions topics
-    if "push_subscriptions" in inspector.get_table_names():
-        existing_cols = [c['name'] for c in inspector.get_columns("push_subscriptions")]
-        with engine.begin() as conn:
-            if "topic_realtid" not in existing_cols:
-                print("Migrating push_subscriptions: Adding topic_realtid")
-                conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_realtid INTEGER DEFAULT 1"))
-            if "topic_road_condition" not in existing_cols:
-                print("Migrating push_subscriptions: Adding topic_road_condition")
-                conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_road_condition INTEGER DEFAULT 1"))
-    
-    # Migration for traffic_events
-    if "traffic_events" in inspector.get_table_names():
-        existing_columns = [c['name'] for c in inspector.get_columns("traffic_events")]
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
         
-        expected_columns = {
-            "message_type": "VARCHAR",
-            "severity_code": "INTEGER",
-            "severity_text": "VARCHAR",
-            "road_number": "VARCHAR",
-            "start_time": "DATETIME",
-            "end_time": "DATETIME",
-            "temporary_limit": "VARCHAR",
-            "traffic_restriction_type": "VARCHAR",
-            "latitude": "FLOAT",
-            "longitude": "FLOAT",
-            "camera_url": "VARCHAR",
-            "camera_name": "VARCHAR",
-            "camera_snapshot": "VARCHAR",
-            "icon_id": "VARCHAR",
-            "pushed_to_mqtt": "INTEGER",
-            "external_id": "VARCHAR",
-            "event_type": "VARCHAR",
-            "extra_cameras": "TEXT",
-            "county_no": "INTEGER",
-            "updated_at": "DATETIME",
-            "air_temperature": "FLOAT",
-            "wind_speed": "FLOAT",
-            "wind_direction": "VARCHAR"
-        }
+        # Migration for push_subscriptions topics
+        if "push_subscriptions" in inspector.get_table_names():
+            existing_cols = [c['name'] for c in inspector.get_columns("push_subscriptions")]
+            with engine.begin() as conn:
+                if "topic_realtid" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding topic_realtid")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_realtid INTEGER DEFAULT 1"))
+                if "topic_road_condition" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding topic_road_condition")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_road_condition INTEGER DEFAULT 1"))
         
-        with engine.begin() as conn:
-            for col_name, col_type in expected_columns.items():
-                if col_name not in existing_columns:
-                    print(f"Migrating database: Adding missing column '{col_name}'")
-                    try:
-                        conn.execute(sa_text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
-                        
-                        # Backfill updated_at with created_at if just added
-                        if col_name == "updated_at":
-                            print("Backfilling updated_at with created_at...")
-                            conn.execute(sa_text("UPDATE traffic_events SET updated_at = created_at WHERE updated_at IS NULL"))
-                    except Exception as e:
-                        print(f"Error adding column {col_name}: {e}")
+        # Migration for traffic_events
+        if "traffic_events" in inspector.get_table_names():
+            existing_columns = [c['name'] for c in inspector.get_columns("traffic_events")]
+            
+            expected_columns = {
+                "message_type": "VARCHAR",
+                "severity_code": "INTEGER",
+                "severity_text": "VARCHAR",
+                "road_number": "VARCHAR",
+                "start_time": "DATETIME",
+                "end_time": "DATETIME",
+                "temporary_limit": "VARCHAR",
+                "traffic_restriction_type": "VARCHAR",
+                "latitude": "FLOAT",
+                "longitude": "FLOAT",
+                "camera_url": "VARCHAR",
+                "camera_name": "VARCHAR",
+                "camera_snapshot": "VARCHAR",
+                "icon_id": "VARCHAR",
+                "pushed_to_mqtt": "INTEGER",
+                "external_id": "VARCHAR",
+                "event_type": "VARCHAR",
+                "extra_cameras": "TEXT",
+                "county_no": "INTEGER",
+                "updated_at": "DATETIME",
+                "air_temperature": "FLOAT",
+                "wind_speed": "FLOAT",
+                "wind_direction": "VARCHAR",
+                "road_temperature": "FLOAT",
+                "grip": "FLOAT",
+                "ice_depth": "FLOAT",
+                "snow_depth": "FLOAT",
+                "water_equivalent": "FLOAT"
+            }
+            
+            with engine.begin() as conn:
+                for col_name, col_type in expected_columns.items():
+                    if col_name not in existing_columns:
+                        print(f"Migrating database: Adding missing column '{col_name}'")
+                        try:
+                            conn.execute(sa_text(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"))
+                            
+                            # Backfill updated_at with created_at if just added
+                            if col_name == "updated_at":
+                                print("Backfilling updated_at with created_at...")
+                                conn.execute(sa_text("UPDATE traffic_events SET updated_at = created_at WHERE updated_at IS NULL"))
+                        except Exception as e:
+                            print(f"Error adding column {col_name}: {e}")
 
-            # Also migrate versions table
-            if "traffic_event_versions" in inspector.get_table_names():
-                v_columns = [c['name'] for c in inspector.get_columns("traffic_event_versions")]
-                with engine.begin() as conn_v:
-                    for col_name, col_type in expected_columns.items():
-                        if col_name not in v_columns and col_name not in ["pushed_to_mqtt", "updated_at"]:
-                            print(f"Migrating versions: Adding missing column '{col_name}'")
-                            try:
-                                conn_v.execute(sa_text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
-                            except Exception as e:
-                                print(f"Error adding column {col_name} to versions: {e}")
+                # Also migrate versions table
+                if "traffic_event_versions" in inspector.get_table_names():
+                    v_columns = [c['name'] for c in inspector.get_columns("traffic_event_versions")]
+                    with engine.begin() as conn_v:
+                        for col_name, col_type in expected_columns.items():
+                            if col_name not in v_columns and col_name not in ["pushed_to_mqtt", "updated_at"]:
+                                print(f"Migrating versions: Adding missing column '{col_name}'")
+                                try:
+                                    conn_v.execute(sa_text(f"ALTER TABLE traffic_event_versions ADD COLUMN {col_name} {col_type}"))
+                                except Exception as e:
+                                    print(f"Error adding column {col_name} to versions: {e}")
 
-    # Migration for road_conditions
-    if "road_conditions" in inspector.get_table_names():
-        rc_columns = [c['name'] for c in inspector.get_columns("road_conditions")]
-        rc_expected = {
-            "cause": "VARCHAR",
-            "measure": "VARCHAR",
-            "warning": "VARCHAR",
-            "icon_id": "VARCHAR",
-            "camera_url": "VARCHAR",
-            "camera_name": "VARCHAR",
-            "camera_snapshot": "VARCHAR",
-            "location_text": "VARCHAR",
-            "air_temperature": "FLOAT",
-            "wind_speed": "FLOAT",
-            "wind_direction": "VARCHAR",
-            "road_temperature": "FLOAT",
-            "grip": "FLOAT",
-            "ice_depth": "FLOAT",
-            "snow_depth": "FLOAT",
-            "water_equivalent": "FLOAT"
-        }
-        
-        with engine.begin() as conn_rc:
-            for col_name, col_type in rc_expected.items():
-                if col_name not in rc_columns:
-                    print(f"Migrating road_conditions: Adding missing column '{col_name}'")
-                    try:
-                        conn_rc.execute(sa_text(f"ALTER TABLE road_conditions ADD COLUMN {col_name} {col_type}"))
-                    except Exception as e:
-                        print(f"Error adding column {col_name} to road_conditions: {e}")
+        # Migration for road_conditions
+        if "road_conditions" in inspector.get_table_names():
+            rc_columns = [c['name'] for c in inspector.get_columns("road_conditions")]
+            rc_expected = {
+                "cause": "VARCHAR",
+                "measure": "VARCHAR",
+                "warning": "VARCHAR",
+                "icon_id": "VARCHAR",
+                "camera_url": "VARCHAR",
+                "camera_name": "VARCHAR",
+                "camera_snapshot": "VARCHAR",
+                "location_text": "VARCHAR",
+                "air_temperature": "FLOAT",
+                "wind_speed": "FLOAT",
+                "wind_direction": "VARCHAR",
+                "road_temperature": "FLOAT",
+                "grip": "FLOAT",
+                "ice_depth": "FLOAT",
+                "snow_depth": "FLOAT",
+                "water_equivalent": "FLOAT"
+            }
+            
+            with engine.begin() as conn_rc:
+                for col_name, col_type in rc_expected.items():
+                    if col_name not in rc_columns:
+                        print(f"Migrating road_conditions: Adding missing column '{col_name}'")
+                        try:
+                            conn_rc.execute(sa_text(f"ALTER TABLE road_conditions ADD COLUMN {col_name} {col_type}"))
+                        except Exception as e:
+                            print(f"Error adding column {col_name} to road_conditions: {e}")
+
+        # Migration for weather_measurepoints
+        if "weather_measurepoints" in inspector.get_table_names():
+            wm_columns = [c['name'] for c in inspector.get_columns("weather_measurepoints")]
+            wm_expected = {
+                "road_temperature": "FLOAT",
+                "grip": "FLOAT",
+                "ice_depth": "FLOAT",
+                "snow_depth": "FLOAT",
+                "water_equivalent": "FLOAT"
+            }
+            with engine.begin() as conn_wm:
+                for col_name, col_type in wm_expected.items():
+                    if col_name not in wm_columns:
+                        print(f"Migrating weather_measurepoints: Adding missing column '{col_name}'")
+                        try:
+                            conn_wm.execute(sa_text(f"ALTER TABLE weather_measurepoints ADD COLUMN {col_name} {col_type}"))
+                        except Exception as e:
+                            print(f"Error adding column {col_name} to weather_measurepoints: {e}")
+    except Exception as e:
+        print(f"Migration error: {e}")

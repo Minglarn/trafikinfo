@@ -16,7 +16,10 @@ function RoadConditions() {
     const observerTarget = useRef(null)
 
     // Filtering state
-    const [selectedCounties, setSelectedCounties] = useState([])
+    const [selectedCounties, setSelectedCounties] = useState(() => {
+        const saved = localStorage.getItem('roadcond_filter_counties')
+        return saved ? saved.split(',').filter(x => x) : []
+    })
     const [roadFilter, setRoadFilter] = useState('')
     const [allowedCounties, setAllowedCounties] = useState([])
 
@@ -139,16 +142,15 @@ function RoadConditions() {
                     }
 
                     const index = prev.findIndex(c => c.id === newData.id)
-                    let newConditions = [...prev]
 
                     if (index !== -1) {
-                        // Update existing in-place to avoid shift
-                        newConditions[index] = newData
+                        // Remove existing so we can move updated to top
+                        const filtered = prev.filter(c => c.id !== newData.id)
+                        return [newData, ...filtered]
                     } else {
                         // Add new to top
-                        newConditions = [newData, ...newConditions]
+                        return [newData, ...prev]
                     }
-                    return newConditions
                 })
 
             } catch (err) {
@@ -224,10 +226,13 @@ function RoadConditions() {
     const toggleCounty = (countyId) => {
         const idStr = countyId.toString()
         setSelectedCounties(prev => {
-            if (countyId === 'Alla') return []
+            if (countyId === 'Alla') {
+                localStorage.removeItem('roadcond_filter_counties')
+                return []
+            }
             const isSelected = prev.includes(idStr)
             const next = isSelected ? prev.filter(id => id !== idStr) : [...prev, idStr]
-            localStorage.setItem('localCounties', next.join(','))
+            localStorage.setItem('roadcond_filter_counties', next.join(','))
             return next
         })
     }
@@ -398,10 +403,19 @@ function RoadConditions() {
                                                             {rc.weather && (
                                                                 <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5 border border-blue-100 dark:border-blue-500/20 shadow-sm">
                                                                     <Thermometer className="w-3 h-3" />
-                                                                    <span>{(rc.weather.air_temperature ?? rc.weather.temp) ?? '?'}°C</span>
+                                                                    <span>
+                                                                        {(rc.weather.air_temperature ?? rc.weather.temp) != null
+                                                                            ? Number(rc.weather.air_temperature ?? rc.weather.temp).toFixed(1)
+                                                                            : '?'}°C
+                                                                    </span>
                                                                     <div className="w-px h-2.5 bg-blue-200 dark:bg-blue-500/30"></div>
                                                                     <Wind className="w-3 h-3" />
-                                                                    <span>{rc.weather.wind_speed ?? '?'} <span className="text-[10px] font-normal opacity-70">{(rc.weather.wind_direction ?? rc.weather.wind_dir) ?? ''}</span></span>
+                                                                    <span>
+                                                                        {rc.weather.wind_speed != null ? Number(rc.weather.wind_speed).toFixed(1) : '?'}
+                                                                        <span className="text-[10px] font-normal opacity-70 ml-0.5">
+                                                                            {(rc.weather.wind_direction ?? rc.weather.wind_dir) ?? ''}
+                                                                        </span>
+                                                                    </span>
                                                                 </div>
                                                             )}
                                                         </div>

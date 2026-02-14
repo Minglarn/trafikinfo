@@ -56,7 +56,10 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
     const [activeMessageTypes, setActiveMessageTypes] = useState([])
     const [activeSeverities, setActiveSeverities] = useState([])
-    const [activeCounties, setActiveCounties] = useState([])
+    const [activeCounties, setActiveCounties] = useState(() => {
+        const saved = localStorage.getItem(`feed_filter_counties_${mode}`)
+        return saved ? saved.split(',').filter(x => x).map(id => parseInt(id)) : []
+    })
     const [monitoredCounties, setMonitoredCounties] = useState(() => {
         const saved = localStorage.getItem('localCounties')
         return saved ? saved.split(',').map(id => parseInt(id)) : []
@@ -65,7 +68,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     const [activeTabs, setActiveTabs] = useState({}) // { eventId: 'current' | 'history' }
     const [eventHistory, setEventHistory] = useState({}) // { externalId: [] }
     const [fetchingHistory, setFetchingHistory] = useState({}) // { externalId: boolean }
-    const [configuredCounties, setConfiguredCounties] = useState([])
 
     // Constants for Counties
     const COUNTIES = [
@@ -167,7 +169,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     const toggleCounty = (id) => {
         setActiveCounties(prev => {
             const next = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-            localStorage.setItem('localCounties', next.join(','))
+            localStorage.setItem(`feed_filter_counties_${mode}`, next.join(','))
             return next
         })
     }
@@ -176,6 +178,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         setActiveMessageTypes([])
         setActiveSeverities([])
         setActiveCounties([])
+        localStorage.removeItem(`feed_filter_counties_${mode}`)
     }
 
     const activeFilterCount = activeMessageTypes.length + activeSeverities.length + activeCounties.length
@@ -231,22 +234,20 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         }
     }
 
-    const fetchConfiguredCounties = async () => {
-        try {
-            const response = await axios.get(`${API_BASE}/settings`)
-            if (response.data.selected_counties) {
-                const ids = response.data.selected_counties.split(',').map(id => parseInt(id.trim()))
-                setConfiguredCounties(ids)
-            }
-        } catch (error) {
-            console.error('Failed to fetch settings for counties:', error)
-        }
-    }
+
 
     useEffect(() => {
-        fetchConfiguredCounties()
+        const updateMonitored = () => {
+            const saved = localStorage.getItem('localCounties')
+            setMonitoredCounties(saved ? saved.split(',').map(id => parseInt(id)) : [])
+        }
+        window.addEventListener('storage', updateMonitored)
+        window.addEventListener('focus', updateMonitored)
+        return () => {
+            window.removeEventListener('storage', updateMonitored)
+            window.removeEventListener('focus', updateMonitored)
+        }
     }, [])
-
 
     useEffect(() => {
         // eslint-disable-next-line
