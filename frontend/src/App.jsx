@@ -201,7 +201,13 @@ function AppContent() {
             {activeTab === 'feed' && <EventFeed mode="realtid" initialEventId={initialEventId} onClearInitialEvent={() => setInitialEventId(null)} />}
             {activeTab === 'planned' && <EventFeed mode="planned" />}
             {activeTab === 'road-conditions' && <RoadConditions />}
-            {activeTab === 'cameras' && <CameraGrid />}
+            {activeTab === 'cameras' && (
+              <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-900/50 rounded-2xl border border-slate-800 backdrop-blur-sm">
+                <div className="text-5xl mb-6">🚧</div>
+                <h2 className="text-2xl font-bold mb-2 text-slate-100 italic">VÄGKAMERA</h2>
+                <p className="text-slate-400 text-lg font-mono">Kommande.... Arbete pågår....</p>
+              </div>
+            )}
             {activeTab === 'statistics' && <Statistics />}
             {activeTab === 'history' && <HistoryBoard />}
             {activeTab === 'settings' && <Settings />}
