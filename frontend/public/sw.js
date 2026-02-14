@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flux-v26.2.61';
+const CACHE_NAME = 'flux-v26.2.62';
 const ASSETS = [
     '/',
     '/index.html',
@@ -60,6 +60,7 @@ self.addEventListener('push', (event) => {
             body: data.message,
             icon: data.icon || '/icon-192.png',
             badge: '/notification-icon.png',
+            image: data.image, // Big picture
             data: {
                 url: data.url
             },

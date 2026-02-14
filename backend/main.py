@@ -1,4 +1,4 @@
-VERSION = "26.2.60"
+VERSION = "26.2.62"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -116,6 +116,10 @@ class PushSubscriptionSchema(BaseModel):
     min_severity: int = 1
     topic_realtid: int = 1
     topic_road_condition: int = 1
+    include_severity: int = 1
+    include_image: int = 1
+    include_weather: int = 1
+    include_location: int = 1
 
 app = FastAPI(title="Trafikinfo API", version="26.2.53")
 
@@ -2010,6 +2014,10 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
         existing.min_severity = subscription.min_severity
         existing.topic_realtid = subscription.topic_realtid
         existing.topic_road_condition = subscription.topic_road_condition
+        existing.include_severity = subscription.include_severity
+        existing.include_image = subscription.include_image
+        existing.include_weather = subscription.include_weather
+        existing.include_location = subscription.include_location
     else:
         new_sub = PushSubscription(
             endpoint=subscription.endpoint,
@@ -2018,7 +2026,11 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
             counties=subscription.counties,
             min_severity=subscription.min_severity,
             topic_realtid=subscription.topic_realtid,
-            topic_road_condition=subscription.topic_road_condition
+            topic_road_condition=subscription.topic_road_condition,
+            include_severity=subscription.include_severity,
+            include_image=subscription.include_image,
+            include_weather=subscription.include_weather,
+            include_location=subscription.include_location
         )
         db.add(new_sub)
     db.commit()
@@ -2061,7 +2073,7 @@ def unsubscribe(payload: dict, db: Session = Depends(get_db)):
         db.commit()
     return {"status": "ok"}
 
-async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None):
+async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None, image: str = None):
     private_key_pem, _ = get_vapid_keys(db)
     
     try:
@@ -2080,7 +2092,8 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
                 "title": title,
                 "message": message,
                 "url": url,
-                "icon": icon
+                "icon": icon,
+                "image": image # Big image (camera snapshot)
             }),
             vapid_private_key=vapid_obj,
             vapid_claims={
@@ -2132,19 +2145,66 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             severity = data.get('severity_code')
             if (severity or 0) < sub.min_severity:
                 continue
-            title = f"⚠️ {data.get('title', 'Trafikhändelse')}"
-            message = data.get('location', '')
+            
+            # 1. Build Title
+            severity_text = data.get('severity_text', '')
+            title_core = data.get('title', 'Trafikhändelse')
+            if sub.include_severity and severity_text:
+                title = f"⚠️ {severity_text}: {title_core}"
+            else:
+                title = f"⚠️ {title_core}"
+            
+            # 2. Build Message
+            parts = []
+            if sub.include_location:
+                parts.append(data.get('location', ''))
+            
+            if sub.include_weather:
+                temp = data.get('air_temperature')
+                grip = data.get('grip')
+                weather_parts = []
+                if temp is not None: weather_parts.append(f"{temp}°C")
+                if grip is not None: weather_parts.append(f"Friktion: {grip}")
+                if weather_parts:
+                    parts.append(" | ".join(weather_parts))
+            
+            message = " - ".join([p for p in parts if p])
             url = data.get('event_url', '/')
             icon = data.get('icon_url')
+            image = data.get('camera_snapshot') if sub.include_image else None
+            
         else: # road_condition
             if not sub.topic_road_condition:
                 continue
-            title = f"❄️ Väglag: {data.get('condition_text', 'Varning')}"
-            message = f"{data.get('location_text', '')}: {data.get('warning', '')}. {data.get('measure', '')}"
-            url = "/?tab=road-conditions" # Default to road conditions tab
+            
+            # 1. Build Title
+            cond_text = data.get('condition_text', 'Varning')
+            title = f"❄️ Väglag: {cond_text}"
+            
+            # 2. Build Message
+            parts = []
+            if sub.include_location:
+                parts.append(data.get('location_text', ''))
+            
+            main_msg = f"{data.get('warning', '')}. {data.get('measure', '')}".strip(". ")
+            if main_msg:
+                parts.append(main_msg)
+                
+            if sub.include_weather:
+                temp = data.get('air_temperature')
+                grip = data.get('grip')
+                weather_parts = []
+                if temp is not None: weather_parts.append(f"{temp}°C")
+                if grip is not None: weather_parts.append(f"Friktion: {grip}")
+                if weather_parts:
+                    parts.append(" | ".join(weather_parts))
+            
+            message = " - ".join([p for p in parts if p])
+            url = "/?tab=road-conditions"
             icon = data.get('icon_url')
+            image = data.get('camera_snapshot') if sub.include_image else None
 
-        await send_push_notification(sub, title, message, url, db, icon=icon)
+        await send_push_notification(sub, title, message, url, db, icon=icon, image=image)
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):

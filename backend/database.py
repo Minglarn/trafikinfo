@@ -164,6 +164,11 @@ class PushSubscription(Base):
     min_severity = Column(Integer, default=1)
     topic_realtid = Column(Integer, default=1) # 1=Enabled, 0=Disabled
     topic_road_condition = Column(Integer, default=1)
+    # Customization preferences (1=Enabled, 0=Disabled)
+    include_severity = Column(Integer, default=1)
+    include_image = Column(Integer, default=1)
+    include_weather = Column(Integer, default=1)
+    include_location = Column(Integer, default=1)
 
 class ClientInterest(Base) :
     __tablename__ = "client_interests"
@@ -223,6 +228,20 @@ def migrate_db():
                 if "topic_road_condition" not in existing_cols:
                     print("Migrating push_subscriptions: Adding topic_road_condition")
                     conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN topic_road_condition INTEGER DEFAULT 1"))
+                
+                # Customization preferences
+                if "include_severity" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding include_severity")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN include_severity INTEGER DEFAULT 1"))
+                if "include_image" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding include_image")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN include_image INTEGER DEFAULT 1"))
+                if "include_weather" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding include_weather")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN include_weather INTEGER DEFAULT 1"))
+                if "include_location" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding include_location")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN include_location INTEGER DEFAULT 1"))
         
         # Migration for traffic_events
         if "traffic_events" in inspector.get_table_names():

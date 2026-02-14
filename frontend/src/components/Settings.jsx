@@ -52,6 +52,12 @@ export default function Settings() {
     const [topicRealtid, setTopicRealtid] = useState(true)
     const [topicRoadCondition, setTopicRoadCondition] = useState(true)
 
+    // Customization preferences
+    const [includeSeverity, setIncludeSeverity] = useState(() => localStorage.getItem('push_include_severity') !== 'false')
+    const [includeImage, setIncludeImage] = useState(() => localStorage.getItem('push_include_image') !== 'false')
+    const [includeWeather, setIncludeWeather] = useState(() => localStorage.getItem('push_include_weather') !== 'false')
+    const [includeLocation, setIncludeLocation] = useState(() => localStorage.getItem('push_include_location') !== 'false')
+
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
         const saved = localStorage.getItem('localCounties')
@@ -61,6 +67,38 @@ export default function Settings() {
     useEffect(() => {
         localStorage.setItem('localCounties', localCounties.join(','))
     }, [localCounties])
+
+    useEffect(() => {
+        localStorage.setItem('push_include_severity', includeSeverity)
+        localStorage.setItem('push_include_image', includeImage)
+        localStorage.setItem('push_include_weather', includeWeather)
+        localStorage.setItem('push_include_location', includeLocation)
+
+        // If push is enabled, sync preferences automatically
+        if (pushEnabled) {
+            const sync = async () => {
+                const reg = await navigator.serviceWorker.ready
+                const sub = await reg.pushManager.getSubscription()
+                if (sub) {
+                    const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(sub.getKey('p256dh'))))
+                    const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(sub.getKey('auth'))))
+                    await axios.post(`${API_BASE}/push/subscribe`, {
+                        endpoint: sub.endpoint,
+                        keys: { p256dh, auth },
+                        counties: localCounties.join(','),
+                        min_severity: 1,
+                        topic_realtid: topicRealtid ? 1 : 0,
+                        topic_road_condition: topicRoadCondition ? 1 : 0,
+                        include_severity: includeSeverity ? 1 : 0,
+                        include_image: includeImage ? 1 : 0,
+                        include_weather: includeWeather ? 1 : 0,
+                        include_location: includeLocation ? 1 : 0
+                    })
+                }
+            }
+            sync()
+        }
+    }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition])
 
     // Sync client interest to backend (Family Model)
     useEffect(() => {
@@ -186,7 +224,11 @@ export default function Settings() {
                     counties: localCounties.join(','), // Use user's local selection
                     min_severity: 1,
                     topic_realtid: topicRealtid ? 1 : 0,
-                    topic_road_condition: topicRoadCondition ? 1 : 0
+                    topic_road_condition: topicRoadCondition ? 1 : 0,
+                    include_severity: includeSeverity ? 1 : 0,
+                    include_image: includeImage ? 1 : 0,
+                    include_weather: includeWeather ? 1 : 0,
+                    include_location: includeLocation ? 1 : 0
                 })
                 setPushEnabled(true)
             }
@@ -276,6 +318,28 @@ export default function Settings() {
                                 <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${topicRoadCondition ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-60'}`}>
                                     <input type="checkbox" checked={topicRoadCondition} onChange={() => setTopicRoadCondition(!topicRoadCondition)} className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500" />
                                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Väglag</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Innehåll i notiser:</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${includeSeverity ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}>
+                                    <input type="checkbox" checked={includeSeverity} onChange={() => setIncludeSeverity(!includeSeverity)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Allvarlighetsgrad</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${includeImage ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}>
+                                    <input type="checkbox" checked={includeImage} onChange={() => setIncludeImage(!includeImage)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Kamerabild</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${includeWeather ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}>
+                                    <input type="checkbox" checked={includeWeather} onChange={() => setIncludeWeather(!includeWeather)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Väderdata</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${includeLocation ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30' : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'}`}>
+                                    <input type="checkbox" checked={includeLocation} onChange={() => setIncludeLocation(!includeLocation)} className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500" />
+                                    <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Plats/Position</span>
                                 </label>
                             </div>
                         </div>
