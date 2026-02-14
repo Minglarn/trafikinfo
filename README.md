@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.60-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.61-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -96,7 +96,17 @@ Payloaden innehåller nu färdiga länkar för notiser:
   "snapshot_url": "http://192.168.1.50:7081/api/snapshots/GUIDc5f8...jpg",
   "event_url": "http://192.168.1.50:7081/?event_id=GUIDc5f8...",
   "external_camera_url": "https://api.trafikinfo.trafikverket.se/...",
-  "extra_cameras": "[{\"id\": \"...\", \"name\": \"...\", \"snapshot\": \"...\", \"snapshot_url\": \"...\"}]"
+  "extra_cameras": "[{\"id\": \"...\", \"name\": \"...\", \"snapshot\": \"...\", \"snapshot_url\": \"...\"}]",
+  "weather": {
+    "air_temperature": 2.5,
+    "road_temperature": 1.2,
+    "grip": 0.5,
+    "wind_speed": 3.2,
+    "wind_direction": "S",
+    "ice_depth": 0,
+    "snow_depth": 0,
+    "water_equivalent": 0
+  }
 }
 ```
 

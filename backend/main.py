@@ -865,7 +865,12 @@ async def event_processor():
                                 extra_cameras=existing.extra_cameras,
                                 air_temperature=existing.air_temperature,
                                 wind_speed=existing.wind_speed,
-                                wind_direction=existing.wind_direction
+                                wind_direction=existing.wind_direction,
+                                road_temperature=existing.road_temperature,
+                                grip=existing.grip,
+                                ice_depth=existing.ice_depth,
+                                snow_depth=existing.snow_depth,
+                                water_equivalent=existing.water_equivalent
                             )
                             db.add(history_version)
 
@@ -968,6 +973,11 @@ async def event_processor():
                                     new_event.air_temperature = weather.get('air_temperature')
                                     new_event.wind_speed = weather.get('wind_speed')
                                     new_event.wind_direction = weather.get('wind_direction')
+                                    new_event.road_temperature = weather.get('road_temperature')
+                                    new_event.grip = weather.get('grip')
+                                    new_event.ice_depth = weather.get('ice_depth')
+                                    new_event.snow_depth = weather.get('snow_depth')
+                                    new_event.water_equivalent = weather.get('water_equivalent')
                             except Exception as e:
                                 logger.error(f"Weather sync failed for new event {ev['external_id']}: {e}")
 
@@ -990,7 +1000,10 @@ async def event_processor():
                         new_event.air_temperature is not None,
                         new_event.wind_speed is not None,
                         new_event.road_temperature is not None,
-                        new_event.grip is not None
+                        new_event.grip is not None,
+                        new_event.ice_depth is not None,
+                        new_event.snow_depth is not None,
+                        new_event.water_equivalent is not None
                     ])
                     if has_weather:
                         mqtt_data["weather"] = {
@@ -999,8 +1012,9 @@ async def event_processor():
                             "wind_direction": new_event.wind_direction,
                             "road_temperature": new_event.road_temperature,
                             "grip": new_event.grip,
-                            "ice_depth": getattr(new_event, 'ice_depth', None),
-                            "snow_depth": getattr(new_event, 'snow_depth', None)
+                            "ice_depth": new_event.ice_depth,
+                            "snow_depth": new_event.snow_depth,
+                            "water_equivalent": new_event.water_equivalent
                         }
                     else:
                         mqtt_data['weather'] = None
@@ -1280,7 +1294,10 @@ async def road_condition_processor():
                     any_weather = any([
                         final_rc.air_temperature is not None,
                         final_rc.road_temperature is not None,
-                        final_rc.grip is not None
+                        final_rc.grip is not None,
+                        final_rc.ice_depth is not None,
+                        final_rc.snow_depth is not None,
+                        final_rc.water_equivalent is not None
                     ])
                     if any_weather:
                         weather_data = {
