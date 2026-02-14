@@ -1,4 +1,4 @@
-VERSION = "26.2.62"
+VERSION = "26.2.63"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1218,6 +1218,7 @@ async def road_condition_processor():
                         existing.start_time = datetime.fromisoformat(rc['start_time']) if rc.get('start_time') else None
                         existing.end_time = datetime.fromisoformat(rc['end_time']) if rc.get('end_time') else None
                         existing.timestamp = datetime.fromisoformat(rc['timestamp']) if rc.get('timestamp') else datetime.now()
+                        existing.updated_at = datetime.now()
                         
                         if needs_camera_sync and camera_url:
                             existing.camera_url = camera_url
@@ -1738,7 +1739,7 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
     elif selected_counties:
         query = query.filter(RoadCondition.county_no.in_(selected_counties))
         
-    conditions = query.order_by(RoadCondition.timestamp.desc()).offset(offset).limit(limit).all()
+    conditions = query.order_by(RoadCondition.updated_at.desc()).offset(offset).limit(limit).all()
     
     # Need base_url for timestamps
     base_url_setting = db.query(Settings).filter(Settings.key == "base_url").first()
@@ -2171,7 +2172,8 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             message = " - ".join([p for p in parts if p])
             url = data.get('event_url', '/')
             icon = data.get('icon_url')
-            image = data.get('camera_snapshot') if sub.include_image else None
+            # Use camera_url (full URL) instead of camera_snapshot (filename) for the PWA notification image
+            image = data.get('camera_url') if sub.include_image else None
             
         else: # road_condition
             if not sub.topic_road_condition:
@@ -2202,7 +2204,8 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             message = " - ".join([p for p in parts if p])
             url = "/?tab=road-conditions"
             icon = data.get('icon_url')
-            image = data.get('camera_snapshot') if sub.include_image else None
+            # Use camera_url (full URL) instead of camera_snapshot (filename) for the PWA notification image
+            image = data.get('camera_url') if sub.include_image else None
 
         await send_push_notification(sub, title, message, url, db, icon=icon, image=image)
 

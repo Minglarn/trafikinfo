@@ -392,8 +392,11 @@ function RoadConditions() {
 
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-start justify-between gap-2">
-                                                        <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg uppercase">
+                                                        <h3 className="font-bold text-slate-900 dark:text-slate-100 leading-tight text-base sm:text-lg uppercase flex items-center gap-2">
                                                             {rc.condition_text || 'Okänt väglag'}
+                                                            <span className="text-[10px] font-mono font-normal text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-800">
+                                                                #{rc.id}
+                                                            </span>
                                                         </h3>
                                                         <div className="flex flex-col items-end gap-0.5">
                                                             <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-md whitespace-nowrap shrink-0 mt-0.5">

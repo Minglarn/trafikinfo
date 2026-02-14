@@ -124,6 +124,7 @@ class RoadCondition(Base):
     longitude = Column(Float)
     county_no = Column(Integer)
     timestamp = Column(DateTime) # ModifiedTime or created_at
+    updated_at = Column(DateTime, default=datetime.datetime.now)
     
     camera_url = Column(String)
     camera_name = Column(String)
@@ -323,7 +324,8 @@ def migrate_db():
                 "grip": "FLOAT",
                 "ice_depth": "FLOAT",
                 "snow_depth": "FLOAT",
-                "water_equivalent": "FLOAT"
+                "water_equivalent": "FLOAT",
+                "updated_at": "DATETIME"
             }
             
             with engine.begin() as conn_rc:
