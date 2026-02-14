@@ -1,4 +1,4 @@
-VERSION = "26.2.74"
+VERSION = "26.2.75"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -2153,7 +2153,7 @@ def unsubscribe(payload: dict, db: Session = Depends(get_db)):
         db.commit()
     return {"status": "ok"}
 
-async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None, image: str = None):
+async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None, image: str = None, ttl: int = 7200):
     private_key_pem, _ = get_vapid_keys(db)
     
     try:
@@ -2167,9 +2167,11 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
             "icon": icon,
             "image": image # Big image (camera snapshot)
         }
-        logger.info(f"Sending push to {subscription.endpoint[:30]}... Image: {image}")
+        logger.info(f"Sending push (TTL: {ttl}s) to {subscription.endpoint[:30]}... Image: {image}")
 
-        webpush(
+        # Offload blocking webpush call to a thread
+        await asyncio.to_thread(
+            webpush,
             subscription_info={
                 "endpoint": subscription.endpoint,
                 "keys": {
@@ -2181,16 +2183,18 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
             vapid_private_key=vapid_obj,
             vapid_claims={
                 "sub": "mailto:dev@trafikinfo-flux.local"
-            }
+            },
+            ttl=ttl
         )
     except WebPushException as ex:
         # Check if it's a 404/410 first
         if ex.response is not None and ex.response.status_code in [404, 410]:
-            logger.info(f"Removing invalid subscription (404/410): {subscription.endpoint}")
+            logger.warning(f"Removing invalid subscription (Status: {ex.response.status_code}): {subscription.endpoint}")
+            # Ensure we use a fresh session or the provided session is still valid
             db.delete(subscription)
             db.commit()
         else:
-            logger.error(f"Push failed: {ex}")
+            logger.error(f"Push failed (Status: {ex.response.status_code if ex.response else 'N/A'}): {ex}")
     except (ValueError, TypeError) as e:
         # Catch errors related to invalid key data (crypto/base64)
         logger.error(f"Invalid key data for subscription {subscription.id}: {e}")
@@ -2212,6 +2216,24 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
     subs = db.query(PushSubscription).all()
     if not subs:
         return
+
+    # Calculate dynamic TTL based on end_time
+    # Default fallback: 2 hours (7200 seconds)
+    ttl = 7200
+    end_time_str = data.get('end_time')
+    if end_time_str:
+        try:
+            # Handle possible 'Z' or other ISO formats
+            ts_str = end_time_str.replace('Z', '+00:00')
+            end_time = datetime.fromisoformat(ts_str)
+            now = datetime.now(end_time.tzinfo)
+            delta = (end_time - now).total_seconds()
+            
+            # Clamp TTL: Min 60s, Max 24h (86400s)
+            ttl = int(max(60, min(86400, delta)))
+        except Exception as e:
+            logger.warning(f"Failed to calculate dynamic TTL from {end_time_str}: {e}")
+            ttl = 7200
 
     for sub in subs:
         # Check filters
@@ -2307,7 +2329,11 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             else:
                 image = None
 
-        await send_push_notification(sub, title, message, url, db, icon=icon, image=image)
+            try:
+                await send_push_notification(sub, title, message, url, db, icon=icon, image=image, ttl=ttl)
+            except Exception as e:
+                logger.error(f"Error notifying subscriber {sub.id}: {e}")
+                continue
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):

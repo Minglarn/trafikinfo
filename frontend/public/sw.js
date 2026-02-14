@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trafikinfo-cache-v26.2.74';
+const CACHE_NAME = 'trafikinfo-cache-v26.2.75';
 const ASSETS = [
     '/',
     '/index.html',
