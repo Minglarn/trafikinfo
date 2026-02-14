@@ -43,6 +43,11 @@ class TrafficEvent(Base):
     camera_snapshot = Column(String)
     extra_cameras = Column(Text) # JSON list of extra cameras
 
+    # Persistent Weather
+    air_temperature = Column(Float)
+    wind_speed = Column(Float)
+    wind_direction = Column(String)
+
     pushed_to_mqtt = Column(Integer, default=0) # boolean 0/1
 
 class TrafficEventVersion(Base):
@@ -72,6 +77,11 @@ class TrafficEventVersion(Base):
     camera_name = Column(String)
     camera_snapshot = Column(String)
     extra_cameras = Column(Text)
+
+    # Persistent Weather
+    air_temperature = Column(Float)
+    wind_speed = Column(Float)
+    wind_direction = Column(String)
 
 class Camera(Base):
     __tablename__ = "cameras"
@@ -111,6 +121,11 @@ class RoadCondition(Base):
     cause = Column(String) 
     location_text = Column(String) # New field
     icon_id = Column(String)
+
+    # Persistent Weather
+    air_temperature = Column(Float)
+    wind_speed = Column(Float)
+    wind_direction = Column(String)
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -210,7 +225,10 @@ def migrate_db():
             "event_type": "VARCHAR",
             "extra_cameras": "TEXT",
             "county_no": "INTEGER",
-            "updated_at": "DATETIME"
+            "updated_at": "DATETIME",
+            "air_temperature": "FLOAT",
+            "wind_speed": "FLOAT",
+            "wind_direction": "VARCHAR"
         }
         
         with engine.begin() as conn:
@@ -250,7 +268,10 @@ def migrate_db():
             "camera_url": "VARCHAR",
             "camera_name": "VARCHAR",
             "camera_snapshot": "VARCHAR",
-            "location_text": "VARCHAR"
+            "location_text": "VARCHAR",
+            "air_temperature": "FLOAT",
+            "wind_speed": "FLOAT",
+            "wind_direction": "VARCHAR"
         }
         
         with engine.begin() as conn_rc:

@@ -129,14 +129,14 @@ class TrafikverketStream:
             # Filter out '0' (Alla län) just in case it's passed
             valid_ids = [cid for cid in county_ids if str(cid) != "0"]
             if valid_ids:
-                # In Road.WeatherInfo, the field is often named 'County'
+                # In Road.WeatherInfo 2.1, the field is often named 'County'
                 conditions = "".join([f'<EQ name="County" value="{cid}" />' for cid in valid_ids])
                 filter_block = f'<AND>{filter_block}<OR>{conditions}</OR></AND>'
 
         query = f"""
         <REQUEST>
             <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.0' namespace='Road.WeatherInfo'>
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
                 <FILTER>
                     {filter_block}
                 </FILTER>
@@ -144,7 +144,6 @@ class TrafikverketStream:
                 <INCLUDE>Name</INCLUDE>
                 <INCLUDE>Geometry</INCLUDE>
                 <INCLUDE>Observation</INCLUDE>
-                <INCLUDE>CountyNo</INCLUDE>
             </QUERY>
         </REQUEST>
         """
@@ -159,6 +158,33 @@ class TrafikverketStream:
             except Exception as e:
                 logger.error(f"Failed to fetch weather stations: {e}")
                 return []
+
+    async def fetch_weather_measurepoint(self, sid: str):
+        """Fetches a specific weather measurepoint by ID (v2.1)"""
+        query = f"""
+        <REQUEST>
+            <LOGIN authenticationkey='{self.api_key}' />
+            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='Road.WeatherInfo'>
+                <FILTER>
+                    <EQ name="Id" value="{sid}" />
+                </FILTER>
+                <INCLUDE>Id</INCLUDE>
+                <INCLUDE>Name</INCLUDE>
+                <INCLUDE>Geometry</INCLUDE>
+                <INCLUDE>Observation</INCLUDE>
+            </QUERY>
+        </REQUEST>
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                response.raise_for_status()
+                data = response.json()
+                points = data['RESPONSE']['RESULT'][0].get('WeatherMeasurepoint', [])
+                return points[0] if points else None
+            except Exception as e:
+                logger.error(f"Failed to fetch single weather point {sid}: {e}")
+                return None
 
     async def fetch_weather_observations(self, station_ids: list = None):
         """Fetches latest observations for given stations or all from Road.WeatherInfo"""

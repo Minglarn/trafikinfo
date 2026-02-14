@@ -175,7 +175,7 @@ rc_processor_task = None
 icon_sync_task = None
 weather_sync_task = None
 cameras = []
-weather_stations = []
+weather_stations = {}
 
 def get_db():
     db = SessionLocal()
@@ -525,16 +525,17 @@ async def periodic_weather_sync():
                 global weather_stations
                 current_ws = db.query(WeatherMeasurepoint).all()
                 logger.debug(f"Stations in DB: {len(current_ws)}")
-                weather_stations = [{
-                    "id": w.id,
-                    "latitude": w.latitude,
-                    "longitude": w.longitude,
-                    "temp": w.air_temperature,
-                    "wind_speed": w.wind_speed,
-                    "wind_dir": w.wind_direction
-                } for w in current_ws if w.air_temperature is not None]
+                weather_stations = {
+                    w.id: {
+                        "latitude": w.latitude,
+                        "longitude": w.longitude,
+                        "temp": w.air_temperature,
+                        "wind_speed": w.wind_speed,
+                        "wind_dir": w.wind_direction
+                    } for w in current_ws
+                }
                 
-                logger.info(f"Weather sync complete: {len(weather_stations)} stations updated.")
+                logger.info(f"Weather sync complete: {len(weather_stations)} stations cached.")
 
             finally:
                 db.close()
@@ -543,23 +544,85 @@ async def periodic_weather_sync():
         
         await asyncio.sleep(900) # Every 15 minutes
 
-def get_nearest_weather(lat, lon, max_dist_km=20.0):
-    global weather_stations
-    if not lat or not lon or not weather_stations:
+# Weather Cache for real-time enrichment
+weather_cache = {} # sid -> {"data": dict, "expires": float}
+WEATHER_CACHE_TTL = 300 # 5 minutes
+
+async def get_realtime_weather(lat, lon):
+    """Finds nearest station and fetches its LATEST data from API if not in cache"""
+    global weather_stations, tv_stream
+    if not weather_stations: return None
+    
+    # 1. Find nearest station ID
+    best_dist = float('inf')
+    best_sid = None
+    for sid, pos in weather_stations.items():
+        d = math.sqrt((pos['latitude']-lat)**2 + (pos['longitude']-lon)**2) # Use 'latitude' and 'longitude' from the dict
+        if d < best_dist:
+            best_dist = d
+            best_sid = sid
+    
+    if not best_sid or best_dist > 0.2: # ~20km limit (approx 0.2 degrees lat/lon difference)
         return None
     
-    from trafikverket import calculate_distance
+    # 2. Check Cache
+    now = time.time()
+    if best_sid in weather_cache:
+        if now < weather_cache[best_sid]["expires"]:
+            return weather_cache[best_sid]["data"]
     
-    nearest = None
-    min_dist = max_dist_km
-    
-    for ws in weather_stations:
-        dist = calculate_distance(lat, lon, ws['latitude'], ws['longitude'])
-        if dist < min_dist:
-            min_dist = dist
-            nearest = ws
+    # 3. Fetch from API
+    if not tv_stream: return None
+    try:
+        data = await tv_stream.fetch_weather_measurepoint(best_sid)
+        if data and 'Observation' in data:
+            obs = data['Observation']
             
-    return nearest
+            # Extract Air Temperature
+            temp = None
+            air = obs.get('Air', {})
+            if isinstance(air, list) and air: air = air[0] # Handle schema variation
+            temp_obj = air.get('Temperature', {})
+            if isinstance(temp_obj, list) and temp_obj: temp_obj = temp_obj[0]
+            temp = temp_obj.get('Value')
+            
+            # Extract Wind
+            w_speed = None
+            w_dir = None
+            wind = obs.get('Wind', [])
+            if isinstance(wind, dict): wind = [wind] # Ensure list
+            if wind and len(wind) > 0:
+                s_obj = wind[0].get('Speed', {})
+                if isinstance(s_obj, list) and s_obj: s_obj = s_obj[0]
+                w_speed = s_obj.get('Value')
+                
+                d_obj = wind[0].get('Direction', {})
+                if isinstance(d_obj, list) and d_obj: d_obj = d_obj[0]
+                w_dir = d_obj.get('Value')
+
+            weather_data = {
+                "air_temperature": temp,
+                "wind_speed": w_speed,
+                "wind_direction": deg_to_compass(float(w_dir)) if w_dir is not None else None,
+                "station_name": data.get('Name'),
+                "temp": temp, # Legacy compatibility
+                "wind_dir": deg_to_compass(float(w_dir)) if w_dir is not None else None # Legacy compatibility
+            }
+            
+            # Update Cache
+            weather_cache[best_sid] = {
+                "data": weather_data,
+                "expires": now + WEATHER_CACHE_TTL
+            }
+            return weather_data
+    except Exception as e:
+        logger.error(f"Error fetching real-time weather for {best_sid}: {e}")
+    
+    return None
+
+def get_nearest_weather(lat, lon):
+    """Old synchronous lookup (fallback)"""
+    return None # We prefer get_realtime_weather now
 
 async def refresh_cameras(api_key: str):
     # Keep legacy for stability during transition if needed
@@ -753,7 +816,10 @@ async def event_processor():
                                 camera_url=existing.camera_url,
                                 camera_name=existing.camera_name,
                                 camera_snapshot=existing.camera_snapshot,
-                                extra_cameras=existing.extra_cameras
+                                extra_cameras=existing.extra_cameras,
+                                air_temperature=existing.air_temperature,
+                                wind_speed=existing.wind_speed,
+                                wind_direction=existing.wind_direction
                             )
                             db.add(history_version)
 
@@ -779,6 +845,17 @@ async def event_processor():
                         
                         if has_changed:
                             existing.updated_at = datetime.now()
+                        
+                        # Fetch and persist weather for existing event
+                        if ev.get('latitude') and ev.get('longitude'):
+                            try:
+                                weather = await get_realtime_weather(ev.get('latitude'), ev.get('longitude'))
+                                if weather:
+                                    existing.air_temperature = weather.get('air_temperature')
+                                    existing.wind_speed = weather.get('wind_speed')
+                                    existing.wind_direction = weather.get('wind_direction')
+                            except Exception as e:
+                                logger.error(f"Weather sync failed for existing event {ev['external_id']}: {e}")
 
                         # Sync camera metadata for existing events (Only if we found a new ones)
                         if camera_url:
@@ -836,6 +913,18 @@ async def event_processor():
                             camera_name=camera_name,
                             extra_cameras=extra_cameras_json
                         )
+                        
+                        # Fetch and persist weather for new event
+                        if ev.get('latitude') and ev.get('longitude'):
+                            try:
+                                weather = await get_realtime_weather(ev.get('latitude'), ev.get('longitude'))
+                                if weather:
+                                    new_event.air_temperature = weather.get('air_temperature')
+                                    new_event.wind_speed = weather.get('wind_speed')
+                                    new_event.wind_direction = weather.get('wind_direction')
+                            except Exception as e:
+                                logger.error(f"Weather sync failed for new event {ev['external_id']}: {e}")
+
                         db.add(new_event)
                         db.commit()                        # Save primary snapshot
                         snapshot = None
@@ -849,13 +938,13 @@ async def event_processor():
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
                     
-                    # Attach weather info
-                    weather = get_nearest_weather(ev.get('latitude'), ev.get('longitude'))
-                    if weather:
-                        mqtt_data['weather'] = {
-                            "temp": weather['temp'],
-                            "wind_speed": weather['wind_speed'],
-                            "wind_dir": weather['wind_dir']
+                    lat = ev.get('latitude')
+                    lon = ev.get('longitude')
+                    if new_event.air_temperature is not None:
+                        mqtt_data["weather"] = {
+                            "air_temperature": new_event.air_temperature,
+                            "wind_speed": new_event.wind_speed,
+                            "wind_direction": new_event.wind_direction
                         }
                     else:
                         mqtt_data['weather'] = None
@@ -1059,6 +1148,17 @@ async def road_condition_processor():
                             existing.camera_url = camera_url
                             existing.camera_name = camera_name
                             existing.camera_snapshot = camera_snapshot
+                        
+                        # Fetch and persist weather for existing RC
+                        if existing.latitude and existing.longitude:
+                            try:
+                                weather = await get_realtime_weather(existing.latitude, existing.longitude)
+                                if weather:
+                                    existing.air_temperature = weather.get('air_temperature')
+                                    existing.wind_speed = weather.get('wind_speed')
+                                    existing.wind_direction = weather.get('wind_direction')
+                            except Exception as e:
+                                logger.error(f"Weather sync failed for existing RC {rc['id']}: {e}")
 
                         db.commit()
                         final_rc = existing
@@ -1084,6 +1184,18 @@ async def road_condition_processor():
                             camera_snapshot=camera_snapshot
                         )
                         db.add(new_rc)
+                        
+                        # Fetch and persist weather for new RC
+                        if new_rc.latitude and new_rc.longitude:
+                            try:
+                                weather = await get_realtime_weather(new_rc.latitude, new_rc.longitude)
+                                if weather:
+                                    new_rc.air_temperature = weather.get('air_temperature')
+                                    new_rc.wind_speed = weather.get('wind_speed')
+                                    new_rc.wind_direction = weather.get('wind_direction')
+                            except Exception as e:
+                                logger.error(f"Weather sync failed for new RC {rc['id']}: {e}")
+
                         db.commit()
                         final_rc = new_rc
                     
@@ -1096,14 +1208,13 @@ async def road_condition_processor():
                         icon_id_with_ext = f"{rc['icon_id']}.png"
                         icon_url = f"{base_url}/api/icons/{icon_id_with_ext}" if base_url else f"/api/icons/{icon_id_with_ext}"
 
-                    # Attach weather info
-                    weather = get_nearest_weather(final_rc.latitude, final_rc.longitude)
+                    # Attach weather info from DB
                     weather_data = None
-                    if weather:
+                    if final_rc.air_temperature is not None:
                         weather_data = {
-                            "temp": weather['temp'],
-                            "wind_speed": weather['wind_speed'],
-                            "wind_dir": weather['wind_dir']
+                            "air_temperature": final_rc.air_temperature,
+                            "wind_speed": final_rc.wind_speed,
+                            "wind_direction": final_rc.wind_direction
                         }
 
                     # Normalize camera URL for output (Frontend & MQTT)
@@ -1230,13 +1341,18 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
             "latitude": v.latitude,
             "longitude": v.longitude,
             "camera_snapshot": v.camera_snapshot,
-            "extra_cameras": extra_cams
+            "extra_cameras": extra_cams,
+            "weather": {
+                "air_temperature": v.air_temperature,
+                "wind_speed": v.wind_speed,
+                "wind_direction": v.wind_direction
+            } if v.air_temperature is not None else None
         })
     return result
 
 @app.get("/api/cameras")
 @app.get("/api/cameras")
-def get_cameras_api(
+async def get_cameras_api(
     only_favorites: bool = False, 
     limit: int = 24, 
     offset: int = 0, 
@@ -1271,7 +1387,14 @@ def get_cameras_api(
         favorites = base_query.filter(Camera.is_favorite == 1).order_by(Camera.name.asc()).all()
         fav_list = []
         for c in favorites:
-            weather = get_nearest_weather(c.latitude, c.longitude)
+            # For cameras, we use the last known weather from cache since they aren't "events"
+            weather = None
+            if c.latitude and c.longitude:
+                try:
+                    weather = await get_realtime_weather(c.latitude, c.longitude)
+                except Exception as we:
+                    logger.error(f"Weather lookup failed for favorite camera {c.id}: {we}")
+            
             fav_list.append({
                 "id": c.id, "name": c.name, "description": c.description, "location": c.location,
                 "type": c.type, 
@@ -1303,7 +1426,12 @@ def get_cameras_api(
     result = []
     for cam in cameras_list:
         # Get weather for each camera
-        weather = get_nearest_weather(cam.latitude, cam.longitude)
+        weather = None
+        if cam.latitude and cam.longitude:
+            try:
+                weather = await get_realtime_weather(cam.latitude, cam.longitude)
+            except Exception as we:
+                logger.error(f"Weather lookup failed for camera {cam.id}: {we}")
         
         result.append({
             "id": cam.id,
@@ -1506,7 +1634,12 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             "county_no": e.county_no,
             "camera_snapshot": e.camera_snapshot,
             "extra_cameras": extra_cams,
-            "history_count": history_counts.get(e.external_id, 0)
+            "history_count": history_counts.get(e.external_id, 0),
+            "weather": {
+                "air_temperature": e.air_temperature,
+                "wind_speed": e.wind_speed,
+                "wind_direction": e.wind_direction
+            } if e.air_temperature is not None else None
         })
     return result
 
@@ -1556,7 +1689,12 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
         "snapshot_url": f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None,
         "camera_url": f"{base_url}/api/snapshots/{c.camera_snapshot}" if base_url and c.camera_snapshot else (f"/api/snapshots/{c.camera_snapshot}" if c.camera_snapshot else None),
         "icon_id": c.icon_id,
-        "icon_url": f"/api/icons/{c.icon_id}.png" if c.icon_id else None
+        "icon_url": f"/api/icons/{c.icon_id}.png" if c.icon_id else None,
+        "weather": {
+            "air_temperature": c.air_temperature,
+            "wind_speed": c.wind_speed,
+            "wind_direction": c.wind_direction
+        } if c.air_temperature is not None else None
     } for c in conditions]
 
 @app.get("/api/stats")
