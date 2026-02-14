@@ -5,6 +5,7 @@ import EventMap from './EventMap'
 function RoadConditions() {
     const [conditions, setConditions] = useState([])
     const [loading, setLoading] = useState(true)
+    const [refreshKey, setRefreshKey] = useState(0)
     const [error, setError] = useState(null)
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
@@ -162,10 +163,20 @@ function RoadConditions() {
             console.error('SSE Error in RoadConditions:', err)
         }
 
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('RoadConditions app returned to foreground, refreshing...')
+                fetchConditions(true)
+                setRefreshKey(prev => prev + 1)
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+
         return () => {
             eventSource.close()
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
-    }, [selectedCounties])
+    }, [selectedCounties, refreshKey])
 
     // Infinite Scroll Observer
     useEffect(() => {

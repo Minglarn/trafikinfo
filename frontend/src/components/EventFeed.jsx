@@ -51,6 +51,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [loading, setLoading] = useState(true)
     const [isConnected, setIsConnected] = useState(false)
+    const [refreshKey, setRefreshKey] = useState(0)
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
 
@@ -253,9 +254,11 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         // eslint-disable-next-line
         fetchEvents(true) // Initial load and re-fetch on filter changes
 
+        console.log('Starting SSE stream...')
         const eventSource = new EventSource(`${API_BASE}/stream`)
 
         eventSource.onopen = () => {
+            console.log('SSE Stream connected')
             setIsConnected(true)
         }
 
@@ -315,17 +318,18 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                console.log('App returned to foreground, refreshing data...')
-                fetchEvents(true)
+                console.log('App returned to foreground, refreshing data and stream...')
+                setRefreshKey(prev => prev + 1)
             }
         }
         document.addEventListener('visibilitychange', handleVisibilityChange)
 
         return () => {
+            console.log('Closing SSE stream...')
             eventSource.close()
             document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
-    }, [mode, activeCounties, activeMessageTypes, activeSeverities]) // Re-fetch when filters or mode change
+    }, [mode, activeCounties, activeMessageTypes, activeSeverities, refreshKey]) // Re-fetch when filters, mode, or visibility changes
 
     // Sync monitored counties from localStorage
     useEffect(() => {

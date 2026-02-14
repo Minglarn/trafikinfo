@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flux-v26.2.66';
+const CACHE_NAME = 'flux-v26.2.67';
 const ASSETS = [
     '/',
     '/index.html',
@@ -34,9 +34,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     // Network first for HTML, assets and manifest to avoid stale/auth issues
+    // EXPLICITLY ignore /api/ to ensure no caching for live data/SSE
     if (event.request.mode === 'navigate' ||
         event.request.url.includes('/assets/') ||
-        event.request.url.includes('manifest.json')) {
+        event.request.url.includes('manifest.json') ||
+        event.request.url.includes('/api/')) {
         event.respondWith(
             fetch(event.request)
                 .catch(() => caches.match(event.request))
