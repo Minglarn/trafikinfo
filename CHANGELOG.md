@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.57] - 2026-02-14
+
+### Added
+- **Surface Weather (Väglag)**: Integrated detailed road surface metrics (grip, road temperature, ice depth, snow depth) from Trafikverket.
+- **Weather Enrichment**: Automated atmospheric data (air temp/wind) enrichment for traffic events, road conditions, and cameras.
+- **Dynamic Tab Counters**: Sidebar badges now track *new* items since the last visit per tab, with automatic reset on click.
+- **Security Hardening**: Converted factory reset to a secure POST endpoint with confirmation payload.
+
+### Changed
+- **UI Refinement**: Relocated weather indicators in `EventFeed` to be perfectly aligned with the timestamp in the header.
+- **Sync Optimization**: Changed camera and icon synchronization to a 24-hour cycle to reduce API load.
+- **MQTT Topics**: Split MQTT publishing into specific topics for `traffic` and `road_conditions`.
+- **Deduplication**: Improved road condition merging logic to prevent duplicate notifications.
+
+### Fixed
+- **API Versioning**: Fixed 400 errors by switching to Trafikverket API v2.1 (WeatherMeasurepoint).
+- **Stability**: Resolved `NameError` bugs (`math`, `time`) and handled schema variations in XML responses.
+- **PWA Reliability**: Improved SSE connection handling and added background visibility sync.
+
 ## [26.2.17] - 2026-02-11
 
 ### Added
