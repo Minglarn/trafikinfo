@@ -460,6 +460,7 @@ async def periodic_weather_sync():
                 from trafikverket import calculate_distance
                 
                 stations = await tv_stream.fetch_weather_stations()
+                logger.debug(f"Fetched {len(stations) if stations else 0} weather stations.")
                 if stations:
                     for s in stations:
                         sid = s.get('Id')
@@ -473,59 +474,51 @@ async def periodic_weather_sync():
                         lat = float(match.group(2))
                         
                         existing = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
-                        if existing:
-                            existing.name = s.get('Name')
-                            existing.latitude = lat
-                            existing.longitude = lon
-                            existing.county_no = s.get('CountyNo', [0])[0] if isinstance(s.get('CountyNo'), list) and s.get('CountyNo') else 0
+                        if not existing:
+                            existing = WeatherMeasurepoint(id=sid)
+                            db.add(existing)
+
+                        existing.name = s.get('Name')
+                        existing.latitude = lat
+                        existing.longitude = lon
+                        
+                        # Handle CountyNo
+                        c_no = s.get('CountyNo')
+                        if isinstance(c_no, list) and c_no:
+                            existing.county_no = c_no[0]
+                        elif isinstance(c_no, int):
+                            existing.county_no = c_no
                         else:
-                            new_s = WeatherMeasurepoint(
-                                id=sid,
-                                name=s.get('Name'),
-                                latitude=lat,
-                                longitude=lon,
-                                county_no=s.get('CountyNo', [0])[0] if isinstance(s.get('CountyNo'), list) and s.get('CountyNo') else 0
-                            )
-                            db.add(new_s)
-                    db.commit()
+                            existing.county_no = 0
 
-                # 2. Sync Observations
-                observations = await tv_stream.fetch_weather_observations()
-                if observations:
-                    for obs in observations:
-                        sid = obs.get('MeasurepointId')
-                        
-                        # Handle Air (Temperature) robustly
-                        air = obs.get('Air')
-                        if isinstance(air, list) and air:
-                            air = air[0]
-                        elif not isinstance(air, dict):
-                            air = {}
+                        # Parse nested Observation
+                        obs = s.get('Observation')
+                        if obs:
+                            # Handle Air (Temperature) robustly
+                            air = obs.get('Air')
+                            if isinstance(air, list) and air: air = air[0]
+                            elif not isinstance(air, dict): air = {}
 
-                        # Handle Wind robustly (can be list of sensors at different heights)
-                        wind = obs.get('Wind')
-                        if isinstance(wind, list) and wind:
-                            # Use the last one (often 10m height if both 6m and 10m are present)
-                            wind = wind[-1]
-                        elif not isinstance(wind, dict):
-                            wind = {}
-                        
-                        temp = air.get('Temperature', {}).get('Value')
-                        w_speed = wind.get('Speed', {}).get('Value')
-                        w_dir = wind.get('Direction', {}).get('Value')
-                        
-                        if sid:
-                            db_s = db.query(WeatherMeasurepoint).filter(WeatherMeasurepoint.id == sid).first()
-                            if db_s:
-                                if temp is not None: db_s.air_temperature = float(temp)
-                                if w_speed is not None: db_s.wind_speed = float(w_speed)
-                                if w_dir is not None: db_s.wind_direction = deg_to_compass(float(w_dir))
-                                db_s.last_updated = datetime.now()
+                            # Handle Wind robustly
+                            wind = obs.get('Wind')
+                            if isinstance(wind, list) and wind: wind = wind[-1]
+                            elif not isinstance(wind, dict): wind = {}
+                            
+                            temp = air.get('Temperature', {}).get('Value')
+                            w_speed = wind.get('Speed', {}).get('Value')
+                            w_dir = wind.get('Direction', {}).get('Value')
+
+                            if temp is not None: existing.air_temperature = float(temp)
+                            if w_speed is not None: existing.wind_speed = float(w_speed)
+                            if w_dir is not None: existing.wind_direction = deg_to_compass(float(w_dir))
+                            existing.last_updated = datetime.now()
+                            
                     db.commit()
 
                 # 3. Update global cache
                 global weather_stations
                 current_ws = db.query(WeatherMeasurepoint).all()
+                logger.debug(f"Stations in DB: {len(current_ws)}")
                 weather_stations = [{
                     "id": w.id,
                     "latitude": w.latitude,

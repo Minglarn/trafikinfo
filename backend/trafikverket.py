@@ -131,6 +131,11 @@ class TrafikverketStream:
                 <FILTER>
                     <EQ name="Deleted" value="false" />
                 </FILTER>
+                <INCLUDE>Id</INCLUDE>
+                <INCLUDE>Name</INCLUDE>
+                <INCLUDE>Geometry</INCLUDE>
+                <INCLUDE>Observation</INCLUDE>
+                <INCLUDE>CountyNo</INCLUDE>
             </QUERY>
         </REQUEST>
         """
