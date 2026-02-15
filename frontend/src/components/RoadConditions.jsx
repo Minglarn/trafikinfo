@@ -133,16 +133,11 @@ function RoadConditions() {
 
     // SSE for real-time updates
     useEffect(() => {
-        console.log(`Starting SSE stream for RoadConditions (refreshKey: ${refreshKey})...`)
-        const eventSource = new EventSource(`${API_BASE}/stream`)
+        fetchConditions(true)
 
-        eventSource.onopen = () => {
-            console.log('SSE Stream connected (RoadConditions)')
-        }
-
-        eventSource.onmessage = (event) => {
+        const handleRoadCondition = (event) => {
             try {
-                const newData = JSON.parse(event.data)
+                const newData = event.detail
                 if (newData.event_type !== 'RoadCondition') return
 
                 console.log(`[SSE RoadCondition] Received: ${newData.id} (${newData.condition_text}) - Road: ${newData.road_number}, County: ${newData.county_no}`)
@@ -190,15 +185,12 @@ function RoadConditions() {
             }
         }
 
-        eventSource.onerror = (err) => {
-            console.error('SSE Error (RoadConditions):', err)
-        }
+        window.addEventListener('flux-road-condition', handleRoadCondition)
 
         return () => {
-            console.log('Closing SSE stream (RoadConditions)...')
-            eventSource.close()
+            window.removeEventListener('flux-road-condition', handleRoadCondition)
         }
-    }, [selectedCounties, refreshKey])
+    }, [selectedCounties, allowedCounties, refreshKey])
 
     // Infinite Scroll Observer
     useEffect(() => {

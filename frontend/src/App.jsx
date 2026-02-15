@@ -80,6 +80,14 @@ function AppContent() {
     }
   }, [activeTab])
 
+  const activeTabRef = React.useRef(activeTab)
+  const lastSeenRef = React.useRef(lastSeen)
+
+  React.useEffect(() => {
+    activeTabRef.current = activeTab
+    lastSeenRef.current = lastSeen
+  }, [activeTab, lastSeen])
+
   // 1. Initial status and setup redirect
   React.useEffect(() => {
     const initStatus = async () => {
@@ -99,7 +107,7 @@ function AppContent() {
     initStatus()
   }, []) // Only on mount
 
-  // 2. Continuous status and counts polling
+  // 2. Continuous status polling and Central SSE
   React.useEffect(() => {
     const fetchStatus = async () => {
       try {
@@ -124,8 +132,8 @@ function AppContent() {
         if (res.ok && isMounted) {
           const data = await res.json()
           // Ensure active tab count is forced to 0 in case of timing issues
-          if (['feed', 'planned', 'road-conditions'].includes(activeTab)) {
-            data[activeTab] = 0
+          if (['feed', 'planned', 'road-conditions'].includes(activeTabRef.current)) {
+            data[activeTabRef.current] = 0
           }
           setCounts(data)
         }
@@ -134,16 +142,67 @@ function AppContent() {
       }
     }
 
+    // Central SSE Connection
+    console.log("Starting central SSE stream (AppContent)...")
+    const eventSource = new EventSource('/api/stream')
+
+    eventSource.onopen = () => {
+      console.log('SSE Stream connected (AppContent)')
+    }
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+
+        // Dispatch central events for components to consume
+        if (data.event_type === 'RoadCondition') {
+          window.dispatchEvent(new CustomEvent('flux-road-condition', { detail: data }))
+
+          // Update counts if not on the tab
+          if (activeTabRef.current !== 'road-conditions') {
+            const ts = data.timestamp || data.updated_at
+            if (!lastSeenRef.current['road-conditions'] || (ts && new Date(ts) > new Date(lastSeenRef.current['road-conditions']))) {
+              setCounts(prev => ({ ...prev, 'road-conditions': prev['road-conditions'] + 1 }))
+            }
+          }
+        } else {
+          window.dispatchEvent(new CustomEvent('flux-traffic-event', { detail: data }))
+
+          // Logic for traffic event counts (feed or planned)
+          const now = new Date();
+          const start = new Date(data.start_time);
+          const end = data.end_time ? new Date(data.end_time) : null;
+          const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+          const isPlanned = start > now || durationDays >= 5;
+          const tab = isPlanned ? 'planned' : 'feed';
+
+          if (activeTabRef.current !== tab) {
+            if (!lastSeenRef.current[tab] || new Date(data.created_at) > new Date(lastSeenRef.current[tab])) {
+              setCounts(prev => ({ ...prev, [tab]: prev[tab] + 1 }))
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Central SSE parse error", e)
+      }
+    }
+
+    eventSource.onerror = (err) => {
+      console.error("Central SSE error", err)
+    }
+
     let isMounted = true
-    fetchCounts(isMounted) // Immediate first fetch for counts
+    fetchCounts(isMounted) // Initial fetch to sync counts
     const statusInterval = setInterval(fetchStatus, 30000)
-    const countsInterval = setInterval(() => fetchCounts(isMounted), 30000)
+    // counts poll interval REMOVED in favor of SSE real-time updates
+
     return () => {
       isMounted = false
       clearInterval(statusInterval)
-      clearInterval(countsInterval)
+      console.log("Closing central SSE stream (AppContent)...")
+      eventSource.close()
     }
-  }, [lastSeen, activeTab]) // Add activeTab to dependencies to ensure force-clear works
+  }, []) // Connection is now truly stable, established once on mount
 
 
   // Report Base URL and handle Deep Links

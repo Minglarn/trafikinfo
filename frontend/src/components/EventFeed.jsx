@@ -265,71 +265,55 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         // eslint-disable-next-line
         fetchEvents(true) // Initial load and re-fetch on filter changes
 
-        console.log(`Starting SSE stream for EventFeed (mode: ${mode}, refreshKey: ${refreshKey})...`)
-        const eventSource = new EventSource(`${API_BASE}/stream`)
+        const handleTrafficEvent = (event) => {
+            const newEvent = event.detail
 
-        eventSource.onopen = () => {
-            console.log('SSE Stream connected (EventFeed)')
-            setIsConnected(true)
-        }
+            // STRICT SEPARATION: Ignore RoadConditions in the main feed
+            if (newEvent.event_type === 'RoadCondition') return;
 
-        eventSource.onmessage = (event) => {
-            try {
-                const newEvent = JSON.parse(event.data)
-
-                // STRICT SEPARATION: Ignore RoadConditions in the main feed
-                if (newEvent.event_type === 'RoadCondition') return;
-
-                setEvents(prev => {
-                    // Check if new event is already expired
-                    if (newEvent.end_time && new Date(newEvent.end_time) < new Date()) {
-                        return prev;
-                    }
-
-                    // Check if event matches current mode
-                    const now = new Date();
-                    const start = new Date(newEvent.start_time);
-                    const end = newEvent.end_time ? new Date(newEvent.end_time) : null;
-                    const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
-                    const isPlanned = start > now || durationDays >= 5;
-
-                    if (mode === 'planned' && !isPlanned) return prev;
-                    if (mode === 'realtid' && isPlanned) return prev;
-
-                    const index = prev.findIndex(e => e.external_id === newEvent.external_id)
-                    let newEvents = [...prev]
-
-                    if (index !== -1) {
-                        // Remove existing event so we can move it to top
-                        newEvents.splice(index, 1)
-                    } else {
-                        setOffset(o => o + 1)
-                    }
-
-                    // Add new/updated event to top
-                    return [newEvent, ...newEvents]
-                })
-
-                // Play sound if enabled
-                if (localStorage.getItem('soundEnabled') === 'true') {
-                    const file = localStorage.getItem('soundFile') || 'chime1.mp3'
-                    const audio = new Audio(`/sounds/${file}`)
-                    audio.play().catch(e => console.error('Error playing sound:', e))
+            setEvents(prev => {
+                // Check if new event is already expired
+                if (newEvent.end_time && new Date(newEvent.end_time) < new Date()) {
+                    return prev;
                 }
-            } catch (err) {
-                console.error('Error parsing SSE event:', err)
+
+                // Check if event matches current mode
+                const now = new Date();
+                const start = new Date(newEvent.start_time);
+                const end = newEvent.end_time ? new Date(newEvent.end_time) : null;
+                const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+                const isPlanned = start > now || durationDays >= 5;
+
+                if (mode === 'planned' && !isPlanned) return prev;
+                if (mode === 'realtid' && isPlanned) return prev;
+
+                const index = prev.findIndex(e => e.external_id === newEvent.external_id)
+                let newEvents = [...prev]
+
+                if (index !== -1) {
+                    // Remove existing event so we can move it to top
+                    newEvents.splice(index, 1)
+                } else {
+                    setOffset(o => o + 1)
+                }
+
+                // Add new/updated event to top
+                return [newEvent, ...newEvents]
+            })
+
+            // Play sound if enabled
+            if (localStorage.getItem('soundEnabled') === 'true') {
+                const file = localStorage.getItem('soundFile') || 'chime1.mp3'
+                const audio = new Audio(`/sounds/${file}`)
+                audio.play().catch(e => console.error('Error playing sound:', e))
             }
         }
 
-        eventSource.onerror = (err) => {
-            console.error('SSE Error (EventFeed):', err)
-            setIsConnected(false)
-            // DON'T close() - native EventSource will auto-reconnect if we leave it open
-        }
+        window.addEventListener('flux-traffic-event', handleTrafficEvent)
+        setIsConnected(true) // SSE is managed by App.jsx
 
         return () => {
-            console.log('Closing SSE stream (EventFeed)...')
-            eventSource.close()
+            window.removeEventListener('flux-traffic-event', handleTrafficEvent)
         }
     }, [mode, activeCounties, activeMessageTypes, activeSeverities, refreshKey]) // Re-fetch when filters, mode, or visibility changes
 

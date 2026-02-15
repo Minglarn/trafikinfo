@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.78] - 2026-02-15
+
+### Added
+- **Unified SSE Stream**: Centralized `EventSource` management in `App.jsx` to ensure a stable connection across tab transitions.
+- **Real-time Event Distribution**: Implemented custom window events for efficient cross-component communication.
+- **Push Simulation Endpoint**: Added `/api/debug/simulate-event` for precise notification testing and verification.
+
+### Changed
+- **Live Tab Counters**: Replaced periodic 30-second polling with real-time SSE updates for all tab badges.
+
+### Fixed
+- **Push Notification Logic**: Resolved a critical bug where traffic event notifications were accidentally skipped in the backend.
+- **SSE Stability**: Fixed the issue where switching tabs caused the "SSE Stream connected" cycle to restart.
+
 ## [26.2.77] - 2026-02-15
 
 ### Added

@@ -1,4 +1,4 @@
-VERSION = "26.2.77"
+VERSION = "26.2.78"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -2265,15 +2265,19 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
         allowed_counties = sub.counties.split(",") if sub.counties else []
         item_county = str(data.get('county_no'))
         
+        logger.debug(f"Checking sub {sub.id} for county {item_county}. Allowed: {allowed_counties}")
         if allowed_counties and item_county not in allowed_counties:
+            logger.info(f"Sub {sub.id} skipped: County mismatch ({item_county} not in {allowed_counties})")
             continue
             
         if type == "event":
             if not sub.topic_realtid:
+                logger.info(f"Sub {sub.id} skipped: Topic realtid disabled")
                 continue
             # Skip if severity_code is null or less than min_severity
             severity = data.get('severity_code')
             if severity is None or severity < sub.min_severity:
+                logger.info(f"Sub {sub.id} skipped: Severity too low ({severity} < {sub.min_severity})")
                 continue
             
             # 1. Build Title
@@ -2315,6 +2319,7 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             
         else: # road_condition
             if not sub.topic_road_condition:
+                logger.info(f"Sub {sub.id} skipped: Topic road_condition disabled")
                 continue
             
             # 1. Build Title
@@ -2354,11 +2359,12 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             else:
                 image = None
 
-            try:
-                await send_push_notification(sub, title, message, url, db, icon=icon, image=image, ttl=ttl)
-            except Exception as e:
-                logger.error(f"Error notifying subscriber {sub.id}: {e}")
-                continue
+        logger.info(f"Sub {sub.id} matched! Sending notification: {title}")
+        try:
+            await send_push_notification(sub, title, message, url, db, icon=icon, image=image, ttl=ttl)
+        except Exception as e:
+            logger.error(f"Error notifying subscriber {sub.id}: {e}")
+            continue
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)):
@@ -2487,6 +2493,32 @@ def get_changelog():
         logger.error(f"Error reading changelog: {e}")
         return {"content": f"Fel vid läsning av changelog: {e}"}
 
+@app.get("/api/debug/simulate-event")
+async def simulate_event(
+    county: int = 1, 
+    severity: int = 1, 
+    title: str = "Testhändelse", 
+    type: str = "event",
+    db: Session = Depends(get_db)
+):
+    """Triggers a customized push notification test."""
+    test_data = {
+        "title": title,
+        "location": "Simulerad plats",
+        "event_url": "/?test=1",
+        "icon_url": "/api/icons/1.png",
+        "severity_code": severity,
+        "severity_text": "Testallvarlighet",
+        "county_no": county,
+        "message_type": "Viktigt meddelande",
+        "start_time": datetime.now().isoformat(),
+        "created_at": datetime.now().isoformat()
+    }
+    
+    logger.info(f"Simulating {type} for county {county}, severity {severity}")
+    await notify_subscribers(test_data, db, type=type)
+    return {"status": "simulated", "data": test_data}
+
 @app.get("/api/debug/push-test")
 async def debug_push_test(db: Session = Depends(get_db)):
     """Triggers a manual push notification test using the last event in DB."""
@@ -2494,14 +2526,15 @@ async def debug_push_test(db: Session = Depends(get_db)):
     if not last_event:
         return {"error": "No events in DB"}
     
-    # Fake mqtt_data for testing logic in notify_subscribers
     test_data = {
         "title": f"🧪 TEST: {last_event.title}",
         "location": last_event.location or "Ingen plats",
         "event_url": f"/?event_id={last_event.external_id}",
         "icon_url": f"/api/icons/{last_event.icon_id}.png" if last_event.icon_id else None,
         "severity_code": last_event.severity_code,
-        "county_no": last_event.county_no
+        "severity_text": last_event.severity_text,
+        "county_no": last_event.county_no,
+        "created_at": last_event.created_at.isoformat() if last_event.created_at else None
     }
     
     await notify_subscribers(test_data, db, type="event")
