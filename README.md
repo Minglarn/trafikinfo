@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.77-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.79-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -45,7 +45,8 @@ services:
     restart: always
     environment:
       - TZ=Europe/Stockholm
-      - ADMIN_PASSWORD=ditt_lösenord_här
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - APP_PASSWORD=${APP_PASSWORD:-flux123}
       - DEBUG_MODE=false # Användbart för att felsöka true|false
 ```
 
@@ -55,13 +56,21 @@ Kör följande kommando i samma mapp:
 docker-compose up -d
 ```
 
-### 4. Konfiguration & Säkerhet
-1. Öppna [http://localhost:7081](http://localhost:7081) i din webbläsare.
-2. För att ändra inställningar eller markera favoriter behöver du logga in som **Admin**. 
-3. Klicka på lås-ikonen i sidomenyn och ange det lösenord du valde som `ADMIN_PASSWORD` (standard är `admin123`).
-4. Klistra in din API-nyckel från Trafikverket under inställningar.
-5. Välj vilka län du vill bevaka.
-6. Tryck på **Spara inställningar**.
+#### 4. Konfiguration & Säkerhet
+
+Systemet använder en tvåstegs-säkerhetsmodell för att balansera användarvänlighet (PWA/iOS) med administrativ kontroll.
+
+#### App-lösenord (Vanlig användare)
+För att få tillgång till realtidsinformationen behöver du ange ett av lösenorden definierade i `APP_PASSWORD`.
+- **iOS/PWA**: Lösenordet sparas i en säker session-cookie (`Secure`, `HttpOnly`), vilket gör att du slipper logga in varje gång du öppnar appen på din iPhone/iPad.
+- **Flera lösenord**: Du kan ange flera giltiga lösenord separerade med kommatecken, t.ex. `hemligt123,flux456,lösenord789`.
+
+#### Admin-lösenord (Inställningar & Felsökning)
+För att ändra systeminställningar, hantera push-notiser eller utföra en fabriksåterställning krävs `ADMIN_PASSWORD`.
+1. Öppna [http://localhost:7081](http://localhost:7081).
+2. Klicka på lås-ikonen i sidomenyn.
+3. Ange ditt `ADMIN_PASSWORD`.
+4. Du har nu tillgång till fliken **Inställningar**.
 
 ## 🏠 Home Assistant & MQTT
 

@@ -1,5 +1,5 @@
-VERSION = "26.2.78"
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
+VERSION = "26.2.79"
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -12,13 +12,15 @@ import httpx
 import re
 import math
 import time
-from typing import List
+from typing import List, Optional
 from datetime import datetime, time as dt_time, timedelta
 from sqlalchemy import func
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 from py_vapid import Vapid
 import base64
+import hashlib
+from cryptography.fernet import Fernet
 
 from database import SessionLocal, init_db, TrafficEvent, TrafficEventVersion, Settings, Camera, RoadCondition, RoadConditionVersion, PushSubscription, ClientInterest
 from mqtt_client import mqtt_client
@@ -108,6 +110,23 @@ COUNTY_MAP = {
 
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+APP_PASSWORDS = [p.strip() for p in os.getenv("APP_PASSWORD", "flux123").split(",") if p.strip()]
+
+# Session Signing setup
+SECRET_KEY = os.getenv("JWT_SECRET", hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest())
+# Generate a valid Fernet key from the secret
+FERNET_KEY = base64.urlsafe_b64encode(hashlib.sha256(SECRET_KEY.encode()).digest())
+fernet = Fernet(FERNET_KEY)
+
+def create_session_token():
+    return fernet.encrypt(json.dumps({"auth": True, "ts": time.time()}).encode()).decode()
+
+def verify_session_token(token: str):
+    try:
+        data = json.loads(fernet.decrypt(token.encode()).decode())
+        return data.get("auth") is True
+    except:
+        return False
 
 class PushSubscriptionSchema(BaseModel):
     endpoint: str
@@ -141,6 +160,22 @@ def get_current_admin(x_admin_token: str = Header(None)):
     
     return {"role": "admin"}
 
+def require_app_auth(
+    x_admin_token: str = Header(None),
+    flux_session: Optional[str] = Cookie(None)
+):
+    # Allow if valid admin token OR valid session cookie
+    if x_admin_token == ADMIN_PASSWORD:
+        return {"role": "admin"}
+        
+    if flux_session and verify_session_token(flux_session):
+        return {"role": "user"}
+        
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Behörighet saknas. Vänligen logga in."
+    )
+
 @app.post("/api/auth/login")
 async def login(request: LoginRequest):
     if request.password == ADMIN_PASSWORD:
@@ -150,6 +185,37 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Felaktigt lösenord"
         )
+
+@app.post("/api/auth/app-login")
+async def app_login(request: LoginRequest, response: Response):
+    if request.password in APP_PASSWORDS:
+        token = create_session_token()
+        # Set cookie for 30 days
+        response.set_cookie(
+            key="flux_session",
+            value=token,
+            httponly=True,
+            max_age=30 * 24 * 60 * 60,
+            samesite="lax",
+            secure=True # Should be True in prod
+        )
+        return {"status": "ok"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Ogiltigt lösenord för appen"
+        )
+
+@app.get("/api/auth/app-check")
+async def app_check(flux_session: Optional[str] = Cookie(None)):
+    if flux_session and verify_session_token(flux_session):
+        return {"status": "ok"}
+    raise HTTPException(status_code=401, detail="Session expired or invalid")
+
+@app.get("/api/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie("flux_session")
+    return {"status": "ok"}
 
 @app.get("/api/auth/check")
 async def check_auth(admin=Depends(get_current_admin)):
@@ -1485,7 +1551,7 @@ async def road_condition_processor():
 connected_clients = []
 
 @app.get("/api/stream")
-async def stream_events():
+async def stream_events(user=Depends(require_app_auth)):
     queue = asyncio.Queue()
     connected_clients.append(queue)
     
@@ -1502,7 +1568,7 @@ async def stream_events():
 
 
 @app.get("/api/events/{external_id}/history")
-async def get_event_history(external_id: str, db: Session = Depends(get_db)):
+async def get_event_history(external_id: str, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     versions = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == external_id).order_by(TrafficEventVersion.version_timestamp.desc()).all()
     
     result = []
@@ -1550,7 +1616,6 @@ async def get_event_history(external_id: str, db: Session = Depends(get_db)):
     return result
 
 @app.get("/api/cameras")
-@app.get("/api/cameras")
 async def get_cameras_api(
     only_favorites: bool = False, 
     limit: int = 24, 
@@ -1559,7 +1624,8 @@ async def get_cameras_api(
     is_favorite: bool = None,
     road_number: str = None,
     ids: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(require_app_auth)
 ):
     # Get selected counties from settings
     county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
@@ -1723,7 +1789,7 @@ async def proxy_camera_image(camera_id: str, fullsize: bool = False):
     return StreamingResponse(stream_image(), media_type="image/jpeg")
 
 @app.get("/api/events", response_model=List[dict])
-def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, counties: str = None, type: str = "realtid", db: Session = Depends(get_db)):
+def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = None, counties: str = None, type: str = "realtid", db: Session = Depends(get_db), user=Depends(require_app_auth)):
     query = db.query(TrafficEvent)
     
     # Filter by counties if provided (comma separated)
@@ -1840,7 +1906,7 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
 
 
 @app.get("/api/road-conditions")
-def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+async def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     query = db.query(RoadCondition)
     
     if county_no:
@@ -1893,7 +1959,7 @@ def get_road_conditions(county_no: str = None, limit: int = 100, offset: int = 0
     } for c in conditions]
 
 @app.get("/api/stats")
-def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db)):
+def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     from datetime import datetime, timedelta, time
     
     if date:
@@ -2003,7 +2069,7 @@ async def update_settings(settings: dict, db: Session = Depends(get_db), admin=D
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/report-base-url")
-async def report_base_url(payload: dict, db: Session = Depends(get_db)):
+async def report_base_url(payload: dict, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     """Automatically update the base_url from frontend origin."""
     base_url = payload.get("base_url")
     if not base_url:
@@ -2120,7 +2186,7 @@ def get_vapid_public_key(db: Session = Depends(get_db)):
     return {"public_key": public_key}
 
 @app.post("/api/push/subscribe")
-def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db)):
+def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     existing = db.query(PushSubscription).filter(PushSubscription.endpoint == subscription.endpoint).first()
     if existing:
         existing.p256dh = subscription.keys.get('p256dh')
@@ -2156,7 +2222,7 @@ class ClientInterestRequest(BaseModel):
     counties: str
 
 @app.post("/api/client/interest")
-async def register_client_interest(payload: ClientInterestRequest, db: Session = Depends(get_db)):
+async def register_client_interest(payload: ClientInterestRequest, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     """Register user's current county interest (Family Model)"""
     try:
         interest = db.query(ClientInterest).filter(ClientInterest.client_id == payload.client_id).first()
@@ -2181,7 +2247,7 @@ async def register_client_interest(payload: ClientInterestRequest, db: Session =
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/push/unsubscribe")
-def unsubscribe(payload: dict, db: Session = Depends(get_db)):
+def unsubscribe(payload: dict, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     endpoint = payload.get("endpoint")
     if endpoint:
         db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).delete()
@@ -2377,7 +2443,7 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             continue
 
 @app.get("/api/settings")
-def get_settings(db: Session = Depends(get_db)):
+def get_settings(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     settings = db.query(Settings).all()
     res = {s.key: s.value for s in settings}
     if "api_key" not in res:
@@ -2389,7 +2455,8 @@ def get_status_counts(
     since_feed: str = None, 
     since_planned: str = None, 
     since_road_conditions: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user=Depends(require_app_auth)
 ):
     from datetime import datetime
     now = datetime.now()
@@ -2443,7 +2510,7 @@ def get_status_counts(
     }
 
 @app.get("/api/status")
-def get_status(db: Session = Depends(get_db)):
+def get_status(db: Session = Depends(get_db), user=Depends(require_app_auth)):
     global tv_stream
     api_key = db.query(Settings).filter(Settings.key == "api_key").first()
     
@@ -2464,11 +2531,11 @@ def get_status(db: Session = Depends(get_db)):
     }
 
 @app.get("/api/version")
-def get_version():
+def get_version(user=Depends(require_app_auth)):
     return {"version": VERSION}
 
 @app.get("/api/changelog")
-def get_changelog():
+def get_changelog(user=Depends(require_app_auth)):
     """Returns the latest section from CHANGELOG.md."""
     # Check current directory and parent directory
     possible_paths = [
@@ -2509,7 +2576,8 @@ async def simulate_event(
     severity: int = 1, 
     title: str = "Testhändelse", 
     type: str = "event",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin)
 ):
     """Triggers a customized push notification test."""
     test_data = {
@@ -2530,7 +2598,7 @@ async def simulate_event(
     return {"status": "simulated", "data": test_data}
 
 @app.get("/api/debug/push-test")
-async def debug_push_test(db: Session = Depends(get_db)):
+async def debug_push_test(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     """Triggers a manual push notification test using the last event in DB."""
     last_event = db.query(TrafficEvent).order_by(TrafficEvent.id.desc()).first()
     if not last_event:

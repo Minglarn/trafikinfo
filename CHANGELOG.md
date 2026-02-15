@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.79] - 2026-02-15
+
+### Added
+- **Session Cookie Authentication**: Replaced Nginx Basic Auth with backend-managed sessions for better PWA compatibility (especially iOS).
+- **Multi-Password Support**: Added support for comma-separated passwords in `APP_PASSWORD` environment variable.
+- **SessionGate Component**: New premium full-screen entry point and login portal for the app.
+- **Enhanced Security**: Secured all backend data endpoints (Events, Cameras, SSE Stream) with signed session verification.
+
 ## [26.2.78] - 2026-02-15
 
 ### Added

@@ -12,4 +12,5 @@ services:
     environment:
       - TZ=Europe/Stockholm
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - APP_PASSWORD=${APP_PASSWORD:-flux123}
       - DEBUG_MODE=false

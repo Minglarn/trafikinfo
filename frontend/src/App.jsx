@@ -12,6 +12,7 @@ import BottomNav from './components/BottomNav'
 import RoadConditions from './components/RoadConditions'
 import RoadCameraDashboard from './components/RoadCameraDashboard'
 import WhatIsNewModal from './components/WhatIsNewModal'
+import SessionGate from './components/SessionGate'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
@@ -319,7 +320,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <SessionGate>
+        <AppContent />
+      </SessionGate>
     </AuthProvider>
   )
 }
