@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.77] - 2026-02-15
+
+### Added
+- **Road Camera Dashboard**: New unified view selector for Map and Grid (Favorites) modes.
+- **Client-Side Favorites**: Local storage-based favorite system for cameras (no login required).
+- **High-Resolution Modals**: Full-screen snapshots now request high-resolution (`fullsize=true`) images on desktop.
+- **Map Clustering**: Re-implemented marker clustering with fixed CSS and optimized radius (80px).
+
+### Changed
+- **Refresh Optimization**: Implemented a 5-minute silent refresh in the camera grid to eliminate UI flickering.
+- **Mobile Experience**: Disabled heavy full-screen expansion on small screens for better usability.
+- **Resource Management**: Removed non-favorite camera loading in grid to significantly reduce Trafikverket API load.
+
+### Fixed
+- **API Filtering**: Added `ids` parameter support to the backend `/api/cameras` for efficient targeted fetching.
+- **Import Errors**: Fixed a crash caused by a missing `Star` icon import in the map view.
+
 ## [26.2.57] - 2026-02-14
 
 ### Added

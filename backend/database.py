@@ -107,6 +107,7 @@ class Camera(Base):
     latitude = Column(Float)
     longitude = Column(Float)
     county_no = Column(Integer) # Primary county
+    road_number = Column(String) # Road number (e.g. E4, 73)
     is_favorite = Column(Integer, default=0) # 0/1
 
 class RoadCondition(Base):

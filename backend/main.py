@@ -374,37 +374,38 @@ async def initialize_cameras():
                 current_cameras = db.query(Camera).all()
                 
                 # 2. If valid data exists, just load it into memory
-                if current_cameras and len(current_cameras) > 100:
+                # Check for schema update: does the first camera have a road_number?
+                schema_ok = True
+                if current_cameras:
+                    schema_ok = hasattr(current_cameras[0], 'road_number') and current_cameras[0].road_number is not None
+
+                if current_cameras and len(current_cameras) > 100 and schema_ok:
                     logger.info(f"Loaded {len(current_cameras)} cameras from DB.")
                 else:
-                    # 3. If DB is empty, fetch from API
+                    # 3. If DB is empty or schema changed, fetch from API
                     api_key_setting = db.query(Settings).filter(Settings.key == "api_key").first()
                     if api_key_setting and api_key_setting.value:
-                        logger.info("Initializing cameras from API...")
+                        logger.info("Initializing cameras from API (Full Sync)...")
                         api_key = api_key_setting.value
-                        
-                        # Get selected counties (optional filtering for cameras, though user wants them all usually)
-                        county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-                        selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
 
                         new_cameras = await get_cameras(api_key)
                         if new_cameras:
                              for cam_data in new_cameras:
-                                # Only sync if in selected counties (or if no counties selected)
-                                if not selected_counties or cam_data["county_no"] in selected_counties:
-                                    existing = db.query(Camera).filter(Camera.id == cam_data["id"]).first()
-                                    if existing:
-                                        existing.name = cam_data["name"]
-                                        existing.description = cam_data["description"]
-                                        existing.location = cam_data["location"]
-                                        existing.type = cam_data["type"]
-                                        existing.photo_url = cam_data["url"]
-                                        existing.fullsize_url = cam_data["fullsize_url"]
-                                        existing.photo_time = datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None
-                                        existing.latitude = cam_data["latitude"]
-                                        existing.longitude = cam_data["longitude"]
-                                        existing.county_no = cam_data["county_no"]
-                                    else:
+                                # Sync ALL cameras as requested by user
+                                existing = db.query(Camera).filter(Camera.id == cam_data["id"]).first()
+                                if existing:
+                                    existing.name = cam_data["name"]
+                                    existing.description = cam_data["description"]
+                                    existing.location = cam_data["location"]
+                                    existing.type = cam_data["type"]
+                                    existing.photo_url = cam_data["url"]
+                                    existing.fullsize_url = cam_data["fullsize_url"]
+                                    existing.photo_time = datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None
+                                    existing.latitude = cam_data["latitude"]
+                                    existing.longitude = cam_data["longitude"]
+                                    existing.county_no = cam_data["county_no"]
+                                    existing.road_number = cam_data["road_number"]
+                                else:
                                         new_cam = Camera(
                                             id=cam_data["id"],
                                             name=cam_data["name"],
@@ -416,7 +417,8 @@ async def initialize_cameras():
                                             photo_time=datetime.fromisoformat(cam_data["photo_time"].replace('Z', '+00:00')) if cam_data["photo_time"] else None,
                                             latitude=cam_data["latitude"],
                                             longitude=cam_data["longitude"],
-                                            county_no=cam_data["county_no"]
+                                            county_no=cam_data["county_no"],
+                                            road_number=cam_data["road_number"]
                                         )
                                         db.add(new_cam)
                              
@@ -433,7 +435,9 @@ async def initialize_cameras():
                     "latitude": c.latitude,
                     "longitude": c.longitude,
                     "url": c.photo_url,
-                    "fullsize_url": c.fullsize_url
+                    "fullsize_url": c.fullsize_url,
+                    "county_no": c.county_no,
+                    "road_number": c.road_number
                 } for c in current_cameras]
                 
             finally:
@@ -1542,6 +1546,8 @@ async def get_cameras_api(
     offset: int = 0, 
     search: str = None,
     is_favorite: bool = None,
+    road_number: str = None,
+    ids: str = None,
     db: Session = Depends(get_db)
 ):
     # Get selected counties from settings
@@ -1561,6 +1567,16 @@ async def get_cameras_api(
             (Camera.location.ilike(search_filter)) |
             (Camera.description.ilike(search_filter))
         )
+    
+    # Filter by specific road number
+    if road_number:
+        base_query = base_query.filter(Camera.road_number.ilike(f"%{road_number}%"))
+
+    # Filter by specific IDs (comma-separated)
+    if ids:
+        id_list = [i.strip() for i in ids.split(",") if i.strip()]
+        if id_list:
+            base_query = base_query.filter(Camera.id.in_(id_list))
 
     # Calculate metadata before pagination
     total_count = base_query.count()
@@ -1576,7 +1592,9 @@ async def get_cameras_api(
                 "type": c.type, 
                 "proxy_url": f"/api/cameras/{c.id}/image",
                 "photo_time": c.photo_time, "latitude": c.latitude, "longitude": c.longitude,
-                "county_no": c.county_no, "is_favorite": True,
+                "county_no": c.county_no, 
+                "road_number": c.road_number,
+                "is_favorite": True,
                 "weather": None # Explicitly removed for performance/policy
             })
         return {
@@ -1593,7 +1611,12 @@ async def get_cameras_api(
     # Order and Paginate
     # Default order: favorites first, then name
     query = base_query.order_by(Camera.is_favorite.desc(), Camera.name.asc())
-    cameras_list = query.offset(offset).limit(limit).all()
+    
+    if limit > 0:
+        cameras_list = query.offset(offset).limit(limit).all()
+    else:
+        # If limit is 0 or less, return all matching records (useful for map)
+        cameras_list = query.all()
 
     result = []
     for cam in cameras_list:
@@ -1608,6 +1631,7 @@ async def get_cameras_api(
             "latitude": cam.latitude,
             "longitude": cam.longitude,
             "county_no": cam.county_no,
+            "road_number": cam.road_number,
             "is_favorite": bool(cam.is_favorite),
             "weather": None # Explicitly removed
         })

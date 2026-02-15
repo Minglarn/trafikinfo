@@ -541,6 +541,17 @@ async def get_cameras(api_key: str):
                         counties = res.get('CountyNo', [])
                         primary_county = counties[0] if counties and isinstance(counties, list) else (counties if isinstance(counties, int) else 0)
 
+                        # Extract road number from Location or Name
+                        location = res.get('Location', '')
+                        name = res.get('Name', '')
+                        road_pattern = re.compile(r'\b(E\d+|RV\d+|LV\d+|VÄG\s*\d+|LÄN\s*\d+)\b', re.I)
+                        road_match = road_pattern.search(f"{location} {name}")
+                        road_number = road_match.group(1) if road_match else None
+                        
+                        if road_number:
+                            # Clean up: "Väg 73" -> "73", "RV73" -> "73"
+                            road_number = re.sub(r'^(Väg|Riksväg|Länsväg|RV|LV|Län)\s*', '', road_number, flags=re.I).upper()
+
                         cameras.append({
                             "id": res.get('Id'),
                             "name": res.get('Name'),
@@ -552,7 +563,8 @@ async def get_cameras(api_key: str):
                             "photo_time": res.get('PhotoTime'),
                             "longitude": float(match.group(1)),
                             "latitude": float(match.group(2)),
-                            "county_no": primary_county
+                            "county_no": primary_county,
+                            "road_number": road_number
                         })
             return cameras
         except Exception as e:
