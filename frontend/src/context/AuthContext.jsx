@@ -10,7 +10,15 @@ export const AuthProvider = ({ children }) => {
     const [clientId] = useState(() => {
         let id = localStorage.getItem('flux_client_id');
         if (!id) {
-            id = crypto.randomUUID();
+            // Fallback for non-secure contexts (HTTP)
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                id = crypto.randomUUID();
+            } else {
+                id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
             localStorage.setItem('flux_client_id', id);
         }
         return id;

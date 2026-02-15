@@ -2144,8 +2144,14 @@ def get_stats(hours: int = None, date: str = None, db: Session = Depends(get_db)
         "date": date or datetime.now().strftime("%Y-%m-%d")
     }
 
+@app.get("/api/settings")
+async def get_settings(db: Session = Depends(get_db), user=Depends(require_app_auth)):
+    """Returns all settings as a key-value dict for the frontend."""
+    all_settings = db.query(Settings).all()
+    return {s.key: s.value for s in all_settings}
+
 @app.post("/api/settings")
-async def update_settings(settings: dict, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+async def update_settings(settings: dict, db: Session = Depends(get_db), user=Depends(require_app_auth)):
     try:
         for k, v in settings.items():
             # Convert value to string to ensure compatibility with Settings model

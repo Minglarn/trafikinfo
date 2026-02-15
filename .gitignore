@@ -34,3 +34,10 @@ repair_db.py
 clients.json
 *.db
 
+# Assets & Maintenance
+chime*.mp3
+chime*.wav
+logo - kopia.png
+backend/backfill_cameras.py
+backend/migrate_historical_events.py
+
