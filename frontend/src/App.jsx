@@ -11,11 +11,16 @@ import MobileHeader from './components/MobileHeader'
 import BottomNav from './components/BottomNav'
 import RoadConditions from './components/RoadConditions'
 import RoadCameraDashboard from './components/RoadCameraDashboard'
+import WhatIsNewModal from './components/WhatIsNewModal'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [initialEventId, setInitialEventId] = useState(null)
+
+  // Update Notification State
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false)
+  const [changelogContent, setChangelogContent] = useState('')
 
   // Theme State
   const [theme, setTheme] = useState(() => {
@@ -165,6 +170,31 @@ function AppContent() {
       // Optional: Clean up URL after capturing
       // window.history.replaceState({}, document.title, window.location.pathname);
     }
+    // 3. Version Check (What's New)
+    const checkVersion = async () => {
+      try {
+        const response = await fetch('/api/version');
+        if (response.ok) {
+          const { version: backendVersion } = await response.json();
+          const storedVersion = localStorage.getItem('flux_app_version');
+
+          if (storedVersion && storedVersion !== backendVersion) {
+            // New version detected! Fetch changelog
+            const clRes = await fetch('/api/changelog');
+            if (clRes.ok) {
+              const { content } = await clRes.json();
+              setChangelogContent(content);
+              setIsUpdateModalOpen(true);
+            }
+          }
+          // Update stored version to current backend version
+          localStorage.setItem('flux_app_version', backendVersion);
+        }
+      } catch (err) {
+        console.error('Failed to check version:', err);
+      }
+    };
+    checkVersion();
   }, []);
 
   // Apply theme class to html element
@@ -216,6 +246,12 @@ function AppContent() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      <WhatIsNewModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        content={changelogContent}
       />
     </div>
   )

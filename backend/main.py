@@ -1,4 +1,4 @@
-VERSION = "26.2.76"
+VERSION = "26.2.77"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -113,7 +113,7 @@ class PushSubscriptionSchema(BaseModel):
     endpoint: str
     keys: dict # contains p256dh and auth
     counties: str = ""
-    min_severity: int = 3
+    min_severity: int = 1
     topic_realtid: int = 1
     topic_road_condition: int = 1
     include_severity: int = 1
@@ -1002,6 +1002,7 @@ async def event_processor():
                         db.commit()
                         db.refresh(new_event)
 
+                    # Notify subscribers for NEW events or SIGNIFICANT updates
                     # MQTT & Broadcast (Unified for New & Updated)
                     mqtt_data = ev.copy()
                     
@@ -1103,8 +1104,8 @@ async def event_processor():
                         new_event.pushed_to_mqtt = 0
                     db.commit()
 
-                    # Notify subscribers for NEW events only
-                    if not existing:
+                    # Notify subscribers for NEW events or SIGNIFICANT updates
+                    if not existing or has_changed:
                         await notify_subscribers(mqtt_data, db, type="event")
 
                     # Fetch history count
@@ -2449,6 +2450,42 @@ def get_status(db: Session = Depends(get_db)):
 @app.get("/api/version")
 def get_version():
     return {"version": VERSION}
+
+@app.get("/api/changelog")
+def get_changelog():
+    """Returns the latest section from CHANGELOG.md."""
+    # Check current directory and parent directory
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), "CHANGELOG.md"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "CHANGELOG.md")
+    ]
+    
+    changelog_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            changelog_path = path
+            break
+            
+    if not changelog_path:
+        return {"content": "Changelog saknas."}
+    
+    try:
+        with open(changelog_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Extract everything between the first and second ## header
+        # or until the end of file if only one header exists
+        # Pattern: look for ## [version], then everything until next ##
+        # We use re.DOTALL to match across newlines
+        match = re.search(r"(## \[.*?\] - .*?\n)(.*?)(?=\n## |$)", content, re.DOTALL)
+        if match:
+            # We want the header and the body
+            return {"content": match.group(1).strip() + "\n\n" + match.group(2).strip()}
+        
+        return {"content": "Kunde inte tolka changelog."}
+    except Exception as e:
+        logger.error(f"Error reading changelog: {e}")
+        return {"content": f"Fel vid läsning av changelog: {e}"}
 
 @app.get("/api/debug/push-test")
 async def debug_push_test(db: Session = Depends(get_db)):

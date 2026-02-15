@@ -20,6 +20,7 @@ COPY --from=frontend-build /app/frontend/dist ./static
 
 # Copy backend code
 COPY backend/ .
+COPY CHANGELOG.md .
 
 # Ensure data directory exists
 RUN mkdir -p /app/data

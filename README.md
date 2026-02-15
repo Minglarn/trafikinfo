@@ -68,7 +68,7 @@ docker-compose up -d
 Trafikinfo Flux kan skicka realtidsaviseringar till Home Assistant via MQTT.
 
 ### MQTT Payload
-Varje gång en ny händelse detekteras publiceras ett JSON-objekt på ämnet `trafikinfo/events` (standard). TrafikInfo FLUX känner av om den körs på en egen domän och applicerar den i länkarna. Annars används den lokala IP-adressen.   
+Varje gång en ny händelse detekteras publiceras ett JSON-objekt på ämnet `trafikinfo/traffic` (standard). TrafikInfo FLUX känner av om den körs på en egen domän och applicerar den i länkarna. Annars används den lokala IP-adressen.   
 Payloaden innehåller nu färdiga länkar för notiser:
 
 ```json
@@ -159,7 +159,7 @@ Använd följande YAML för att få notiser om trafikolyckor:
 alias: "Trafikavisering: Olycka"
 trigger:
   - platform: mqtt
-    topic: "trafikinfo/events"
+    topic: "trafikinfo/traffic"
 condition:
   - condition: template
     value_template: "{{ trigger.payload_json.severity_code >= 3 }}"

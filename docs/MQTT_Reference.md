@@ -3,7 +3,7 @@
 Trafikinfo Flux publishes real-time traffic updates to an MQTT broker.
 
 ## Topic Structure
-Default topic: `trafikinfo/events`
+Default topic: `trafikinfo/traffic`
 
 ## Payload Schema
 The payload is a JSON object.

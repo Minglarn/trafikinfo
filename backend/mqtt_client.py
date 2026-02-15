@@ -13,7 +13,7 @@ class MQTTClient:
             "port": 1883,
             "username": "",
             "password": "",
-            "topic": "trafikinfo/events"
+            "topic": "trafikinfo/traffic"
         }
         self.connected = False
 

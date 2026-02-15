@@ -57,7 +57,7 @@ export default function Settings() {
     const [includeImage, setIncludeImage] = useState(() => localStorage.getItem('push_include_image') !== 'false')
     const [includeWeather, setIncludeWeather] = useState(() => localStorage.getItem('push_include_weather') !== 'false')
     const [includeLocation, setIncludeLocation] = useState(() => localStorage.getItem('push_include_location') !== 'false')
-    const [minSeverity, setMinSeverity] = useState(() => parseInt(localStorage.getItem('push_min_severity') || '3'))
+    const [minSeverity, setMinSeverity] = useState(() => parseInt(localStorage.getItem('push_min_severity') || '1'))
 
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
@@ -654,10 +654,10 @@ export default function Settings() {
                                             <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Root (Trafikhändelser)</label>
                                             <input
                                                 type="text"
-                                                value={settings.mqtt_topic ?? 'trafikinfo/events'}
+                                                value={settings.mqtt_topic ?? 'trafikinfo/traffic'}
                                                 onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
                                                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                placeholder="trafikinfo/events"
+                                                placeholder="trafikinfo/traffic"
                                             />
                                         </div>
                                         <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[10px] text-blue-600 dark:text-blue-400">
