@@ -68,8 +68,20 @@ För att få tillgång till realtidsinformationen behöver du ange ett av lösen
 - **Flera lösenord**: Du kan ange flera giltiga lösenord separerade med kommatecken, t.ex. `hemligt123,flux456,lösenord789`.
 
 > [!IMPORTANT]
-> **HTTP vs HTTPS**: Som standard skickas session-cookien utan `Secure`-flaggan (`SECURE_COOKIES=false`), vilket krävs för att appen ska fungera över vanlig HTTP (t.ex. `http://192.168.1.x:7081`).
-> Om du exponerar systemet publikt bör du **alltid** köra det bakom en HTTPS reverse proxy (t.ex. Nginx/Caddy med Let's Encrypt) och sätta `SECURE_COOKIES=true` i din `docker-compose.yml`.
+> **HTTP vs HTTPS — `SECURE_COOKIES`**
+>
+> Session-cookien (`flux_session`) skickas vid varje API-anrop för att bevisa att du är inloggad.
+> `SECURE_COOKIES` styr om webbläsaren **bara** får skicka denna cookie över krypterad (HTTPS) trafik.
+>
+> | `SECURE_COOKIES` | Cookie-flagga | Resultat |
+> |---|---|---|
+> | `false` (standard) | `Secure` **av** | Cookien skickas över **både HTTP och HTTPS**. Krävs för LAN-access (`http://192.168.1.x`). |
+> | `true` | `Secure` **på** | Cookien skickas **bara över HTTPS**. Skyddar mot avlyssning på publika nät. |
+>
+> **Hemma-LAN →** Använd `false` (standard). Du litar på ditt eget nät.
+> **Publikt internet →** Kör alltid bakom en HTTPS reverse proxy (t.ex. Nginx/Caddy + Let's Encrypt) och sätt `SECURE_COOKIES=true` i `docker-compose.yml`.
+>
+> *OBS: Push-notiser kräver HTTPS av en separat anledning (webbläsarkrav för Service Workers) och styrs **inte** av denna inställning.*
 
 #### Admin-lösenord (Inställningar & Felsökning)
 För att ändra systeminställningar, hantera push-notiser eller utföra en fabriksåterställning krävs `ADMIN_PASSWORD`.
