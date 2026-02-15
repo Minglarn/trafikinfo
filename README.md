@@ -47,8 +47,8 @@ services:
       - TZ=Europe/Stockholm
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - APP_PASSWORD=${APP_PASSWORD:-flux123}
-      - APP_PASSWORD=${APP_PASSWORD:-flux123}
       - NO_LOGIN_NEEDED=${NO_LOGIN_NEEDED:-false} # Sätt till true för att slippa inloggning
+      - SECURE_COOKIES=${SECURE_COOKIES:-false}    # Sätt till true om du kör bakom HTTPS reverse proxy
       - DEBUG_MODE=false # Användbart för att felsöka true|false
 ```
 
@@ -64,8 +64,12 @@ Systemet använder en tvåstegs-säkerhetsmodell för att balansera användarvä
 
 #### App-lösenord (Vanlig användare)
 För att få tillgång till realtidsinformationen behöver du ange ett av lösenorden definierade i `APP_PASSWORD`.
-- **iOS/PWA**: Lösenordet sparas i en säker session-cookie (`Secure`, `HttpOnly`), vilket gör att du slipper logga in varje gång du öppnar appen på din iPhone/iPad.
+- **iOS/PWA**: Lösenordet sparas i en `HttpOnly` session-cookie som gäller i 30 dagar, så att du slipper logga in varje gång du öppnar appen.
 - **Flera lösenord**: Du kan ange flera giltiga lösenord separerade med kommatecken, t.ex. `hemligt123,flux456,lösenord789`.
+
+> [!IMPORTANT]
+> **HTTP vs HTTPS**: Som standard skickas session-cookien utan `Secure`-flaggan (`SECURE_COOKIES=false`), vilket krävs för att appen ska fungera över vanlig HTTP (t.ex. `http://192.168.1.x:7081`).
+> Om du exponerar systemet publikt bör du **alltid** köra det bakom en HTTPS reverse proxy (t.ex. Nginx/Caddy med Let's Encrypt) och sätta `SECURE_COOKIES=true` i din `docker-compose.yml`.
 
 #### Admin-lösenord (Inställningar & Felsökning)
 För att ändra systeminställningar, hantera push-notiser eller utföra en fabriksåterställning krävs `ADMIN_PASSWORD`.
@@ -80,6 +84,7 @@ Om du kör systemet i en skyddad miljö (t.ex. hemma-LAN) och vill slippa logga 
 2. Starta om behållaren (`docker-compose up -d`).
 3. Appen kommer nu att hoppa över inloggningsskärmen automatiskt.
 *OBS: Admin-gränssnittet kräver fortfarande alltid lösenord.*
+
 
 ## 🏠 Home Assistant & MQTT
 

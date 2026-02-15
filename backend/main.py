@@ -112,6 +112,7 @@ COUNTY_MAP = {
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 APP_PASSWORDS = [p.strip() for p in os.getenv("APP_PASSWORD", "flux123").split(",") if p.strip()]
 NO_LOGIN_NEEDED = os.getenv("NO_LOGIN_NEEDED", "false").lower() == "true"
+SECURE_COOKIES = os.getenv("SECURE_COOKIES", "false").lower() == "true"
 
 # Session Signing setup
 SECRET_KEY = os.getenv("JWT_SECRET", hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest())
@@ -318,7 +319,7 @@ async def app_login(
             httponly=True,
             max_age=30 * 24 * 60 * 60,
             samesite="lax",
-            secure=True # Should be True in prod
+            secure=SECURE_COOKIES
         )
         
         # Track which password was used

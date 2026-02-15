@@ -31,3 +31,4 @@ services:
       - APP_PASSWORD=${APP_PASSWORD:-flux123}
       - DEBUG_MODE=false
       - NO_LOGIN_NEEDED=${NO_LOGIN_NEEDED:-false}
+      - SECURE_COOKIES=${SECURE_COOKIES:-false}
