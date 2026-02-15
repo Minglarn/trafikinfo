@@ -251,9 +251,9 @@ async def sync_icons():
             except Exception as e:
                 logger.error(f"Failed to download icon {icon_id}: {e}")
                 
-        if count > 0:
             logger.info(f"Icon sync complete. Downloaded {count} new icons.")
         
+        logger.info("Syncing icons -> DONE!")
     except Exception as e:
         logger.error(f"Error during icon sync: {e}")
 
@@ -264,7 +264,7 @@ async def periodic_icon_sync():
             await sync_icons()
         except Exception as e:
             logger.error(f"Error in periodic_icon_sync: {e}")
-        await asyncio.sleep(86400) # Once a day
+        await asyncio.sleep(604800) # Once every 7 days
 
 def start_worker(api_key: str, county_ids: list = None):
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream, cameras
