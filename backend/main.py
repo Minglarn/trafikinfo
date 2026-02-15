@@ -1004,7 +1004,11 @@ async def event_processor():
 
                     # Notify subscribers for NEW events or SIGNIFICANT updates
                     # MQTT & Broadcast (Unified for New & Updated)
+                    history_count = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == new_event.external_id).count()
+                    
                     mqtt_data = ev.copy()
+                    mqtt_data['is_update'] = bool(existing)
+                    mqtt_data['update_count'] = history_count
                     
                     lat = ev.get('latitude')
                     lon = ev.get('longitude')
@@ -1108,13 +1112,12 @@ async def event_processor():
                     if not existing or has_changed:
                         await notify_subscribers(mqtt_data, db, type="event")
 
-                    # Fetch history count
-                    history_count = db.query(TrafficEventVersion).filter(TrafficEventVersion.external_id == new_event.external_id).count()
-                    
                     # Broadcast to connected frontend clients
                     event_data = {
                         "id": new_event.id,
                         "external_id": new_event.external_id,
+                        "is_update": bool(existing),
+                        "update_count": history_count,
                         "title": new_event.title,
                         "description": new_event.description,
                         "location": new_event.location,
@@ -1406,13 +1409,18 @@ async def road_condition_processor():
                         }
                     
                     # Normalize camera URL for output (Frontend & MQTT)
-                    out_camera_url = None
-                    if final_rc.camera_snapshot:
-                         out_camera_url = f"{base_url}/api/snapshots/{final_rc.camera_snapshot}" if base_url else f"/api/snapshots/{final_rc.camera_snapshot}"
+                    out_camera_url = f"{base_url}/api/snapshots/{final_rc.camera_snapshot}" if final_rc.camera_snapshot and base_url else (f"/api/snapshots/{final_rc.camera_snapshot}" if final_rc.camera_snapshot else None)
                     
+                    # Calculate update status
+                    update_count = db.query(RoadConditionVersion).filter(RoadConditionVersion.road_condition_id == final_rc.id).count()
+                    is_update = bool(existing)
+
                     condition_data = {
                         "event_type": "RoadCondition",
                         "id": final_rc.id,
+                        "external_id": final_rc.id,
+                        "is_update": is_update,
+                        "update_count": update_count,
                         "condition_code": final_rc.condition_code,
                         "condition_text": final_rc.condition_text,
                         "measure": final_rc.measure,
@@ -1456,8 +1464,10 @@ async def road_condition_processor():
                              mqtt_payload = condition_data.copy()
                              # Add requested fields
                              mqtt_payload['county_no'] = final_rc.county_no
+                             mqtt_payload['external_id'] = final_rc.id
                              import json
                              mqtt_client.publish(mqtt_rc_topic, json.dumps(mqtt_payload, default=str))
+                             logger.info(f"Published RoadCondition to MQTT: {final_rc.id}")
                          except Exception as e:
                              logger.error(f"Failed to publish road condition to MQTT: {e}")
 
