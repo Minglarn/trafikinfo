@@ -47,16 +47,6 @@ const MobileHeader = ({ onOpenLogin }) => {
                     </div>
                 </div>
 
-                {/* Auth Button */}
-                <button
-                    onClick={isLoggedIn ? logout : onOpenLogin}
-                    className={`p-2 rounded-xl transition-all border ${isLoggedIn
-                        ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400'
-                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-                        }`}
-                >
-                    {isLoggedIn ? <Unlock size={18} /> : <Lock size={18} />}
-                </button>
             </div>
         </header>
     )

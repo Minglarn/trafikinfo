@@ -7,8 +7,19 @@ export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [appAuth, setAppAuth] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [clientId] = useState(() => {
+        let id = localStorage.getItem('flux_client_id');
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem('flux_client_id', id);
+        }
+        return id;
+    });
 
     useEffect(() => {
+        // Set default header for all requests
+        axios.defaults.headers.common['X-Client-ID'] = clientId;
+
         const initAuth = async () => {
             // 1. Check App Session (Cookie based)
             try {

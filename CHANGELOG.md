@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.80] - 2026-02-15
+
+### 🚀 New Features
+- **Consolidated Admin Dashboard**: Unified interface for monitoring, connectivity, and system settings.
+- **Client Monitoring**: Real-time tracking of active clients, user agents, and push subscriptions.
+- **New Admin Tab**: Dedicated "Admin" tab in Sidebar and BottomNav, replacing the legacy login button.
+
+### 🛠 Improvements
+- **Settings Refactor**: Moved system-wide settings (MQTT, API Keys) to the Admin Dashboard.
+- **Client Interest Sync**: Improved backend endpoint for syncing client county preferences.
+- **Navigation**: Smoother transitions and better mobile support for admin features.
+
+### 🐛 Bug Fixes
+- **Fixed Frontend Crash**: Resolved `ReferenceError` caused by missing `MobileHeader` import.
+- **Fixed Backend Crash**: Resolved `NameError` in `main.py` related to dependency injection order.
+- **Fixed Settings Sync**: Resolved `422 Unprocessable Entity` error when saving user preferences.
+- **Fixed Navigation Icon**: Resolved `Illegal Constructor` error by correctly importing lock icon.
+
 ## [26.2.79] - 2026-02-15
 
 ### Added

@@ -33,15 +33,7 @@ const SWEDISH_COUNTIES = [
 export default function Settings() {
     const { isLoggedIn } = useAuth()
     const [settings, setSettings] = useState({
-        api_key: '',
-        mqtt_host: 'localhost',
-        mqtt_port: '1883',
-        mqtt_topic: 'trafikinfo/traffic',
-        mqtt_enabled: 'false',
-        mqtt_rc_enabled: 'false',
-        mqtt_rc_topic: 'trafikinfo/road_conditions',
-        selected_counties: '1,4', // Default
-        retention_days: '30' // Default 30 days
+        camera_radius_km: '5',
     })
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState(null)
@@ -105,14 +97,8 @@ export default function Settings() {
     // Sync client interest to backend (Family Model)
     useEffect(() => {
         const syncInterest = async () => {
-            let clientId = localStorage.getItem('clientId')
-            if (!clientId) {
-                clientId = crypto.randomUUID()
-                localStorage.setItem('clientId', clientId)
-            }
             try {
                 await axios.post(`${API_BASE}/client/interest`, {
-                    client_id: clientId,
                     counties: localCounties.join(',')
                 })
             } catch (error) {
@@ -123,17 +109,6 @@ export default function Settings() {
         return () => clearTimeout(timeoutId)
     }, [localCounties])
 
-    const performFactoryReset = async () => {
-        if (!isLoggedIn) return
-        try {
-            await axios.post(`${API_BASE}/reset`, { confirm: true })
-            setMessage({ type: 'success', text: 'Systemet har återställts via Factory Reset.' })
-            setShowResetConfirm(false)
-        } catch (error) {
-            console.error('Reset failed:', error)
-            setMessage({ type: 'error', text: 'Kunde inte återställa systemet.' })
-        }
-    }
 
     const toggleLocalCounty = (id) => {
         setLocalCounties(prev =>
@@ -255,15 +230,11 @@ export default function Settings() {
 
     const handleSave = async (e) => {
         e.preventDefault()
-        if (!isLoggedIn) return
         setSaving(true)
         setMessage(null)
         try {
             await axios.post(`${API_BASE}/settings`, settings)
             setMessage({ type: 'success', text: 'Inställningarna har sparats!' })
-            // Refresh status to show MQTT connection update
-            const res = await axios.get(`${API_BASE}/status`)
-            setStatus(res.data)
         } catch (error) {
             setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' })
         }
@@ -452,264 +423,31 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* --- ADMIN SECTIONS (Behind isLoggedIn) --- */}
-
-                    {!isLoggedIn ? (
-                        <div className="bg-white dark:bg-slate-900 p-10 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full text-center">
-                            <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                <ShieldCheck className="w-8 h-8 text-blue-500" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Systeminställningar låsta</h3>
-                            <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm leading-relaxed">
-                                Du måste logga in som Admin för att ändra systemets kärninställningar som API-nycklar, län-bevakning och MQTT.
-                            </p>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                                <p className="text-xs text-slate-500 italic">
-                                    Klicka på lås-ikonen för att logga in.
-                                </p>
-                            </div>
+                    {/* General Settings */}
+                    <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Allmänna Inställningar</h3>
                         </div>
-                    ) : (
-                        <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* General */}
-                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Systemets grunddata</h3>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Kameraradie (km)</label>
-                                    <input
-                                        type="number"
-                                        value={settings.camera_radius_km ?? ''}
-                                        onChange={(e) => setSettings({ ...settings, camera_radius_km: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                        min="1"
-                                        max="50"
-                                    />
-                                    <p className="text-xs text-slate-500">Sökområde för att hämta närliggande kameror.</p>
-                                </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Här hittar du dina lokala inställningar. Systeminställningar har flyttats till Admin-fliken.
+                        </p>
+
+                        {message && (
+                            <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {message.text}
                             </div>
+                        )}
 
-                            {/* Data storage */}
-                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <Trash2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Datalagring</h3>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spara händelsehistorik</label>
-                                    <select
-                                        value={settings.retention_days ?? '30'}
-                                        onChange={(e) => setSettings({ ...settings, retention_days: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors appearance-none"
-                                    >
-                                        <option value="7">7 dagar</option>
-                                        <option value="30">30 dagar</option>
-                                        <option value="90">90 dagar</option>
-                                        <option value="365">1 år</option>
-                                        <option value="0">För alltid (Rekommenderas ej)</option>
-                                    </select>
-                                    <p className="text-xs text-slate-500">Händelser och bilder äldre än detta rensas automatiskt varje natt.</p>
-                                </div>
-                            </div>
-
-                            {/* API Key */}
-                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Trafikverket API</h3>
-                                </div>
-
-                                {(!settings.api_key || settings.api_key === '') && (
-                                    <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl flex gap-3 animate-in zoom-in duration-300">
-                                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                                        <div>
-                                            <h4 className="text-sm font-bold text-red-900 dark:text-red-300">Konfiguration saknas</h4>
-                                            <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-                                                Systemet behöver en **Authentication Key** från Trafikverket för att kunna hämta händelser.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="space-y-2">
-                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Authentication Key</label>
-                                    <input
-                                        type="password"
-                                        value={settings.api_key ?? ''}
-                                        onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
-                                        className={`w-full bg-slate-50 dark:bg-slate-900 border rounded-xl px-4 py-2.5 outline-none transition-all ${!settings.api_key || settings.api_key === ''
-                                            ? 'border-red-400 dark:border-red-500/50 focus:border-red-500'
-                                            : 'border-slate-200 dark:border-slate-700 focus:border-blue-500'
-                                            } text-slate-900 dark:text-white`}
-                                        placeholder="Din API-nyckel..."
-                                    />
-                                </div>
-                            </div>
-
-                            {/* MQTT */}
-                            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-6">
-                                <div className="flex items-center justify-between gap-3 mb-2">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-3">
-                                            <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">MQTT Broker</h3>
-                                        </div>
-                                        {status?.mqtt && (
-                                            <div className="flex items-center gap-1.5 mt-1 ml-8">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${status.mqtt.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                                                    {status.mqtt.connected ? 'Ansluten' : 'Frånkopplad'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSettings({ ...settings, mqtt_enabled: settings.mqtt_enabled === 'true' ? 'false' : 'true' })}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.mqtt_enabled === 'true' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
-                                </div>
-
-                                {settings.mqtt_enabled === 'true' && (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Broker Host</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.mqtt_host ?? 'localhost'}
-                                                    onChange={(e) => setSettings({ ...settings, mqtt_host: e.target.value })}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                    placeholder="localhost"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Port</label>
-                                                <input
-                                                    type="number"
-                                                    value={settings.mqtt_port ?? '1883'}
-                                                    onChange={(e) => setSettings({ ...settings, mqtt_port: e.target.value })}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                    placeholder="1883"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Användarnamn</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.mqtt_username ?? ''}
-                                                    onChange={(e) => setSettings({ ...settings, mqtt_username: e.target.value })}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                    placeholder="Valfritt"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Lösenord</label>
-                                                <input
-                                                    type="password"
-                                                    value={settings.mqtt_password ?? ''}
-                                                    onChange={(e) => setSettings({ ...settings, mqtt_password: e.target.value })}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                    placeholder="Valfritt"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                                            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                                <AlertTriangle className="w-4 h-4 text-orange-500" />
-                                                Väglag (Road Conditions)
-                                            </h4>
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Skicka väglag till MQTT</label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSettings({ ...settings, mqtt_rc_enabled: settings.mqtt_rc_enabled === 'true' ? 'false' : 'true' })}
-                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.mqtt_rc_enabled === 'true' ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                                >
-                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.mqtt_rc_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                </button>
-                                            </div>
-
-                                            {settings.mqtt_rc_enabled === 'true' && (
-                                                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                                                    <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic för Väglag</label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.mqtt_rc_topic ?? 'trafikinfo/road_conditions'}
-                                                        onChange={(e) => setSettings({ ...settings, mqtt_rc_topic: e.target.value })}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-orange-500 text-slate-900 dark:text-white transition-colors"
-                                                        placeholder="trafikinfo/road_conditions"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Topic Root (Trafikhändelser)</label>
-                                            <input
-                                                type="text"
-                                                value={settings.mqtt_topic ?? 'trafikinfo/traffic'}
-                                                onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white transition-colors"
-                                                placeholder="trafikinfo/traffic"
-                                            />
-                                        </div>
-                                        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[10px] text-blue-600 dark:text-blue-400">
-                                            ℹ️ Tryck på <strong>Spara systeminställningar</strong> nedan för att verkställa ändringar i MQTT-kopplingen.
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Reset Confirm */}
-                            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-6 rounded-2xl space-y-4">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                                    <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">Farlig zon</h3>
-                                </div>
-                                {!showResetConfirm ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowResetConfirm(true)}
-                                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl transition-colors text-sm"
-                                    >
-                                        Rensa allt (Factory Reset)
-                                    </button>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-xs text-red-700 dark:text-red-300">Är du helt säker? Detta raderar allt permanent.</p>
-                                        <div className="flex gap-2">
-                                            <button onClick={performFactoryReset} className="bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold">Ja, rensa</button>
-                                            <button onClick={() => setShowResetConfirm(false)} className="bg-slate-200 dark:bg-slate-700 px-3 py-2 rounded-lg text-xs">Avbryt</button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Message Display inside Admin */}
-                            {message && (
-                                <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {message.text}
-                                </div>
-                            )}
-
-                            {/* Save Button */}
-                            <button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-                            >
-                                {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <><Save className="w-5 h-5" /> Spara systeminställningar</>}
-                            </button>
-                        </div>
-                    )}
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
+                        >
+                            {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <><Save className="w-5 h-5" /> Spara inställningar</>}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div >

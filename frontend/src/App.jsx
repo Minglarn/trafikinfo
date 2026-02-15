@@ -6,17 +6,16 @@ import HistoryBoard from './components/HistoryBoard'
 import Settings from './components/Settings'
 import Statistics from './components/Statistics'
 import CameraGrid from './components/CameraGrid'
-import LoginModal from './components/LoginModal'
 import MobileHeader from './components/MobileHeader'
 import BottomNav from './components/BottomNav'
 import RoadConditions from './components/RoadConditions'
 import RoadCameraDashboard from './components/RoadCameraDashboard'
 import WhatIsNewModal from './components/WhatIsNewModal'
 import SessionGate from './components/SessionGate'
+import AdminDashboard from './components/AdminDashboard'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [initialEventId, setInitialEventId] = useState(null)
 
   // Update Notification State
@@ -272,7 +271,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden transition-colors duration-300">
       {/* Mobile Top Header */}
-      <MobileHeader onOpenLogin={() => setIsLoginModalOpen(true)} />
+      <MobileHeader />
 
       {/* Sidebar Navigation */}
       <Sidebar
@@ -280,7 +279,6 @@ function AppContent() {
         setActiveTab={setActiveTab}
         theme={theme}
         toggleTheme={toggleTheme}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
         counts={counts}
         setupRequired={setupRequired}
       />
@@ -296,6 +294,7 @@ function AppContent() {
             {activeTab === 'statistics' && <Statistics />}
             {activeTab === 'history' && <HistoryBoard />}
             {activeTab === 'settings' && <Settings />}
+            {activeTab === 'admin' && <AdminDashboard />}
           </div>
         </main>
       </div>
@@ -303,10 +302,6 @@ function AppContent() {
       {/* Mobile Bottom Navigation */}
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} counts={counts} setupRequired={setupRequired} />
 
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-      />
 
       <WhatIsNewModal
         isOpen={isUpdateModalOpen}

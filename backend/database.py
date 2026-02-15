@@ -215,6 +215,8 @@ class ClientInterest(Base) :
     client_id = Column(String, primary_key=True, index=True) # UUID
     counties = Column(String) # Comma-separated list
     last_active = Column(DateTime, default=datetime.datetime.utcnow)
+    user_agent = Column(String) # Browser/device info
+    is_admin = Column(Integer, default=0) # 0/1
 
 class WeatherMeasurepoint(Base):
     __tablename__ = "weather_measurepoints"
@@ -250,6 +252,16 @@ def init_db():
         PushSubscription.__table__.create(bind=engine)
     if "client_interests" not in inspector.get_table_names():
         ClientInterest.__table__.create(bind=engine)
+    else:
+        # Migration for client_interests
+        existing_cols = [c['name'] for c in inspector.get_columns("client_interests")]
+        with engine.begin() as conn:
+            if "user_agent" not in existing_cols:
+                print("Migrating client_interests: Adding user_agent")
+                conn.execute(sa_text("ALTER TABLE client_interests ADD COLUMN user_agent TEXT"))
+            if "is_admin" not in existing_cols:
+                print("Migrating client_interests: Adding is_admin")
+                conn.execute(sa_text("ALTER TABLE client_interests ADD COLUMN is_admin INTEGER DEFAULT 0"))
     if "weather_measurepoints" not in inspector.get_table_names():
         WeatherMeasurepoint.__table__.create(bind=engine)
 

@@ -16,6 +16,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
         { id: 'statistics', label: 'Statistik', icon: BarChart2 },
         { id: 'history', label: 'Historik', icon: History },
         { id: 'settings', label: 'Inställningar', icon: Settings },
+        { id: 'admin', label: 'Admin', icon: Lock },
     ]
 
     const [status, setStatus] = useState({
@@ -108,27 +109,6 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
                 })}
             </nav>
 
-            {/* Auth Toggle */}
-            <div className="px-4 mb-2">
-                <button
-                    onClick={isLoggedIn ? logout : onOpenLogin}
-                    className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all border ${isLoggedIn
-                        ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/20'
-                        : 'bg-slate-50 dark:bg-transparent border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                >
-                    {isLoggedIn ? <Unlock className="w-6 h-6 min-w-6" /> : <Lock className="w-6 h-6 min-w-6" />}
-                    {!isCollapsed && (
-                        <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="font-bold whitespace-nowrap text-xs uppercase tracking-wider"
-                        >
-                            {isLoggedIn ? 'Admin Inloggad' : 'Admin Login'}
-                        </motion.span>
-                    )}
-                </button>
-            </div>
 
             {/* Theme Toggle */}
             <div className="px-4 mb-4">

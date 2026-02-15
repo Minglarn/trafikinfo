@@ -1,5 +1,5 @@
 import React from 'react'
-import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar } from 'lucide-react'
+import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar, Lock } from 'lucide-react'
 
 const BottomNav = ({ activeTab, setActiveTab, counts = {}, setupRequired }) => {
     const tabs = [
@@ -8,6 +8,7 @@ const BottomNav = ({ activeTab, setActiveTab, counts = {}, setupRequired }) => {
         { id: 'road-conditions', icon: Snowflake, label: 'Väglag' },
         { id: 'cameras', icon: Camera, label: 'Kamera' },
         { id: 'settings', icon: Settings, label: 'Inställn.' },
+        { id: 'admin', icon: Lock, label: 'Admin' },
     ]
 
     return (

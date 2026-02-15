@@ -1,5 +1,5 @@
-VERSION = "26.2.79"
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie
+VERSION = "26.2.80"
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -142,10 +142,87 @@ class PushSubscriptionSchema(BaseModel):
 
 app = FastAPI(title="Trafikinfo API", version=VERSION)
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 class LoginRequest(BaseModel):
     password: str
 
-def get_current_admin(x_admin_token: str = Header(None)):
+
+@app.post("/api/client/interest")
+async def update_client_interest(
+    payload: dict = Body(...),
+    x_client_id: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None, alias="User-Agent"),
+    db: Session = Depends(get_db)
+):
+    if not x_client_id:
+        # Create a new client ID if none exists (though frontend should usually send one)
+        import uuid
+        x_client_id = str(uuid.uuid4())
+    
+    touch_client(db, x_client_id, user_agent, is_admin=False)
+    
+    # Update counties preference
+    try:
+        start_time = time.time()
+        client = db.query(ClientInterest).filter(ClientInterest.client_id == x_client_id).first()
+        counties = payload.get("counties", "")
+        if client:
+            client.counties = counties
+            client.last_active = datetime.utcnow()
+            db.commit()
+            logger.info(f"Updated interest for client {x_client_id}: {counties}")
+        else:
+            # Should have been created by touch_client, but just in case
+            db.add(ClientInterest(
+                client_id=x_client_id,
+                counties=counties,
+                user_agent=user_agent,
+                last_active=datetime.utcnow()
+            ))
+            db.commit()
+            logger.info(f"Created interest for client {x_client_id}: {counties}")
+        
+        return {"status": "ok", "client_id": x_client_id}
+    except Exception as e:
+        logger.error(f"Error updating client interest: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def touch_client(db: Session, client_id: str, user_agent: str, is_admin: bool = False):
+    if not client_id:
+        return
+    try:
+        interest = db.query(ClientInterest).filter(ClientInterest.client_id == client_id).first()
+        if interest:
+            interest.last_active = datetime.utcnow()
+            interest.user_agent = user_agent
+            interest.is_admin = 1 if is_admin else 0
+        else:
+            db.add(ClientInterest(
+                client_id=client_id,
+                user_agent=user_agent,
+                is_admin=1 if is_admin else 0,
+                last_active=datetime.utcnow(),
+                counties="1" # Default
+            ))
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error touching client {client_id}: {e}")
+        db.rollback()
+
+def get_current_admin(
+    x_admin_token: str = Header(None),
+    x_client_id: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None, alias="User-Agent"),
+    db: Session = Depends(get_db)
+):
     if not x_admin_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -158,17 +235,27 @@ def get_current_admin(x_admin_token: str = Header(None)):
             detail="Ogiltigt lösenord"
         )
     
+    if x_client_id:
+        touch_client(db, x_client_id, user_agent, is_admin=True)
+        
     return {"role": "admin"}
 
 def require_app_auth(
     x_admin_token: str = Header(None),
-    flux_session: Optional[str] = Cookie(None)
+    flux_session: Optional[str] = Cookie(None),
+    x_client_id: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None, alias="User-Agent"),
+    db: Session = Depends(get_db)
 ):
     # Allow if valid admin token OR valid session cookie
     if x_admin_token == ADMIN_PASSWORD:
+        if x_client_id:
+            touch_client(db, x_client_id, user_agent, is_admin=True)
         return {"role": "admin"}
         
     if flux_session and verify_session_token(flux_session):
+        if x_client_id:
+            touch_client(db, x_client_id, user_agent, is_admin=False)
         return {"role": "user"}
         
     raise HTTPException(
@@ -249,12 +336,6 @@ weather_sync_task = None
 cameras = []
 weather_stations = {}
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -2441,6 +2522,34 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
         except Exception as e:
             logger.error(f"Error notifying subscriber {sub.id}: {e}")
             continue
+
+@app.get("/api/admin/clients")
+def get_admin_clients(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Return active clients and push subscriptions for admin monitoring."""
+    from datetime import datetime, timedelta
+    
+    # Active in last 24h
+    since = datetime.utcnow() - timedelta(hours=24)
+    clients = db.query(ClientInterest).filter(ClientInterest.last_active > since).order_by(ClientInterest.last_active.desc()).all()
+    subs = db.query(PushSubscription).order_by(PushSubscription.created_at.desc()).all()
+    
+    return {
+        "active_clients": [{
+            "client_id": c.client_id,
+            "last_active": c.last_active,
+            "user_agent": c.user_agent,
+            "is_admin": bool(c.is_admin),
+            "counties": c.counties
+        } for c in clients],
+        "push_subscriptions": [{
+            "id": s.id,
+            "endpoint": s.endpoint,
+            "created_at": s.created_at,
+            "counties": s.counties,
+            "min_severity": s.min_severity
+        } for s in subs],
+        "sse_clients_count": len(connected_clients)
+    }
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
