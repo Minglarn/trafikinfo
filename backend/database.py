@@ -394,5 +394,21 @@ def migrate_db():
                             conn_wm.execute(sa_text(f"ALTER TABLE weather_measurepoints ADD COLUMN {col_name} {col_type}"))
                         except Exception as e:
                             print(f"Error adding column {col_name} to weather_measurepoints: {e}")
+
+        # Migration for cameras
+        if "cameras" in inspector.get_table_names():
+            cam_columns = [c['name'] for c in inspector.get_columns("cameras")]
+            cam_expected = {
+                "road_number": "VARCHAR",
+                "fullsize_url": "VARCHAR"
+            }
+            with engine.begin() as conn_cam:
+                for col_name, col_type in cam_expected.items():
+                    if col_name not in cam_columns:
+                        print(f"Migrating cameras: Adding missing column '{col_name}'")
+                        try:
+                            conn_cam.execute(sa_text(f"ALTER TABLE cameras ADD COLUMN {col_name} {col_type}"))
+                        except Exception as e:
+                            print(f"Error adding column {col_name} to cameras: {e}")
     except Exception as e:
         print(f"Migration error: {e}")
