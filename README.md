@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.79-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.81-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -47,6 +47,8 @@ services:
       - TZ=Europe/Stockholm
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - APP_PASSWORD=${APP_PASSWORD:-flux123}
+      - APP_PASSWORD=${APP_PASSWORD:-flux123}
+      - NO_LOGIN_NEEDED=${NO_LOGIN_NEEDED:-false} # Sätt till true för att slippa inloggning
       - DEBUG_MODE=false # Användbart för att felsöka true|false
 ```
 
@@ -71,6 +73,13 @@ För att ändra systeminställningar, hantera push-notiser eller utföra en fabr
 2. Klicka på lås-ikonen i sidomenyn.
 3. Ange ditt `ADMIN_PASSWORD`.
 4. Du har nu tillgång till fliken **Inställningar**.
+
+#### No-Login Mode (Lokal Access)
+Om du kör systemet i en skyddad miljö (t.ex. hemma-LAN) och vill slippa logga in på dina enheter kan du aktivera "No-Login Mode".
+1. Lägg till `NO_LOGIN_NEEDED=true` i din `docker-compose.yml` (under environments) eller i `.env`.
+2. Starta om behållaren (`docker-compose up -d`).
+3. Appen kommer nu att hoppa över inloggningsskärmen automatiskt.
+*OBS: Admin-gränssnittet kräver fortfarande alltid lösenord.*
 
 ## 🏠 Home Assistant & MQTT
 

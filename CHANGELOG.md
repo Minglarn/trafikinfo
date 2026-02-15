@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.81] - 2026-02-15
+
+### 🚀 New Features
+- **No-Login Mode**: Added `NO_LOGIN_NEEDED` environment variable to bypass authentication for local/trusted deployments.
+- **Password Usage Tracking**: System now tracks and displays which password (e.g., "family", "guest") was used for each session.
+- **Device Fingerprinting**: Admin dashboard now shows friendly device names (e.g., "iPhone", "Windows") and icons for active clients.
+
+### 📝 Documentation
+- **Readme Update**: Added documentation for `NO_LOGIN_NEEDED` and updated `docker-compose` examples.
+
 ## [26.2.80] - 2026-02-15
 
 ### 🚀 New Features

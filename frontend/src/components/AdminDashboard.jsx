@@ -24,6 +24,29 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const parseUserAgent = (ua) => {
+    if (!ua) return { os: 'Okänd', device: 'Okänd', type: 'desktop' };
+
+    let os = 'Okänd';
+    let device = 'Desktop';
+    let type = 'desktop';
+
+    // OS Detection
+    if (ua.includes('Windows')) os = 'Windows';
+    else if (ua.includes('Mac OS X')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+    // Device/Browser refinement
+    if (ua.includes('iPhone')) { device = 'iPhone'; type = 'mobile'; }
+    else if (ua.includes('iPad')) { device = 'iPad'; type = 'tablet'; }
+    else if (ua.includes('Android')) { device = 'Samsung/Android'; type = 'mobile'; } // Generic
+    else if (ua.includes('Mobile')) { type = 'mobile'; }
+
+    return { os, device, type };
+};
+
 const AdminDashboard = () => {
     const { isLoggedIn, login, logout } = useAuth();
     const [password, setPassword] = useState('');
@@ -254,41 +277,61 @@ const AdminDashboard = () => {
                                         <thead>
                                             <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-[10px] uppercase tracking-widest">
                                                 <th className="px-6 py-3">Enhet / ID</th>
+                                                <th className="px-6 py-3">OS / Typ</th>
+                                                <th className="px-6 py-3">Auth Metod</th>
                                                 <th className="px-6 py-3">Bevakade Län</th>
                                                 <th className="px-6 py-3">Roll</th>
                                                 <th className="px-6 py-3">Senast Aktiv</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {data?.active_clients.map((client) => (
-                                                <tr key={client.client_id} className="text-sm dark:text-slate-300">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-medium truncate max-w-[200px]" title={client.user_agent}>
-                                                                {client.user_agent?.split(')')[0].replace('Mozilla/5.0 (', '').split(';')[0] || 'Okänd enhet'}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-400 font-mono">{client.client_id.slice(0, 8)}...</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {client.counties.split(',').map(c => (
-                                                                <span key={c} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold">L{c}</span>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {client.is_admin ? (
-                                                            <span className="px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[10px] font-bold">ADMIN</span>
-                                                        ) : (
-                                                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-[10px] font-bold">USER</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-xs text-slate-400 font-mono">
-                                                        {new Date(client.last_active).toLocaleTimeString()}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {data?.active_clients.map((client) => {
+                                                const ua = parseUserAgent(client.user_agent);
+                                                return (
+                                                    <tr key={client.client_id} className="text-sm dark:text-slate-300">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium truncate max-w-[200px]" title={client.user_agent}>
+                                                                    {ua.device}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-mono">{client.client_id.slice(0, 8)}...</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                {ua.type === 'mobile' ? <Smartphone className="w-4 h-4 text-slate-400" /> : <Monitor className="w-4 h-4 text-slate-400" />}
+                                                                <span>{ua.os}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {client.used_password ? (
+                                                                <span className="px-2 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 rounded text-xs font-mono font-bold">
+                                                                    {client.used_password}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400 text-xs italic">-</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {client.counties.split(',').map(c => (
+                                                                    <span key={c} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold">L{c}</span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {client.is_admin ? (
+                                                                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[10px] font-bold">ADMIN</span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded text-[10px] font-bold">USER</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs text-slate-400 font-mono">
+                                                            {new Date(client.last_active).toLocaleTimeString()}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                             {data?.active_clients.length === 0 && (
                                                 <tr>
                                                     <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic">Inga aktiva klienter hittades.</td>

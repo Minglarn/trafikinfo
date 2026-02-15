@@ -217,6 +217,7 @@ class ClientInterest(Base) :
     last_active = Column(DateTime, default=datetime.datetime.utcnow)
     user_agent = Column(String) # Browser/device info
     is_admin = Column(Integer, default=0) # 0/1
+    used_password = Column(String) # For tracking which password was used
 
 class WeatherMeasurepoint(Base):
     __tablename__ = "weather_measurepoints"
@@ -262,6 +263,9 @@ def init_db():
             if "is_admin" not in existing_cols:
                 print("Migrating client_interests: Adding is_admin")
                 conn.execute(sa_text("ALTER TABLE client_interests ADD COLUMN is_admin INTEGER DEFAULT 0"))
+            if "used_password" not in existing_cols:
+                print("Migrating client_interests: Adding used_password")
+                conn.execute(sa_text("ALTER TABLE client_interests ADD COLUMN used_password TEXT"))
     if "weather_measurepoints" not in inspector.get_table_names():
         WeatherMeasurepoint.__table__.create(bind=engine)
 

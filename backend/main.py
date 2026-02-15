@@ -1,4 +1,4 @@
-VERSION = "26.2.80"
+VERSION = "26.2.81"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -111,6 +111,7 @@ COUNTY_MAP = {
 # Auth Config
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 APP_PASSWORDS = [p.strip() for p in os.getenv("APP_PASSWORD", "flux123").split(",") if p.strip()]
+NO_LOGIN_NEEDED = os.getenv("NO_LOGIN_NEEDED", "false").lower() == "true"
 
 # Session Signing setup
 SECRET_KEY = os.getenv("JWT_SECRET", hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest())
@@ -195,7 +196,7 @@ async def update_client_interest(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def touch_client(db: Session, client_id: str, user_agent: str, is_admin: bool = False):
+def touch_client(db: Session, client_id: str, user_agent: str, is_admin: bool = False, used_password: str = None):
     if not client_id:
         return
     try:
@@ -204,13 +205,16 @@ def touch_client(db: Session, client_id: str, user_agent: str, is_admin: bool = 
             interest.last_active = datetime.utcnow()
             interest.user_agent = user_agent
             interest.is_admin = 1 if is_admin else 0
+            if used_password:
+                interest.used_password = used_password
         else:
             db.add(ClientInterest(
                 client_id=client_id,
                 user_agent=user_agent,
                 is_admin=1 if is_admin else 0,
                 last_active=datetime.utcnow(),
-                counties="1" # Default
+                counties="1", # Default
+                used_password=used_password
             ))
         db.commit()
     except Exception as e:
@@ -253,6 +257,12 @@ def require_app_auth(
             touch_client(db, x_client_id, user_agent, is_admin=True)
         return {"role": "admin"}
         
+    # Bypass for NO_LOGIN_NEEDED (User role only)
+    if NO_LOGIN_NEEDED:
+        if x_client_id:
+            touch_client(db, x_client_id, user_agent, is_admin=False, used_password="NO_LOGIN_NEEDED")
+        return {"role": "user"}
+
     if flux_session and verify_session_token(flux_session):
         if x_client_id:
             touch_client(db, x_client_id, user_agent, is_admin=False)
@@ -274,7 +284,13 @@ async def login(request: LoginRequest):
         )
 
 @app.post("/api/auth/app-login")
-async def app_login(request: LoginRequest, response: Response):
+async def app_login(
+    request: LoginRequest, 
+    response: Response,
+    x_client_id: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None, alias="User-Agent"),
+    db: Session = Depends(get_db)
+):
     if request.password in APP_PASSWORDS:
         token = create_session_token()
         # Set cookie for 30 days
@@ -286,6 +302,11 @@ async def app_login(request: LoginRequest, response: Response):
             samesite="lax",
             secure=True # Should be True in prod
         )
+        
+        # Track which password was used
+        if x_client_id:
+            touch_client(db, x_client_id, user_agent, is_admin=False, used_password=request.password)
+            
         return {"status": "ok"}
     else:
         raise HTTPException(
@@ -295,6 +316,8 @@ async def app_login(request: LoginRequest, response: Response):
 
 @app.get("/api/auth/app-check")
 async def app_check(flux_session: Optional[str] = Cookie(None)):
+    if NO_LOGIN_NEEDED:
+        return {"status": "ok"}
     if flux_session and verify_session_token(flux_session):
         return {"status": "ok"}
     raise HTTPException(status_code=401, detail="Session expired or invalid")
@@ -307,6 +330,11 @@ async def logout(response: Response):
 @app.get("/api/auth/check")
 async def check_auth(admin=Depends(get_current_admin)):
     return {"status": "ok", "user": admin}
+
+@app.get("/api/auth/config")
+async def auth_config():
+    """Returns auth configuration for frontend."""
+    return {"auth_required": not NO_LOGIN_NEEDED}
 
 # Serve localized media
 app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")
@@ -2539,7 +2567,8 @@ def get_admin_clients(db: Session = Depends(get_db), admin=Depends(get_current_a
             "last_active": c.last_active,
             "user_agent": c.user_agent,
             "is_admin": bool(c.is_admin),
-            "counties": c.counties
+            "counties": c.counties,
+            "used_password": c.used_password
         } for c in clients],
         "push_subscriptions": [{
             "id": s.id,

@@ -21,6 +21,18 @@ export const AuthProvider = ({ children }) => {
         axios.defaults.headers.common['X-Client-ID'] = clientId;
 
         const initAuth = async () => {
+            // 0. Check Auth Config (No Login Mode)
+            try {
+                const configRes = await axios.get('/api/auth/config');
+                if (configRes.data.auth_required === false) {
+                    setAppAuth(true);
+                    setIsLoading(false);
+                    return;
+                }
+            } catch (e) {
+                console.warn("Could not fetch auth config", e);
+            }
+
             // 1. Check App Session (Cookie based)
             try {
                 await axios.get('/api/auth/app-check');
