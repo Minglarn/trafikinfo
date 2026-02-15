@@ -58,6 +58,7 @@ const AdminDashboard = () => {
 
     // System Config State
     const [settings, setSettings] = useState({});
+    const [version, setVersion] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState(null);
     const [showApiKey, setShowApiKey] = useState(false);
@@ -66,6 +67,7 @@ const AdminDashboard = () => {
         if (isLoggedIn) {
             fetchAdminData();
             fetchSettings();
+            fetchVersion();
         }
     }, [isLoggedIn]);
 
@@ -87,6 +89,17 @@ const AdminDashboard = () => {
             setSettings(response.data);
         } catch (err) {
             console.error('Failed to fetch settings', err);
+        }
+    };
+
+    const fetchVersion = async () => {
+        try {
+            const response = await axios.get('/api/auth/config');
+            if (response.data.version) {
+                setVersion(response.data.version);
+            }
+        } catch (err) {
+            console.error('Failed to fetch version', err);
         }
     };
 
@@ -559,7 +572,7 @@ const AdminDashboard = () => {
                                 <div className="relative z-10 space-y-4">
                                     <h3 className="text-xl font-bold">Admin Säkerhetsprofil</h3>
                                     <p className="text-blue-100 text-sm max-w-2xl leading-relaxed">
-                                        Ditt system körs just nu med versionsnummer 26.2.79.
+                                        Ditt system körs just nu med versionsnummer {version || '...'}.
                                         Administrative ändringar loggas i systemets loggare och appliceras omedelbart på den underliggande databasen.
                                         Se till att din API-nyckel hålls hemlig och att MQTT-broker endast är exponerad internt för maximal säkerhet.
                                     </p>

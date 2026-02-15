@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 - **Readme Update**: Added documentation for `NO_LOGIN_NEEDED` and updated `docker-compose` examples.
 - **Startup Banner**: Added professional ASCII art banner and version print on startup.
 
+### 🐛 Bug Fixes
+- **Version Sync**: Fixed issue where Admin Dashboard displayed a hardcoded version number. Now fetches dynamically from backend.
+
 ## [26.2.80] - 2026-02-15
 
 ### 🚀 New Features

@@ -352,7 +352,10 @@ async def check_auth(admin=Depends(get_current_admin)):
 @app.get("/api/auth/config")
 async def auth_config():
     """Returns auth configuration for frontend."""
-    return {"auth_required": not NO_LOGIN_NEEDED}
+    return {
+        "auth_required": not NO_LOGIN_NEEDED,
+        "version": VERSION
+    }
 
 # Serve localized media
 app.mount("/api/snapshots", StaticFiles(directory=SNAPSHOTS_DIR), name="snapshots")

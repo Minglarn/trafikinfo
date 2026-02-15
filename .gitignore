@@ -25,3 +25,12 @@ Thumbs.db
 # Secrets
 .env
 *.key
+
+# Local Debug Scripts
+check_*.py
+debug_*.py
+dump_*.py
+repair_db.py
+clients.json
+*.db
+
