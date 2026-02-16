@@ -173,7 +173,10 @@ function AppContent() {
           const start = new Date(data.start_time);
           const end = data.end_time ? new Date(data.end_time) : null;
           const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
-          const isPlanned = start > now || durationDays >= 5;
+
+          // Align with backend: Planned if (Future start) OR (Long-term)
+          // Add 1-min grace to avoid disappearance due to split-second differences
+          const isPlanned = start > (new Date(now.getTime() - 60000)) || durationDays >= 5;
           const tab = isPlanned ? 'planned' : 'feed';
 
           if (activeTabRef.current !== tab) {

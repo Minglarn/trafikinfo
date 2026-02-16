@@ -659,8 +659,20 @@ async def initialize_cameras():
 
 def deg_to_compass(num):
     val = int((num / 22.5) + .5)
-    arr = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    arr = ["N", "NÖ", "Ö", "SÖ", "S", "SV", "V", "NV"]
     return arr[(val % 8)]
+
+def clean_county_text(text: str) -> str:
+    """
+    Removes county suffixes like ' i Stockholms län (AB)' from the end of strings.
+    Matches the logic used in the frontend EventFeed.jsx.
+    """
+    if not text:
+        return text
+    # Regex: space 'i' space, then any chars (non-greedy), then 'län (XX)' at the end.
+    # Case-insensitive to handle variations.
+    pattern = r'\s+i\s+.*?\s+län\s+\([A-Z]+\)\s*$'
+    return re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
 
 async def initialize_weather_stations():
     """Run once on startup to cache station locations (metadata only)."""
@@ -1975,15 +1987,27 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             # Common filter: Not expired
             query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
             
-            # Type-specific filters (Simplified: Active vs Future)
+            # Type-specific filters (Partitioned by Start Time & Duration)
             if type == "planned":
-                # ONLY upcoming events (start in far future)
-                query = query.filter(TrafficEvent.start_time > (now + timedelta(minutes=30)))
+                # Planned = Future starts OR Long-term (>= 5 days)
+                # Note: We use a small 1-minute grace for 'now' to avoid split-second race conditions
+                grace_now = now - timedelta(minutes=1)
+                
+                # Logic: (Start > Now) OR (Duration >= 5 days)
+                # In SQL terms for 'planned': start_time > now  OR  (end_time - start_time) >= 5 days
+                # SQLite doesn't have easy interval math, so we'll check the duration condition
+                query = query.filter(
+                    (TrafficEvent.start_time > grace_now) | 
+                    (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5)
+                )
             else: # realtid (default)
-                # Active now OR starting within 30 mins
-                # We REMOVED the duration check (< 5 days) because users want to see 
-                # all active work in the real-time feed regardless of total duration.
-                query = query.filter(TrafficEvent.start_time <= (now + timedelta(minutes=30)))
+                # Realtid = Started AND Short-term (< 5 days)
+                grace_now = now + timedelta(minutes=1)
+                query = query.filter(TrafficEvent.start_time <= grace_now)
+                query = query.filter(
+                    (TrafficEvent.end_time == None) | 
+                    (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5)
+                )
         
         # Apply time window if specified (hours > 0)
         # If hours=0 (All History), no cutoff is applied
@@ -2516,14 +2540,18 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             
             # 1. Build Title — compact: emoji + event description
             title_core = data.get('title', 'Trafikhändelse')
-            title = f"{severity_icon} {title_core}"
+            # Clean county suffix from title
+            clean_title_core = clean_county_text(title_core)
+            title = f"{severity_icon} {clean_title_core}"
             
             # 2. Build Message — newline-separated lines
             lines = []
             if sub.include_location:
                 location = data.get('location', '')
                 if location:
-                    lines.append(f"📍 {location}")
+                    # Clean county suffix from location
+                    clean_location = clean_county_text(location)
+                    lines.append(f"📍 {clean_location}")
             
             if sub.include_weather:
                 weather = data.get('weather') or {}
@@ -2565,7 +2593,9 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
 
             # 1. Build Title — capitalize condition text
             cond_text = data.get('condition_text', 'Varning')
-            cond_text_cap = cond_text[0].upper() + cond_text[1:] if cond_text else 'Varning'
+            # Clean county suffix from condition text
+            clean_cond_text = clean_county_text(cond_text)
+            cond_text_cap = clean_cond_text[0].upper() + clean_cond_text[1:] if clean_cond_text else 'Varning'
             title = f"❄️ {cond_text_cap}"
             
             # 2. Build Message — newline-separated lines
@@ -2573,7 +2603,9 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             if sub.include_location:
                 location = data.get('location_text', '')
                 if location:
-                    lines.append(f"📍 {location}")
+                    # Clean county suffix from location
+                    clean_location = clean_county_text(location)
+                    lines.append(f"📍 {clean_location}")
             
             # Warning + measure
             warning = data.get('warning', '')
