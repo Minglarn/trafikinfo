@@ -30,6 +30,16 @@ const SWEDISH_COUNTIES = [
     { id: '25', name: 'Norrbottens län' }
 ]
 
+const ROAD_WARNINGS = [
+    { id: 'Risk för halka', label: 'Risk för halka', emoji: '⚠️' },
+    { id: 'Halka', label: 'Halka', emoji: '🧊' },
+    { id: 'Snörök', label: 'Snörök', emoji: '🌫️' },
+    { id: 'Snödrev', label: 'Snödrev', emoji: '❄️' },
+    { id: 'Hård vind', label: 'Hård vind', emoji: '💨' },
+    { id: 'Snöfall', label: 'Snöfall', emoji: '🌨️' },
+    { id: 'Annat', label: 'Annat', emoji: '📋' },
+]
+
 export default function Settings() {
     const { isLoggedIn } = useAuth()
     const [settings, setSettings] = useState({
@@ -50,6 +60,10 @@ export default function Settings() {
     const [includeWeather, setIncludeWeather] = useState(() => localStorage.getItem('push_include_weather') !== 'false')
     const [includeLocation, setIncludeLocation] = useState(() => localStorage.getItem('push_include_location') !== 'false')
     const [minSeverity, setMinSeverity] = useState(() => parseInt(localStorage.getItem('push_min_severity') || '1'))
+    const [rcWarningFilter, setRcWarningFilter] = useState(() => {
+        const saved = localStorage.getItem('push_rc_warning_filter')
+        return saved ? saved.split(',') : ROAD_WARNINGS.map(w => w.id)
+    })
 
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
@@ -67,6 +81,7 @@ export default function Settings() {
         localStorage.setItem('push_include_weather', includeWeather)
         localStorage.setItem('push_include_location', includeLocation)
         localStorage.setItem('push_min_severity', minSeverity)
+        localStorage.setItem('push_rc_warning_filter', rcWarningFilter.join(','))
 
         // If push is enabled, sync preferences automatically
         if (pushEnabled) {
@@ -86,13 +101,14 @@ export default function Settings() {
                         include_severity: includeSeverity ? 1 : 0,
                         include_image: includeImage ? 1 : 0,
                         include_weather: includeWeather ? 1 : 0,
-                        include_location: includeLocation ? 1 : 0
+                        include_location: includeLocation ? 1 : 0,
+                        rc_warning_filter: rcWarningFilter.join(',')
                     })
                 }
             }
             sync()
         }
-    }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition, minSeverity])
+    }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition, minSeverity, rcWarningFilter])
 
     // Sync client interest to backend (Family Model)
     useEffect(() => {
@@ -205,7 +221,8 @@ export default function Settings() {
                     include_severity: includeSeverity ? 1 : 0,
                     include_image: includeImage ? 1 : 0,
                     include_weather: includeWeather ? 1 : 0,
-                    include_location: includeLocation ? 1 : 0
+                    include_location: includeLocation ? 1 : 0,
+                    rc_warning_filter: rcWarningFilter.join(',')
                 })
                 setPushEnabled(true)
             }
@@ -345,6 +362,46 @@ export default function Settings() {
                                 Sätts som standard till <strong>Stor påverkan</strong> för att minska antalet notiser.
                             </p>
                         </div>
+
+                        {/* Road Condition Warning Filter */}
+                        {topicRoadCondition && (
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 italic flex items-center gap-2">
+                                    <AlertTriangle className="w-3 h-3 text-blue-500" />
+                                    Väglagsvarningar att bevaka:
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {ROAD_WARNINGS.map((warning) => (
+                                        <label
+                                            key={warning.id}
+                                            className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${rcWarningFilter.includes(warning.id)
+                                                    ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30'
+                                                    : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'
+                                                }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={rcWarningFilter.includes(warning.id)}
+                                                onChange={() => {
+                                                    setRcWarningFilter(prev =>
+                                                        prev.includes(warning.id)
+                                                            ? prev.filter(w => w !== warning.id)
+                                                            : [...prev, warning.id]
+                                                    )
+                                                }}
+                                                className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                                                {warning.emoji} {warning.label}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                                    Avmarkera varningstyper du inte vill bli notifierad om.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Sound Notifications */}

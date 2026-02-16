@@ -209,6 +209,7 @@ class PushSubscription(Base):
     include_image = Column(Integer, default=1)
     include_weather = Column(Integer, default=1)
     include_location = Column(Integer, default=1)
+    rc_warning_filter = Column(String, default="")  # Comma-separated: "Halka,Snörök,..." Empty = all
 
 class ClientInterest(Base) :
     __tablename__ = "client_interests"
@@ -298,6 +299,9 @@ def migrate_db():
                 if "include_location" not in existing_cols:
                     print("Migrating push_subscriptions: Adding include_location")
                     conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN include_location INTEGER DEFAULT 1"))
+                if "rc_warning_filter" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding rc_warning_filter")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN rc_warning_filter TEXT DEFAULT ''"))
         
         # Migration for traffic_events
         if "traffic_events" in inspector.get_table_names():

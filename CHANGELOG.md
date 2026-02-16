@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.82] - 2026-02-16
+
+### 🚀 New Features
+- **Road Condition Warning Filter**: Users can now choose which road condition warnings trigger push notifications (e.g., Halka, Snörök, Snödrev, Hård vind, Snöfall). New checkbox UI in Settings under "Väglagsvarningar att bevaka".
+- **`SECURE_COOKIES` Environment Variable**: New `docker-compose.yml` setting to control session cookie security. Defaults to `false` for HTTP/LAN access. Set to `true` when behind an HTTPS reverse proxy.
+- **Settings API (GET)**: Added `GET /api/settings` endpoint so the Settings page can read configuration.
+
+### 🐛 Bug Fixes
+- **Settings 401 Fix**: Resolved 401 Unauthorized error on the Settings page by adding a GET endpoint and relaxing POST auth from admin-only to app-level.
+- **LAN Cookie Fix**: Fixed session cookies not being sent over HTTP when accessing via LAN IP (e.g., `http://192.168.1.x:7081`). Cookie `secure` flag is now configurable via `SECURE_COOKIES` environment variable.
+- **crypto.randomUUID Fallback**: Added fallback UUID generation for non-secure contexts (HTTP) where `crypto.randomUUID()` is unavailable.
+- **Mobile Padding**: Increased bottom padding to prevent content from being hidden behind mobile navigation bar.
+
+### 📝 Documentation
+- **README**: Expanded security documentation with detailed `SECURE_COOKIES` explanation, including HTTP vs HTTPS table and push notification clarification.
+
 ## [26.2.81] - 2026-02-15
 
 ### 🚀 New Features

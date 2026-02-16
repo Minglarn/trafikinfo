@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.81-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.82-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -79,7 +79,7 @@ För att få tillgång till realtidsinformationen behöver du ange ett av lösen
 > | `true` | `Secure` **på** | Cookien skickas **bara över HTTPS**. Skyddar mot avlyssning på publika nät. |
 >
 > **Hemma-LAN →** Använd `false` (standard). Du litar på ditt eget nät.
-> 
+
 > **Publikt internet →** Kör alltid bakom en HTTPS reverse proxy (t.ex. Nginx/Caddy + Let's Encrypt) och sätt `SECURE_COOKIES=true` i `docker-compose.yml`.
 >
 > *OBS: Push-notiser kräver HTTPS av en separat anledning (webbläsarkrav för Service Workers) och styrs **inte** av denna inställning.*

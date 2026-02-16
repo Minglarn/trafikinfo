@@ -1,4 +1,4 @@
-VERSION = "26.2.81"
+VERSION = "26.2.82"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -141,6 +141,7 @@ class PushSubscriptionSchema(BaseModel):
     include_image: int = 1
     include_weather: int = 1
     include_location: int = 1
+    rc_warning_filter: str = ""
 
 print(r"""
 ╔═══════════════════════════════════════════════════════════╗
@@ -2336,6 +2337,7 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
         existing.include_image = subscription.include_image
         existing.include_weather = subscription.include_weather
         existing.include_location = subscription.include_location
+        existing.rc_warning_filter = subscription.rc_warning_filter
     else:
         new_sub = PushSubscription(
             endpoint=subscription.endpoint,
@@ -2348,7 +2350,8 @@ def subscribe(subscription: PushSubscriptionSchema, db: Session = Depends(get_db
             include_severity=subscription.include_severity,
             include_image=subscription.include_image,
             include_weather=subscription.include_weather,
-            include_location=subscription.include_location
+            include_location=subscription.include_location,
+            rc_warning_filter=subscription.rc_warning_filter
         )
         db.add(new_sub)
     db.commit()
@@ -2535,6 +2538,14 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
                 logger.info(f"Sub {sub.id} skipped: Topic road_condition disabled")
                 continue
             
+            # Filter by warning type if filter is set
+            if sub.rc_warning_filter:
+                allowed_warnings = [w.strip() for w in sub.rc_warning_filter.split(",") if w.strip()]
+                item_warning = data.get('warning', '')
+                if item_warning and item_warning not in allowed_warnings:
+                    logger.info(f"Sub {sub.id} skipped: Warning '{item_warning}' not in filter {allowed_warnings}")
+                    continue
+
             # 1. Build Title
             cond_text = data.get('condition_text', 'Varning')
             title = f"❄️ Väglag: {cond_text}"
