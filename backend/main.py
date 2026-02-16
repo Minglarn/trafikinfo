@@ -1,4 +1,4 @@
-VERSION = "26.2.88"
+VERSION = "26.2.89"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1941,9 +1941,13 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             county_list = [int(c.strip()) for c in counties.split(",") if c.strip().isdigit()]
             if county_list:
                 # Stockholm normalization: If 1 is in requested list, add 2 (legacy)
-                # This ensures we find all events even if they weren't normalized on ingestion
                 if 1 in county_list and 2 not in county_list:
                     county_list.append(2)
+                
+                # FAMILY MODEL: Always include National/General events (ID 0)
+                if 0 not in county_list:
+                    county_list.append(0)
+                    
                 query = query.filter(TrafficEvent.county_no.in_(county_list))
         except Exception as e:
             logger.error(f"Error parsing counties filter: {e}")
@@ -1971,21 +1975,15 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             # Common filter: Not expired
             query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
             
-            # Type-specific filters
+            # Type-specific filters (Simplified: Active vs Future)
             if type == "planned":
-                # Upcoming (start in future) OR Long-term (duration >= 5 days)
-                query = query.filter(
-                    (TrafficEvent.start_time > now) | 
-                    ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
-                )
+                # ONLY upcoming events (start in far future)
+                query = query.filter(TrafficEvent.start_time > (now + timedelta(minutes=30)))
             else: # realtid (default)
-                # Started (or starting within 30 mins) AND (End is NULL OR Duration < 5 days)
-                # Allow a 30-minute buffer into the future for "real-time" visibility
+                # Active now OR starting within 30 mins
+                # We REMOVED the duration check (< 5 days) because users want to see 
+                # all active work in the real-time feed regardless of total duration.
                 query = query.filter(TrafficEvent.start_time <= (now + timedelta(minutes=30)))
-                query = query.filter(
-                    (TrafficEvent.end_time == None) | 
-                    (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5)
-                )
         
         # Apply time window if specified (hours > 0)
         # If hours=0 (All History), no cutoff is applied
@@ -2065,6 +2063,11 @@ async def get_road_conditions(county_no: str = None, limit: int = 100, offset: i
                 # Stockholm normalization
                 if 1 in req_counties and 2 not in req_counties:
                     req_counties.append(2)
+                
+                # FAMILY MODEL: Always include National/General events (ID 0)
+                if 0 not in req_counties:
+                    req_counties.append(0)
+                        
                 query = query.filter(RoadCondition.county_no.in_(req_counties))
         except Exception as e:
             logger.error(f"Error parsing road condition counties filter: {e}")
@@ -2690,19 +2693,17 @@ def get_status_counts(
     # Base query for non-expired events
     active_events_query = db.query(TrafficEvent).filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
     
-    # Realtid
+    # Realtid (Simplified matching API)
     realtid_q = active_events_query.filter(
-        (TrafficEvent.start_time <= now) & 
-        ((TrafficEvent.end_time == None) | (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5))
+        TrafficEvent.start_time <= (now + timedelta(minutes=30))
     )
     if s_feed:
         realtid_q = realtid_q.filter(TrafficEvent.created_at > s_feed)
     realtid_count = realtid_q.count()
     
-    # Planned
+    # Planned (Simplified matching API)
     planned_q = active_events_query.filter(
-        (TrafficEvent.start_time > now) | 
-        ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
+        TrafficEvent.start_time > (now + timedelta(minutes=30))
     )
     if s_planned:
         # For planned, we care about when they were added to the system

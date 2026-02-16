@@ -2,15 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [26.2.88] - 2026-02-16
+## [26.2.89] - 2026-02-16
 
 ### 🚀 New Features
-- **Upcoming Real-time Events**: The real-time feed now includes events starting within the next 30 minutes (e.g., upcoming roadworks), providing better situational awareness.
+- **Simplified Real-time Logic**: All events that are currently active (or starting within 30 minutes) are now shown in the "Realtid" feed, regardless of their total duration. This ensures long-term roadworks that are currently active are not hidden in the "Planerat" tab.
 
 ### 🐛 Bug Fixes
-- **Strict County Filtering (Family Model)**: Enforced baseline "Min bevakning" filtering at the API level across all tabs. This ensures you only see events from counties you've explicitly chosen to monitor.
-- **Stockholm ID Normalization (1 & 2)**: Fully consolidated Stockholm County ID 1 (Standard) and 2 (Legacy/Deprecated). The system now automatically requests and merges data from both IDs into a single coherent "Stockholm" view in all feeds and filters.
-- **Backend Stream Efficiency**: Background workers now correctly handle Stockholm's dual-ID system at the Trafikverket API level.
+- **National Event Visibility**: Fixed a bug where National/Global events (County ID 0) were hidden when a specific county filter was active. They are now always included.
+- **Improved Filter Sync**: Synced status counts and feed queries for perfect consistency between tabs.
 
 ## [26.2.87] - 2026-02-16
 
