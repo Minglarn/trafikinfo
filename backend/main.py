@@ -1,4 +1,4 @@
-VERSION = "26.2.83"
+VERSION = "26.2.84"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

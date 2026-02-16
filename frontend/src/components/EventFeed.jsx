@@ -451,12 +451,12 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                     </button>
 
                     {/* Live Status */}
-                    <div className={`px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
-                        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                    <div className={`px-2 sm:px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
+                        ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
                         : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
                         }`}>
-                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-500 dark:bg-blue-400 animate-pulse' : 'bg-red-500 dark:bg-red-400'}`}></span>
-                        {isConnected ? 'LIVE STREAM' : 'OFFLINE'}
+                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                        <span className="hidden sm:inline">{isConnected ? 'LIVE STREAM' : 'OFFLINE'}</span>
                     </div>
                 </div>
             </div>
@@ -687,7 +687,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
                                         {/* Message Type Badges */}
                                         {event.message_type && event.message_type.split(', ').map((type, idx) => (
-                                            <span key={idx} className="bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
+                                            <span key={idx} className="hidden sm:flex bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
                                                 {type}
                                             </span>
                                         ))}
@@ -706,7 +706,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
                                         {/* County Name */}
                                         {event.county_no && (
-                                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                            <span className="hidden sm:flex bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                                                 {COUNTIES.find(c => c.id === event.county_no)?.name || `Län ${event.county_no}`}
                                             </span>
                                         )}
