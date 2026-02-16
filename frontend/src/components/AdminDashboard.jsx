@@ -462,6 +462,47 @@ const AdminDashboard = () => {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* MQTT Topics */}
+                                    <div className="mt-4 space-y-3">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">MQTT Topics</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Trafik Topic</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.mqtt_topic || ''}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_topic: e.target.value })}
+                                                    disabled={settings.mqtt_enabled !== "true"}
+                                                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 disabled:opacity-50 dark:text-white sm:text-sm"
+                                                    placeholder="trafikinfo/traffic"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Väglag Topic</label>
+                                                    <label className="relative inline-flex items-center cursor-pointer scale-75">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={settings.mqtt_rc_enabled === "true"}
+                                                            onChange={(e) => setSettings({ ...settings, mqtt_rc_enabled: e.target.checked ? "true" : "false" })}
+                                                            disabled={settings.mqtt_enabled !== "true"}
+                                                            className="sr-only peer"
+                                                        />
+                                                        <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:width-5 after:transition-all peer-checked:bg-green-600"></div>
+                                                    </label>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={settings.mqtt_rc_topic || ''}
+                                                    onChange={(e) => setSettings({ ...settings, mqtt_rc_topic: e.target.value })}
+                                                    disabled={settings.mqtt_enabled !== "true" || settings.mqtt_rc_enabled !== "true"}
+                                                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 disabled:opacity-50 dark:text-white sm:text-sm"
+                                                    placeholder="trafikinfo/road_conditions"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Save Button */}
