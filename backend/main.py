@@ -1,4 +1,4 @@
-VERSION = "26.2.82"
+VERSION = "26.2.83"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -2624,10 +2624,26 @@ def get_admin_clients(db: Session = Depends(get_db), admin=Depends(get_current_a
             "endpoint": s.endpoint,
             "created_at": s.created_at,
             "counties": s.counties,
-            "min_severity": s.min_severity
+            "min_severity": s.min_severity,
+            "topic_realtid": bool(s.topic_realtid),
+            "topic_road_condition": bool(s.topic_road_condition),
+            "include_image": bool(s.include_image),
+            "include_weather": bool(s.include_weather),
+            "rc_warning_filter": s.rc_warning_filter
         } for s in subs],
         "sse_clients_count": len(connected_clients)
     }
+
+@app.delete("/api/admin/push-subscriptions/{sub_id}")
+def delete_push_subscription(sub_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Delete a specific push subscription (admin cleanup)."""
+    sub = db.query(PushSubscription).filter(PushSubscription.id == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    db.delete(sub)
+    db.commit()
+    logger.info(f"Admin deleted push subscription {sub_id} (endpoint: {sub.endpoint[:40]}...)")
+    return {"status": "ok", "deleted_id": sub_id}
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db), admin=Depends(get_current_admin)):

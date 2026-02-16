@@ -103,6 +103,16 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDeleteSub = async (id) => {
+        if (!window.confirm('Radera denna push-prenumeration?')) return;
+        try {
+            await axios.delete(`/api/admin/push-subscriptions/${id}`);
+            fetchData();
+        } catch (err) {
+            console.error('Failed to delete subscription', err);
+        }
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoginError('');
@@ -340,7 +350,7 @@ const AdminDashboard = () => {
                                                             )}
                                                         </td>
                                                         <td className="px-6 py-4 text-xs text-slate-400 font-mono">
-                                                            {new Date(client.last_active).toLocaleTimeString()}
+                                                            {new Date(client.last_active).toLocaleDateString('sv-SE')} {new Date(client.last_active).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
                                                         </td>
                                                     </tr>
                                                 );
@@ -348,6 +358,76 @@ const AdminDashboard = () => {
                                             {data?.active_clients.length === 0 && (
                                                 <tr>
                                                     <td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic">Inga aktiva klienter hittades.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Push Subscriptions Table */}
+                            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Bell className="w-4 h-4 text-purple-500" />
+                                        <h3 className="font-bold dark:text-white">Push-prenumerationer</h3>
+                                        <span className="text-[10px] bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">{data?.push_subscriptions?.length || 0}</span>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 text-[10px] uppercase tracking-widest">
+                                                <th className="px-6 py-3">Endpoint</th>
+                                                <th className="px-6 py-3">Län</th>
+                                                <th className="px-6 py-3">Topics</th>
+                                                <th className="px-6 py-3">Min. Allv.</th>
+                                                <th className="px-6 py-3">Skapad</th>
+                                                <th className="px-6 py-3"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {data?.push_subscriptions?.map((sub) => (
+                                                <tr key={sub.id} className="text-sm dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                    <td className="px-6 py-4">
+                                                        <span className="font-mono text-[10px] text-slate-400 truncate max-w-[200px] block" title={sub.endpoint}>
+                                                            {sub.endpoint.includes('fcm.googleapis') ? '🔔 FCM' : sub.endpoint.includes('mozilla') ? '🦊 Mozilla' : sub.endpoint.includes('windows') ? '🪟 WNS' : '📡 Push'}
+                                                            <span className="ml-1 text-slate-300 dark:text-slate-600">...{sub.endpoint.slice(-20)}</span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {sub.counties ? sub.counties.split(',').map(c => (
+                                                                <span key={c} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold">L{c}</span>
+                                                            )) : <span className="text-slate-400 text-xs italic">Alla</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex gap-1">
+                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${sub.topic_realtid ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'}`}>Trafik</span>
+                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${sub.topic_road_condition ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'}`}>Väglag</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs font-mono text-slate-500">
+                                                        ≥ {sub.min_severity}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-xs text-slate-400 font-mono">
+                                                        {new Date(sub.created_at).toLocaleDateString('sv-SE')}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <button
+                                                            onClick={() => handleDeleteSub(sub.id)}
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                                                            title="Radera prenumeration"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(!data?.push_subscriptions || data.push_subscriptions.length === 0) && (
+                                                <tr>
+                                                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">Inga push-prenumerationer registrerade.</td>
                                                 </tr>
                                             )}
                                         </tbody>

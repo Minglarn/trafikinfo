@@ -730,7 +730,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                         <div className="space-y-4">
                                             <div className="flex items-start gap-2">
                                                 <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-500 dark:text-blue-400" />
-                                                <span className="font-semibold text-slate-900 dark:text-white text-base">{event.location || 'Platsinformation saknas'}</span>
+                                                <span className="font-semibold text-slate-900 dark:text-white text-base">{(event.location || 'Platsinformation saknas').replace(/ i [^i]+ län \([A-Z]+\)$/, '')}</span>
                                             </div>
 
                                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-2">
