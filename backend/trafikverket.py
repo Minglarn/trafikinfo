@@ -32,12 +32,19 @@ class TrafikverketStream:
 
         filter_block = ""
         if county_ids:
-            # Filter out '0' (Alla län) just in case it's passed
-            valid_ids = [cid for cid in county_ids if str(cid) != "0"]
+            # Filter out '0' (Alla län) just in case it's passed explicitly, we'll add it back below
+            valid_ids = set([str(cid) for cid in county_ids if str(cid) != "0"])
             
+            # Special case for Stockholm: If 1 is requested, also request 2 (Legacy)
+            if "1" in valid_ids:
+                valid_ids.add("2")
+
+            # Always listen to National/Global events (ID 0)
+            valid_ids.add("0")
+
             if valid_ids:
                 # Build <OR><EQ name="Field" value="X" />...</OR>
-                conditions = "".join([f'<EQ name="{filter_field}" value="{cid}" />' for cid in valid_ids])
+                conditions = "".join([f'<EQ name="{filter_field}" value="{cid}" />' for cid in sorted(valid_ids)])
                 filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
         
         namespace_attr = f" namespace='{namespace}'" if namespace else ""
@@ -295,6 +302,10 @@ def parse_situation(json_data):
             if not title:
                 title = " / ".join(merged_message_types) if merged_message_types else "Trafikhändelse"
 
+            # Normalize Stockholm: map 2 to 1
+            raw_county = first_devi.get('CountyNo', [0])[0] if isinstance(first_devi.get('CountyNo'), list) else first_devi.get('CountyNo', 0)
+            final_county = 1 if str(raw_county) == "2" else raw_county
+
             event = {
                 "external_id": sit_id, # Group by Situation ID
                 "title": title,
@@ -313,7 +324,7 @@ def parse_situation(json_data):
                 "traffic_restriction_type": ", ".join(merged_restrictions) if merged_restrictions else None,
                 "latitude": latitude,
                 "longitude": longitude,
-                "county_no": first_devi.get('CountyNo', [0])[0] if isinstance(first_devi.get('CountyNo'), list) else first_devi.get('CountyNo', 0)
+                "county_no": final_county
             }
             parsed_events.append(event)
         return parsed_events
@@ -388,6 +399,9 @@ def parse_road_condition(json_data):
             elif isinstance(raw_counties, int):
                 county_no = raw_counties
 
+            # Normalize Stockholm: map 2 to 1
+            final_county = 1 if str(county_no) == "2" else county_no
+
             condition = {
                 "id": rc_id,
                 "condition_code": condition_code,
@@ -402,7 +416,7 @@ def parse_road_condition(json_data):
                 "end_time": end_time,
                 "latitude": latitude,
                 "longitude": longitude,
-                "county_no": county_no,
+                "county_no": final_county,
                 "timestamp": timestamp
             }
             parsed_conditions.append(condition)

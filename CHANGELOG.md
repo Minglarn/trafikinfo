@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.88] - 2026-02-16
+
+### 🚀 New Features
+- **Upcoming Real-time Events**: The real-time feed now includes events starting within the next 30 minutes (e.g., upcoming roadworks), providing better situational awareness.
+
+### 🐛 Bug Fixes
+- **Strict County Filtering (Family Model)**: Enforced baseline "Min bevakning" filtering at the API level across all tabs. This ensures you only see events from counties you've explicitly chosen to monitor.
+- **Stockholm ID Normalization (1 & 2)**: Fully consolidated Stockholm County ID 1 (Standard) and 2 (Legacy/Deprecated). The system now automatically requests and merges data from both IDs into a single coherent "Stockholm" view in all feeds and filters.
+- **Backend Stream Efficiency**: Background workers now correctly handle Stockholm's dual-ID system at the Trafikverket API level.
+
 ## [26.2.87] - 2026-02-16
 
 ### 🎨 UI & UX

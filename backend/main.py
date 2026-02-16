@@ -1,4 +1,4 @@
-VERSION = "26.2.87"
+VERSION = "26.2.88"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -86,6 +86,7 @@ MDI_ICON_MAP = {
 
 COUNTY_MAP = {
     1: "Stockholm",
+    2: "Stockholm", # Merge 2 into 1
     3: "Uppsala",
     4: "Södermanland",
     5: "Östergötland",
@@ -537,21 +538,31 @@ async def dynamic_worker_manager(api_key: str):
                 subscriber_counties = set()
                 for sub in subs:
                     if sub.counties:
-                        subscriber_counties.update(sub.counties.split(","))
+                        for cid in sub.counties.split(","):
+                            if cid.strip():
+                                # Treat 2 as 1 for Stockholm consistency
+                                val = "1" if cid.strip() == "2" else cid.strip()
+                                subscriber_counties.add(val)
                 
                 # 2. Get active client interests (Family Model)
-                clients = db.query(ClientInterest).all()
+                # Filter beneficiaries active in the last 15 days
+                cutoff = datetime.utcnow() - timedelta(days=15)
+                clients = db.query(ClientInterest).filter(ClientInterest.last_active >= cutoff).all()
                 client_counties = set()
                 for client in clients:
                     if client.counties:
-                        client_counties.update(client.counties.split(","))
+                        for cid in client.counties.split(","):
+                            if cid.strip():
+                                # Treat 2 as 1 for Stockholm consistency
+                                val = "1" if cid.strip() == "2" else cid.strip()
+                                client_counties.add(val)
 
                 # 3. Combine
                 needed_counties = subscriber_counties.union(client_counties)
                 
                 # 4. If changed, restart
                 if needed_counties != current_counties:
-                    logger.info(f"Detected change in required counties: {current_counties} -> {needed_counties}. Restarting workers...")
+                    logger.info(f"Detected change in required counties (15-day window): {current_counties} -> {needed_counties}. Restarting workers...")
                     current_counties = needed_counties
                     start_worker(api_key, list(needed_counties) if needed_counties else [])
             finally:
@@ -1929,6 +1940,10 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
         try:
             county_list = [int(c.strip()) for c in counties.split(",") if c.strip().isdigit()]
             if county_list:
+                # Stockholm normalization: If 1 is in requested list, add 2 (legacy)
+                # This ensures we find all events even if they weren't normalized on ingestion
+                if 1 in county_list and 2 not in county_list:
+                    county_list.append(2)
                 query = query.filter(TrafficEvent.county_no.in_(county_list))
         except Exception as e:
             logger.error(f"Error parsing counties filter: {e}")
@@ -1964,8 +1979,9 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
                     ((TrafficEvent.end_time != None) & (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5))
                 )
             else: # realtid (default)
-                # Started AND (End is NULL OR Duration < 5 days)
-                query = query.filter(TrafficEvent.start_time <= now)
+                # Started (or starting within 30 mins) AND (End is NULL OR Duration < 5 days)
+                # Allow a 30-minute buffer into the future for "real-time" visibility
+                query = query.filter(TrafficEvent.start_time <= (now + timedelta(minutes=30)))
                 query = query.filter(
                     (TrafficEvent.end_time == None) | 
                     (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5)
@@ -2046,9 +2062,12 @@ async def get_road_conditions(county_no: str = None, limit: int = 100, offset: i
         try:
             req_counties = [int(c.strip()) for c in str(county_no).split(",") if c.strip().isdigit()]
             if req_counties:
+                # Stockholm normalization
+                if 1 in req_counties and 2 not in req_counties:
+                    req_counties.append(2)
                 query = query.filter(RoadCondition.county_no.in_(req_counties))
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Error parsing road condition counties filter: {e}")
         
     conditions = query.order_by(RoadCondition.updated_at.desc()).offset(offset).limit(limit).all()
     
@@ -2167,27 +2186,18 @@ async def update_settings(settings: dict, db: Session = Depends(get_db), user=De
                 db.add(s)
         db.commit()
         
-        if "api_key" in settings or "selected_counties" in settings:
-            # Re-fetch both to restart properly
+        if "api_key" in settings:
+            # Re-fetch key to restart manager if changed
             curr_key = db.query(Settings).filter(Settings.key == "api_key").first()
-            
             api_key = curr_key.value if curr_key else ""
             
-            # Start dynamic county manager (Family Model)
             global dynamic_worker_task
             if not dynamic_worker_task or dynamic_worker_task.done():
-                dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key))
-            
-            if not api_key:
-                logger.warning("No API key found in settings. Workers will not start until configured.")
-            else:
-                # The dynamic_worker_manager will call start_worker with the correct counties
-                # We need to call it once here to initialize everything
-                curr_counties = db.query(Settings).filter(Settings.key == "selected_counties").first()
-                county_ids = ["1", "4"]
-                if curr_counties and curr_counties.value:
-                    county_ids = curr_counties.value.split(",")
-                start_worker(api_key, county_ids)
+                if api_key:
+                    logger.info("Starting Dynamic Worker Manager (Family Model)...")
+                    dynamic_worker_task = asyncio.create_task(dynamic_worker_manager(api_key))
+                else:
+                    logger.warning("No API key found in settings. Workers idle.")
         
         # Update MQTT config if any related setting changed
         mqtt_updates = {}

@@ -6,28 +6,27 @@ import { useAuth } from '../context/AuthContext'
 const API_BASE = '/api'
 
 const SWEDISH_COUNTIES = [
-    { id: '1', name: 'Stockholms län' },
-    { id: '2', name: 'Stockholms län (Legacy)' },
-    { id: '3', name: 'Uppsala län' },
-    { id: '4', name: 'Södermanlands län' },
-    { id: '5', name: 'Östergötlands län' },
-    { id: '6', name: 'Jönköpings län' },
-    { id: '7', name: 'Kronobergs län' },
-    { id: '8', name: 'Kalmar län' },
-    { id: '9', name: 'Gotlands län' },
-    { id: '10', name: 'Blekinge län' },
-    { id: '12', name: 'Skåne län' },
-    { id: '13', name: 'Hallands län' },
-    { id: '14', name: 'Västra Götalands län' },
-    { id: '17', name: 'Värmlands län' },
-    { id: '18', name: 'Örebro län' },
-    { id: '19', name: 'Västmanlands län' },
-    { id: '20', name: 'Dalarnas län' },
-    { id: '21', name: 'Gävleborgs län' },
-    { id: '22', name: 'Västernorrlands län' },
-    { id: '23', name: 'Jämtlands län' },
-    { id: '24', name: 'Västerbottens län' },
-    { id: '25', name: 'Norrbottens län' }
+    { id: 1, name: 'Stockholms län' },
+    { id: 3, name: 'Uppsala län' },
+    { id: 4, name: 'Södermanlands län' },
+    { id: 5, name: 'Östergötlands län' },
+    { id: 6, name: 'Jönköpings län' },
+    { id: 7, name: 'Kronobergs län' },
+    { id: 8, name: 'Kalmar län' },
+    { id: 9, name: 'Gotlands län' },
+    { id: 10, name: 'Blekinge län' },
+    { id: 12, name: 'Skåne län' },
+    { id: 13, name: 'Hallands län' },
+    { id: 14, name: 'Västra Götalands län' },
+    { id: 17, name: 'Värmlands län' },
+    { id: 18, name: 'Örebro län' },
+    { id: 19, name: 'Västmanlands län' },
+    { id: 20, name: 'Dalarnas län' },
+    { id: 21, name: 'Gävleborgs län' },
+    { id: 22, name: 'Västernorrlands län' },
+    { id: 23, name: 'Jämtlands län' },
+    { id: 24, name: 'Västerbottens län' },
+    { id: 25, name: 'Norrbottens län' }
 ]
 
 const ROAD_WARNINGS = [
@@ -68,11 +67,15 @@ export default function Settings() {
     // NEW: Local state for user's own preferred counties (for notifications)
     const [localCounties, setLocalCounties] = useState(() => {
         const saved = localStorage.getItem('localCounties')
-        return saved ? saved.split(',') : ['1', '4']
+        // Normalize 2 -> 1 on load
+        const initial = saved ? saved.split(',') : ['1', '4']
+        return [...new Set(initial.map(id => id === '2' ? '1' : id))]
     })
 
     useEffect(() => {
         localStorage.setItem('localCounties', localCounties.join(','))
+        // Trigger storage event so other components (EventFeed) update
+        window.dispatchEvent(new Event('storage'))
     }, [localCounties])
 
     useEffect(() => {
@@ -83,7 +86,6 @@ export default function Settings() {
         localStorage.setItem('push_min_severity', minSeverity)
         localStorage.setItem('push_rc_warning_filter', rcWarningFilter.join(','))
 
-        // If push is enabled, sync preferences automatically
         if (pushEnabled) {
             const sync = async () => {
                 const reg = await navigator.serviceWorker.ready
@@ -110,7 +112,6 @@ export default function Settings() {
         }
     }, [includeSeverity, includeImage, includeWeather, includeLocation, topicRealtid, topicRoadCondition, minSeverity, rcWarningFilter])
 
-    // Sync client interest to backend (Family Model)
     useEffect(() => {
         const syncInterest = async () => {
             try {
@@ -121,18 +122,18 @@ export default function Settings() {
                 console.error('Failed to sync client interest:', error)
             }
         }
-        const timeoutId = setTimeout(syncInterest, 2000) // Debounce 2s
+        const timeoutId = setTimeout(syncInterest, 2000)
         return () => clearTimeout(timeoutId)
     }, [localCounties])
 
-
     const toggleLocalCounty = (id) => {
+        const strId = String(id === 2 ? 1 : id);
         setLocalCounties(prev =>
-            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+            prev.includes(strId) ? prev.filter(c => c !== strId) : [...prev, strId]
         )
     }
 
-    const selectAllCounties = () => setLocalCounties(SWEDISH_COUNTIES.map(c => c.id))
+    const selectAllCounties = () => setLocalCounties(SWEDISH_COUNTIES.map(c => String(c.id)))
     const clearCounties = () => setLocalCounties([])
 
     const [soundEnabled, setSoundEnabled] = useState(false)
@@ -158,16 +159,12 @@ export default function Settings() {
                 })
             })
         }
-
-        // Fetch current system status (for MQTT connection check)
         axios.get(`${API_BASE}/status`).then(res => setStatus(res.data)).catch(() => { })
     }, [])
 
     const urlBase64ToUint8Array = (base64String) => {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
+        const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
         const rawData = window.atob(base64);
         const outputArray = new Uint8Array(rawData.length);
         for (let i = 0; i < rawData.length; ++i) {
@@ -181,7 +178,6 @@ export default function Settings() {
             setMessage({ type: 'error', text: 'Din webbläsare stöder inte push-notiser.' })
             return
         }
-
         setSubscribing(true)
         try {
             if (pushEnabled) {
@@ -194,27 +190,20 @@ export default function Settings() {
                 setPushEnabled(false)
             } else {
                 const permission = await Notification.requestPermission()
-                if (permission !== 'granted') {
-                    throw new Error('Permission not granted')
-                }
-
+                if (permission !== 'granted') throw new Error('Permission not granted')
                 const res = await axios.get(`${API_BASE}/push/vapid-public-key`)
-                const vapidPublicKey = res.data.public_key
-                const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
-
+                const convertedVapidKey = urlBase64ToUint8Array(res.data.public_key)
                 const registration = await navigator.serviceWorker.ready
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: convertedVapidKey
                 })
-
                 const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh'))))
                 const auth = btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
-
                 await axios.post(`${API_BASE}/push/subscribe`, {
                     endpoint: subscription.endpoint,
                     keys: { p256dh, auth },
-                    counties: localCounties.join(','), // Use user's local selection
+                    counties: localCounties.join(','),
                     min_severity: 1,
                     topic_realtid: topicRealtid ? 1 : 0,
                     topic_road_condition: topicRoadCondition ? 1 : 0,
@@ -238,9 +227,7 @@ export default function Settings() {
             try {
                 const response = await axios.get(`${API_BASE}/settings`)
                 setSettings(prev => ({ ...prev, ...response.data }))
-            } catch (error) {
-                console.error('Error fetching settings:', error)
-            }
+            } catch (error) { console.error('Error fetching settings:', error) }
         }
         fetchSettings()
     }, [])
@@ -252,9 +239,7 @@ export default function Settings() {
         try {
             await axios.post(`${API_BASE}/settings`, settings)
             setMessage({ type: 'success', text: 'Inställningarna har sparats!' })
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' })
-        }
+        } catch (error) { setMessage({ type: 'error', text: 'Kunde inte spara inställningarna.' }) }
         setSaving(false)
     }
 
@@ -267,9 +252,6 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-6 mt-8">
-                    {/* --- PUBLIC SECTIONS (Always visible) --- */}
-
-                    {/* Push Notifications */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                         <div className="flex items-center justify-between gap-3 mb-2">
                             <div className="flex items-center gap-3">
@@ -285,9 +267,7 @@ export default function Settings() {
                                 {subscribing ? (
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
                                 ) : (
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                                    />
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                                 )}
                             </button>
                         </div>
@@ -358,59 +338,14 @@ export default function Settings() {
                                     </button>
                                 ))}
                             </div>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
-                                Sätts som standard till <strong>Stor påverkan</strong> för att minska antalet notiser.
-                            </p>
                         </div>
-
-                        {/* Road Condition Warning Filter */}
-                        {topicRoadCondition && (
-                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 italic flex items-center gap-2">
-                                    <AlertTriangle className="w-3 h-3 text-blue-500" />
-                                    Väglagsvarningar att bevaka:
-                                </label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {ROAD_WARNINGS.map((warning) => (
-                                        <label
-                                            key={warning.id}
-                                            className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-all ${rcWarningFilter.includes(warning.id)
-                                                    ? 'bg-slate-50 dark:bg-slate-800 border-blue-200 dark:border-blue-500/30'
-                                                    : 'bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60'
-                                                }`}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={rcWarningFilter.includes(warning.id)}
-                                                onChange={() => {
-                                                    setRcWarningFilter(prev =>
-                                                        prev.includes(warning.id)
-                                                            ? prev.filter(w => w !== warning.id)
-                                                            : [...prev, warning.id]
-                                                    )
-                                                }}
-                                                className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                                                {warning.emoji} {warning.label}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
-                                    Avmarkera varningstyper du inte vill bli notifierad om.
-                                </p>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Sound Notifications */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                         <div className="flex items-center gap-3 mb-2">
                             <Volume2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Ljudnotiser</h3>
                         </div>
-
                         <div className="flex items-center justify-between">
                             <label className="text-sm text-slate-700 dark:text-slate-400 font-medium">Spela ljud vid ny händelse</label>
                             <button
@@ -423,14 +358,11 @@ export default function Settings() {
                                 }}
                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${soundEnabled ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
                             >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                                />
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                             </button>
                         </div>
                     </div>
 
-                    {/* Regional bevakning (Counties) - Multi-user friendly */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl space-y-4 shadow-sm dark:shadow-none">
                         <div className="flex items-center justify-between gap-3 mb-2">
                             <div className="flex items-center gap-3">
@@ -438,38 +370,15 @@ export default function Settings() {
                                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Min bevakning</h3>
                             </div>
                             <div className="flex gap-2">
-                                <button
-                                    onClick={selectAllCounties}
-                                    className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg hover:bg-blue-500/20 transition-colors"
-                                >
-                                    Alla län
-                                </button>
-                                <button
-                                    onClick={clearCounties}
-                                    className="text-[10px] uppercase font-bold text-slate-500 bg-slate-500/10 px-2 py-1 rounded-lg hover:bg-slate-500/20 transition-colors"
-                                >
-                                    Rensa val
-                                </button>
+                                <button onClick={selectAllCounties} className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-1 rounded-lg hover:bg-blue-500/20 transition-colors">Alla län</button>
+                                <button onClick={clearCounties} className="text-[10px] uppercase font-bold text-slate-500 bg-slate-500/10 px-2 py-1 rounded-lg hover:bg-slate-500/20 transition-colors">Rensa val</button>
                             </div>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Välj dina regioner. Dessa används för dina personliga push-notiser.
-                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Välj dina regioner. Dessa används för dina personliga push-notiser.</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
                             {SWEDISH_COUNTIES.map((county) => (
-                                <label
-                                    key={county.id}
-                                    className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${localCounties.includes(county.id)
-                                        ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
-                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                                        }`}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        className="hidden"
-                                        checked={localCounties.includes(county.id)}
-                                        onChange={() => toggleLocalCounty(county.id)}
-                                    />
+                                <label key={county.id} className={`flex items-center gap-3 px-4 py-2 rounded-xl border cursor-pointer transition-all ${localCounties.includes(String(county.id)) ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'}`}>
+                                    <input type="checkbox" className="hidden" checked={localCounties.includes(String(county.id))} onChange={() => toggleLocalCounty(county.id)} />
                                     <span className="text-sm font-medium">{county.name}</span>
                                 </label>
                             ))}
@@ -480,33 +389,24 @@ export default function Settings() {
                         </div>
                     </div>
 
-                    {/* General Settings */}
                     <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm dark:shadow-none space-y-4">
                         <div className="flex items-center gap-3 mb-2">
                             <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Allmänna Inställningar</h3>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Här hittar du dina lokala inställningar. Systeminställningar har flyttats till Admin-fliken.
-                        </p>
-
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Här hittar du dina lokala inställningar. Systeminställningar har flyttats till Admin-fliken.</p>
                         {message && (
                             <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                 {message.text}
                             </div>
                         )}
-
-                        <button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20"
-                        >
-                            {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <><Save className="w-5 h-5" /> Spara inställningar</>}
+                        <button type="button" onClick={handleSave} disabled={saving} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-blue-500/25">
+                            {saving ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-5 h-5" />}
+                            Spara inställningar
                         </button>
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     )
 }

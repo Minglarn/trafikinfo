@@ -73,7 +73,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     // Constants for Counties
     const COUNTIES = [
         { id: 1, name: 'Stockholm' },
-        { id: 2, name: 'Stockholm' }, // Handle legacy ID 2 as Stockholm
         { id: 3, name: 'Uppsala' },
         { id: 4, name: 'Södermanland' },
         { id: 5, name: 'Östergötland' },
@@ -168,8 +167,10 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
     }
 
     const toggleCounty = (id) => {
+        // Normalize Stockholm: treat 2 as 1
+        const normalizedId = id === 2 ? 1 : id;
         setActiveCounties(prev => {
-            const next = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+            const next = prev.includes(normalizedId) ? prev.filter(c => c !== normalizedId) : [...prev, normalizedId]
             localStorage.setItem(`feed_filter_counties_${mode}`, next.join(','))
             return next
         })
@@ -195,20 +196,32 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
             if (activeSeverities.length > 0 && !activeSeverities.includes(event.severity_text)) {
                 return false
             }
-            if (activeCounties.length > 0 && !activeCounties.includes(event.county_no)) {
+
+            // County logic: Use quick filter (pills) if active, otherwise baseline (Min bevakning)
+            // EXCEPTION: Always show National/Global events (county_no === 0)
+            if (event.county_no === 0) {
+                return true;
+            }
+
+            const effectiveCounties = activeCounties.length > 0
+                ? activeCounties
+                : monitoredCounties;
+
+            if (effectiveCounties.length > 0 && !effectiveCounties.includes(event.county_no)) {
                 return false
             }
             return true
         })
-    }, [events, activeMessageTypes, activeSeverities, activeCounties])
+    }, [events, activeMessageTypes, activeSeverities, activeCounties, monitoredCounties])
 
     const fetchEvents = async (reset = false) => {
         try {
             const currentOffset = reset ? 0 : offset
             if (!reset) setIsFetchingMore(true)
 
-            // Pass counties filter to backend if set
-            const countyParam = activeCounties.length > 0 ? `&counties=${activeCounties.join(',')}` : ''
+            // Pass counties filter to backend if set, otherwise use monitoredCounties as baseline (Family Model)
+            const effectiveCountiesForApi = activeCounties.length > 0 ? activeCounties : monitoredCounties
+            const countyParam = effectiveCountiesForApi.length > 0 ? `&counties=${effectiveCountiesForApi.join(',')}` : ''
             const response = await axios.get(`${API_BASE}/events?limit=${LIMIT}&offset=${currentOffset}${countyParam}&type=${mode}`)
             const newEvents = response.data
 

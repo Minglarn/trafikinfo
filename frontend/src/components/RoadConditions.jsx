@@ -303,7 +303,20 @@ function RoadConditions() {
         if (rc.end_time && new Date(rc.end_time) <= new Date()) return false
 
         // Apply filters
-        // County filter is handled by API
+        // EXCEPTION: Always show National/Global events (county_no === 0)
+        if (rc.county_no === 0) return true
+
+        const filterList = selectedCounties.length > 0
+            ? selectedCounties
+            : allowedCounties.map(c => c.id.toString())
+
+        if (filterList.length > 0) {
+            // If county_no is missing or doesn't match filter, hide it
+            if (!rc.county_no || !filterList.includes(rc.county_no.toString())) {
+                return false
+            }
+        }
+
         if (roadFilter && rc.road_number && !rc.road_number.toLowerCase().includes(roadFilter.toLowerCase())) return false
 
         return true
