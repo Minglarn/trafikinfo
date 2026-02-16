@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.87] - 2026-02-16
+
+### 🎨 UI & UX
+- **Pill & Tag System**: Redesigned event metadata badges into a two-tier layout (Primary vs Supplemental) for a cleaner, less cluttered look.
+- **Robust Location Trimming**: Fixed issue with redundant county suffixes (e.g., "i Gävleborgs län (X)") using a case-insensitive regex that handles all county names correctly.
+- **Mobile optimization**: Supplemental tags are now hidden on mobile to prioritize clarity.
+
+## [26.2.84] - 2026-02-16
+
+### 🚀 New Features
+- **Admin Dashboard: Push Subscription Management**: Expanded admin view to monitor and delete push subscriptions with detailed topic information.
+- **Mobile Header Status**: Replaced "LIVE STREAM" text with a compact green status dot on mobile.
+- **Mobile Badge Reduction**: Hidden redundant 'Message Type' and 'County' badges on small screens.
+
 ## [26.2.82] - 2026-02-16
 
 ### 🚀 New Features

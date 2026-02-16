@@ -614,116 +614,117 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
                             <div className="flex flex-col md:flex-row gap-4">
                                 <div className="flex-1 space-y-4">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-lg mr-1">
-                                            <button
-                                                onClick={() => setActiveTabs(prev => ({ ...prev, [event.id]: 'current' }))}
-                                                className={`p-1.5 rounded-md transition-all ${(!activeTabs[event.id] || activeTabs[event.id] === 'current')
-                                                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                                    }`}
-                                                title="Händelsen nu"
-                                            >
-                                                <Info className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => fetchHistory(event.external_id, event.id)}
-                                                disabled={fetchingHistory[event.external_id]}
-                                                className={`p-1.5 rounded-md transition-all flex items-center gap-1 ${activeTabs[event.id] === 'history'
-                                                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                                    }`}
-                                                title={`Historik${event.history_count > 0 ? ` (${event.history_count})` : ''}`}
-                                            >
-                                                {fetchingHistory[event.external_id] ? (
-                                                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                                                        <Clock className="w-4 h-4" />
-                                                    </motion.div>
+                                    <div className="flex-1 space-y-2">
+                                        {/* Primary Metadata (Row 1) */}
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full mr-1">
+                                                <button
+                                                    onClick={() => setActiveTabs(prev => ({ ...prev, [event.id]: 'current' }))}
+                                                    className={`p-1.5 rounded-full transition-all ${(!activeTabs[event.id] || activeTabs[event.id] === 'current')
+                                                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                                        }`}
+                                                    title="Händelsen nu"
+                                                >
+                                                    <Info className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => fetchHistory(event.external_id, event.id)}
+                                                    disabled={fetchingHistory[event.external_id]}
+                                                    className={`p-1.5 rounded-full transition-all flex items-center gap-1 ${activeTabs[event.id] === 'history'
+                                                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                                        }`}
+                                                    title={`Historik${event.history_count > 0 ? ` (${event.history_count})` : ''}`}
+                                                >
+                                                    {fetchingHistory[event.external_id] ? (
+                                                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                                                            <Clock className="w-4 h-4" />
+                                                        </motion.div>
+                                                    ) : (
+                                                        <HistoryIcon className="w-4 h-4" />
+                                                    )}
+                                                    {event.history_count > 0 && <span className="text-[10px] font-bold">{event.history_count}</span>}
+                                                </button>
+                                            </div>
+
+                                            {/* Road Number Badge (Preserved Style) */}
+                                            {event.road_number && (
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${event.road_number.startsWith('E')
+                                                    ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow' // Europaväg styling
+                                                    : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted' // Riksväg/Länsväg styling
+                                                    }`}>
+                                                    {event.road_number.replace(/^Väg\s+/, '')}
+                                                </span>
+                                            )}
+
+                                            {/* Severity Badge */}
+                                            {event.severity_text && (
+                                                <span className={`text-[10px] uppercase font-bold px-3 py-0.5 rounded-full border ${SEVERITY_COLORS[event.severity_text] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                                    {event.severity_text}
+                                                </span>
+                                            )}
+
+                                            <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
+                                                title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${safeFormat(event.updated_at, 'yyyy-MM-dd HH:mm')}` : `Skapad: ${safeFormat(event.created_at, 'yyyy-MM-dd HH:mm')}`}>
+                                                <Clock className="w-3 h-3" />
+                                                {event.updated_at && event.updated_at !== event.created_at ? (
+                                                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                        {safeFormat(event.updated_at, 'HH:mm')}
+                                                    </span>
                                                 ) : (
-                                                    <HistoryIcon className="w-4 h-4" />
+                                                    <span>{safeFormat(event.created_at, 'HH:mm')}</span>
                                                 )}
-                                                {event.history_count > 0 && <span className="text-[10px] font-bold">{event.history_count}</span>}
-                                            </button>
+                                            </span>
                                         </div>
 
+                                        {/* Supplemental Metadata (Row 2) - hidden on mobile */}
+                                        <div className="hidden sm:flex flex-wrap items-center gap-1.5 ml-1">
+                                            {/* Long-term / Upcoming Badge */}
+                                            {(() => {
+                                                const now = new Date();
+                                                const start = new Date(event.start_time);
+                                                const end = event.end_time ? new Date(event.end_time) : null;
+                                                const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+                                                if (start > now) return (
+                                                    <span className="bg-purple-50 dark:bg-purple-500/5 text-purple-600 dark:text-purple-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-purple-200/50 dark:border-purple-500/20">
+                                                        Kommande
+                                                    </span>
+                                                );
+                                                if (durationDays >= 5) return (
+                                                    <span className="bg-indigo-50 dark:bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-500/20">
+                                                        Långtidsarbete
+                                                    </span>
+                                                );
+                                                return null;
+                                            })()}
 
-                                        {/* New Badge (< 1h old) */}
-
-                                        {/* Long-term / Upcoming Badge */}
-                                        {(() => {
-                                            const now = new Date();
-                                            const start = new Date(event.start_time);
-                                            const end = event.end_time ? new Date(event.end_time) : null;
-                                            const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
-                                            if (start > now) return (
-                                                <span className="bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-purple-200 dark:border-purple-500/20">
-                                                    Kommande / Planerat
+                                            {/* Message Type Badges */}
+                                            {event.message_type && event.message_type.split(', ').map((type, idx) => (
+                                                <span key={idx} className="bg-blue-50 dark:bg-blue-500/5 text-blue-600 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-blue-200/50 dark:border-blue-500/20">
+                                                    {type}
                                                 </span>
-                                            );
-                                            if (durationDays >= 5) return (
-                                                <span className="bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-500/20">
-                                                    Långtidsarbete
+                                            ))}
+
+                                            {/* Restriction Badges */}
+                                            {event.temporary_limit && (
+                                                <span className="bg-red-50 dark:bg-red-500/5 text-red-600 dark:text-red-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-red-200/50 dark:border-red-500/20">
+                                                    {event.temporary_limit}
                                                 </span>
-                                            );
-                                            return null;
-                                        })()}
-
-                                        {/* Road Number Badge */}
-                                        {event.road_number && (
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded border shadow-sm flex items-center justify-center min-w-[30px] ${event.road_number.startsWith('E')
-                                                ? 'bg-[#00933C] text-white border-white border-[1.5px] shadow' // Europaväg styling
-                                                : 'bg-[#006AA7] text-white border-white border-[1.5px] border-dotted' // Riksväg/Länsväg styling
-                                                }`}>
-                                                {event.road_number.replace(/^Väg\s+/, '')}
-                                            </span>
-                                        )}
-
-                                        {/* Severity Badge */}
-                                        {event.severity_text && (
-                                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${SEVERITY_COLORS[event.severity_text] || 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
-                                                {event.severity_text}
-                                            </span>
-                                        )}
-
-                                        {/* Message Type Badges */}
-                                        {event.message_type && event.message_type.split(', ').map((type, idx) => (
-                                            <span key={idx} className="hidden sm:flex bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
-                                                {type}
-                                            </span>
-                                        ))}
-
-                                        {/* Restriction Badges */}
-                                        {event.temporary_limit && (
-                                            <span className="bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-red-200 dark:border-red-500/20">
-                                                {event.temporary_limit}
-                                            </span>
-                                        )}
-                                        {event.traffic_restriction_type && event.traffic_restriction_type.split(', ').map((restr, idx) => (
-                                            <span key={idx} className="bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-orange-200 dark:border-orange-500/20">
-                                                {restr}
-                                            </span>
-                                        ))}
-
-                                        {/* County Name */}
-                                        {event.county_no && (
-                                            <span className="hidden sm:flex bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                                {COUNTIES.find(c => c.id === event.county_no)?.name || `Län ${event.county_no}`}
-                                            </span>
-                                        )}
-
-
-
-                                        <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
-                                            title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${safeFormat(event.updated_at, 'yyyy-MM-dd HH:mm')}` : `Skapad: ${safeFormat(event.created_at, 'yyyy-MM-dd HH:mm')}`}>
-                                            <Clock className="w-3 h-3" />
-                                            {event.updated_at && event.updated_at !== event.created_at ? (
-                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                                    {safeFormat(event.updated_at, 'HH:mm')}
-                                                </span>
-                                            ) : (
-                                                <span>{safeFormat(event.created_at, 'HH:mm')}</span>
                                             )}
-                                        </span>
+                                            {event.traffic_restriction_type && event.traffic_restriction_type.split(', ').map((restr, idx) => (
+                                                <span key={idx} className="bg-orange-50 dark:bg-orange-500/5 text-orange-600 dark:text-orange-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-orange-200/50 dark:border-orange-500/20">
+                                                    {restr}
+                                                </span>
+                                            ))}
+
+                                            {/* County Name */}
+                                            {event.county_no && (
+                                                <span className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                                                    {COUNTIES.find(c => c.id === event.county_no)?.name || `Län ${event.county_no}`}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {(!activeTabs[event.id] || activeTabs[event.id] === 'current') ? (
