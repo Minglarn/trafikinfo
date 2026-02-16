@@ -711,23 +711,9 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                             </span>
                                         )}
 
-                                        {/* Weather Badge (Moved to Header) */}
-                                        {event.weather && (
-                                            <div className="hidden lg:flex items-center gap-2 ml-auto mr-1">
-                                                <div className="flex items-center gap-1 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 bg-blue-50/50 dark:bg-blue-500/10 rounded-md border border-blue-100/30 dark:border-blue-500/20">
-                                                    <Thermometer className="w-3 h-3" />
-                                                    <span className="text-[10px] font-bold">{(event.weather.air_temperature ?? event.weather.temp) ?? '?'}°C</span>
-                                                </div>
-                                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 bg-slate-50/50 dark:bg-slate-800/50 rounded-md border border-slate-200/30 dark:border-slate-700/20">
-                                                    <Wind className="w-3 h-3" />
-                                                    <span className="text-[10px] font-semibold">
-                                                        {event.weather.wind_speed ?? '?'} m/s {(event.weather.wind_direction ?? event.weather.wind_dir) ?? ''}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
 
-                                        <span className={`text-slate-500 text-xs flex items-center gap-1 ${!event.weather ? 'ml-auto' : ''}`}
+
+                                        <span className="text-slate-500 text-xs flex items-center gap-1 ml-auto"
                                             title={event.updated_at && event.updated_at !== event.created_at ? `Uppdaterad: ${safeFormat(event.updated_at, 'yyyy-MM-dd HH:mm')}` : `Skapad: ${safeFormat(event.created_at, 'yyyy-MM-dd HH:mm')}`}>
                                             <Clock className="w-3 h-3" />
                                             {event.updated_at && event.updated_at !== event.created_at ? (
@@ -765,16 +751,33 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                     </div>
                                                 )}
 
-                                                {/* Validity Period */}
-                                                {(event.start_time || event.end_time) && (
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                                        <span>Gäller:</span>
-                                                        {event.start_time && <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.start_time, 'd MMM HH:mm')}</span>}
-                                                        <span>→</span>
-                                                        {event.end_time ? (
-                                                            <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.end_time, 'd MMM HH:mm')}</span>
-                                                        ) : (
-                                                            <span className="italic">Tillsvidare</span>
+                                                {/* Validity Period + Weather */}
+                                                {(event.start_time || event.end_time || event.weather) && (
+                                                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
+                                                        {(event.start_time || event.end_time) && (
+                                                            <>
+                                                                <span>Gäller:</span>
+                                                                {event.start_time && <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.start_time, 'd MMM HH:mm')}</span>}
+                                                                <span>→</span>
+                                                                {event.end_time ? (
+                                                                    <span className="text-slate-700 dark:text-slate-400">{safeFormat(event.end_time, 'd MMM HH:mm')}</span>
+                                                                ) : (
+                                                                    <span className="italic">Tillsvidare</span>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                        {event.weather && (
+                                                            <>
+                                                                {(event.start_time || event.end_time) && <span className="text-slate-300 dark:text-slate-600">·</span>}
+                                                                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                                                                    <Thermometer className="w-3 h-3" />
+                                                                    <span className="font-semibold">{(event.weather.air_temperature ?? event.weather.temp) ?? '?'}°C</span>
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <Wind className="w-3 h-3" />
+                                                                    <span>{event.weather.wind_speed ?? '?'} m/s {(event.weather.wind_direction ?? event.weather.wind_dir) ?? ''}</span>
+                                                                </span>
+                                                            </>
                                                         )}
                                                     </div>
                                                 )}
