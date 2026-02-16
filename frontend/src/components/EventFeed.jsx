@@ -742,16 +742,17 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
 
                                     {(!activeTabs[event.id] || activeTabs[event.id] === 'current') ? (
                                         <div className="space-y-4">
+                                            <div className="flex items-start gap-2">
+                                                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-500 dark:text-blue-400" />
+                                                <span className="font-semibold text-slate-900 dark:text-white text-base">{event.location || 'Platsinformation saknas'}</span>
+                                            </div>
+
                                             <h3 className="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-2">
                                                 {event.icon_url && <img src={event.icon_url} alt="Icon" className="w-8 h-8 object-contain" />}
                                                 {event.title || 'Okänd händelse'}
                                             </h3>
 
                                             <div className="space-y-2">
-                                                <div className="flex items-start gap-2 text-slate-500 dark:text-slate-400 text-sm">
-                                                    <MapPin className="w-4 h-4 mt-1 flex-shrink-0 text-slate-400 dark:text-slate-500" />
-                                                    <span className="font-medium text-slate-700 dark:text-slate-300">{event.location || 'Platsinformation saknas'}</span>
-                                                </div>
 
                                                 {event.description && (
                                                     <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700/50">

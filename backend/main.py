@@ -2496,30 +2496,34 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
                 logger.info(f"Sub {sub.id} skipped: Severity too low ({severity} < {sub.min_severity})")
                 continue
             
-            # 1. Build Title
-            severity_text = data.get('severity_text', '')
-            title_core = data.get('title', 'Trafikhändelse')
-            if sub.include_severity and severity_text:
-                title = f"⚠️ {severity_text}: {title_core}"
-            else:
-                title = f"⚠️ {title_core}"
+            # Severity emoji mapping
+            SEVERITY_ICONS = {1: "🟢", 2: "🟡", 3: "🟠", 4: "🔴", 5: "🔴"}
+            severity = data.get('severity_code')
+            severity_icon = SEVERITY_ICONS.get(severity, "⚠️")
             
-            # 2. Build Message
-            parts = []
+            # 1. Build Title — compact: emoji + event description
+            title_core = data.get('title', 'Trafikhändelse')
+            title = f"{severity_icon} {title_core}"
+            
+            # 2. Build Message — newline-separated lines
+            lines = []
             if sub.include_location:
-                parts.append(data.get('location', ''))
+                location = data.get('location', '')
+                if location:
+                    lines.append(f"📍 {location}")
             
             if sub.include_weather:
                 weather = data.get('weather') or {}
                 temp = weather.get('air_temperature')
                 wind = weather.get('wind_speed')
+                wind_dir = weather.get('wind_direction', '')
                 weather_parts = []
-                if temp is not None: weather_parts.append(f"{temp}°C")
-                if wind is not None: weather_parts.append(f"🌬️ {wind} m/s")
+                if temp is not None: weather_parts.append(f"🌡️ {temp}°C")
+                if wind is not None: weather_parts.append(f"🌬️ {wind} m/s {wind_dir}".strip())
                 if weather_parts:
-                    parts.append(" | ".join(weather_parts))
+                    lines.append("  ".join(weather_parts))
             
-            message = " - ".join([p for p in parts if p])
+            message = "\n".join([l for l in lines if l])
             url = data.get('event_url', '/')
             icon = data.get('icon_url')
             
@@ -2546,30 +2550,36 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
                     logger.info(f"Sub {sub.id} skipped: Warning '{item_warning}' not in filter {allowed_warnings}")
                     continue
 
-            # 1. Build Title
+            # 1. Build Title — capitalize condition text
             cond_text = data.get('condition_text', 'Varning')
-            title = f"❄️ Väglag: {cond_text}"
+            cond_text_cap = cond_text[0].upper() + cond_text[1:] if cond_text else 'Varning'
+            title = f"❄️ {cond_text_cap}"
             
-            # 2. Build Message
-            parts = []
+            # 2. Build Message — newline-separated lines
+            lines = []
             if sub.include_location:
-                parts.append(data.get('location_text', ''))
+                location = data.get('location_text', '')
+                if location:
+                    lines.append(f"📍 {location}")
             
-            main_msg = f"{data.get('warning', '')}. {data.get('measure', '')}".strip(". ")
-            if main_msg:
-                parts.append(main_msg)
+            # Warning + measure
+            warning = data.get('warning', '')
+            measure = data.get('measure', '')
+            warn_parts = [p for p in [warning, measure] if p]
+            if warn_parts:
+                lines.append(f"⚠️ {' · '.join(warn_parts)}")
                 
             if sub.include_weather:
                 weather = data.get('weather') or {}
                 temp = weather.get('air_temperature')
                 grip = weather.get('grip')
                 weather_parts = []
-                if temp is not None: weather_parts.append(f"{temp}°C")
+                if temp is not None: weather_parts.append(f"🌡️ {temp}°C")
                 if grip is not None: weather_parts.append(f"Friktion: {grip}")
                 if weather_parts:
-                    parts.append(" | ".join(weather_parts))
+                    lines.append("  ".join(weather_parts))
             
-            message = " - ".join([p for p in parts if p])
+            message = "\n".join([l for l in lines if l])
             url = "/?tab=road-conditions"
             icon = data.get('icon_url')
             
