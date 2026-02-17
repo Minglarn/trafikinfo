@@ -67,12 +67,12 @@ const safeFormat = (dateStr, fmt) => {
     }
 }
 
-const CameraCarousel = ({ cameras, onExpand, isExpanded }) => {
+const CameraCarousel = ({ cameras, onExpand, isExpanded, variant = 'compact' }) => {
     const [index, setIndex] = useState(0);
 
     if (!cameras || cameras.length === 0) {
         return (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0 ${variant === 'expanded' ? 'min-h-[300px]' : ''}`}>
                 <Camera className="w-8 h-8 mb-1 opacity-20" />
                 <span className="text-[10px] italic">Ingen bild</span>
             </div>
@@ -82,8 +82,10 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded }) => {
     const next = () => setIndex((prev) => (prev + 1) % cameras.length);
     const prev = () => setIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
 
+    const isExpandedVariant = variant === 'expanded';
+
     return (
-        <div className="relative w-full h-full group/carousel overflow-hidden">
+        <div className={`relative w-full h-full group/carousel overflow-hidden ${isExpandedVariant ? 'aspect-video bg-slate-900 rounded-xl' : ''}`}>
             <AnimatePresence initial={false} mode="wait">
                 <motion.div
                     key={index}
@@ -91,10 +93,12 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded }) => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="absolute inset-0 cursor-zoom-in"
+                    className={`absolute inset-0 ${!isExpandedVariant ? 'cursor-zoom-in' : ''}`}
                     onClick={(e) => {
-                        e.stopPropagation();
-                        onExpand();
+                        if (!isExpandedVariant) {
+                            e.stopPropagation();
+                            onExpand();
+                        }
                     }}
                     drag="x"
                     dragConstraints={{ left: 0, right: 0 }}
@@ -105,34 +109,65 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded }) => {
                     }}
                 >
                     <img
-                        src={`/api/snapshots/${cameras[index].snapshot}`}
+                        src={isExpandedVariant ? cameras[index].src : `/api/snapshots/${cameras[index].snapshot}`}
                         alt={cameras[index].name || 'Trafikkamera'}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full ${isExpandedVariant ? 'object-contain' : 'object-cover'}`}
                         onError={(e) => { e.target.style.opacity = '0'; }}
                     />
 
-                    {/* Camera Name Overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[9px] text-white px-2 py-1 z-20">
-                        <div className="flex items-center gap-1 truncate">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                            <span className="truncate">{cameras[index].name}</span>
-                            {cameras.length > 1 && (
-                                <span className="ml-auto text-slate-400">{index + 1}/{cameras.length}</span>
-                            )}
+                    {/* Camera Informational Overlay */}
+                    <div className={`absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md text-white z-20 transition-all ${isExpandedVariant ? 'p-4' : 'px-2 py-1'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <div className={`rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${isExpandedVariant ? 'w-2 h-2' : 'w-1.5 h-1.5'}`} />
+                                <div className="truncate">
+                                    <span className={`font-semibold block truncate ${isExpandedVariant ? 'text-sm' : 'text-[9px]'}`}>
+                                        {cameras[index].name}
+                                    </span>
+                                    {isExpandedVariant && (
+                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                                            {cameras[index].type || 'Trafikkamera'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0">
+                                {isExpandedVariant && (
+                                    <a
+                                        href={cameras[index].link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors"
+                                        onClick={e => e.stopPropagation()}
+                                    >
+                                        Fullstorlek
+                                    </a>
+                                )}
+                                <span className={`text-slate-400 font-medium ${isExpandedVariant ? 'text-xs' : 'text-[9px]'}`}>
+                                    {index + 1}/{cameras.length}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </motion.div>
             </AnimatePresence>
 
-            {/* Subtle Swipe Hints */}
+            {/* Navigation Controls */}
             {cameras.length > 1 && (
                 <>
-                    <div className="absolute left-1 top-1/2 -translate-y-1/2 p-1 bg-black/20 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity pointer-events-none">
-                        <ChevronLeft className="w-3 h-3 text-white" />
-                    </div>
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 p-1 bg-black/20 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity pointer-events-none">
-                        <ChevronRight className="w-3 h-3 text-white" />
-                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); prev(); }}
+                        className={`absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'opacity-0 group-hover/carousel:opacity-100' : 'opacity-100'}`}
+                    >
+                        <ChevronLeft className={isExpandedVariant ? "w-5 h-5" : "w-3 h-3"} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); next(); }}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'opacity-0 group-hover/carousel:opacity-100' : 'opacity-100'}`}
+                    >
+                        <ChevronRight className={isExpandedVariant ? "w-5 h-5" : "w-3 h-3"} />
+                    </button>
                 </>
             )}
         </div>
@@ -1116,48 +1151,12 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 );
 
                                                 return (
-                                                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4`}>
-                                                        {allImages.map((img, idx) => {
-                                                            // Logic for 3 images: First one spans full width
-                                                            const isThreeImages = allImages.length === 3;
-                                                            const isFirstOfThree = isThreeImages && idx === 0;
-
-                                                            return (
-                                                                <div
-                                                                    key={idx}
-                                                                    className={`relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col ${isFirstOfThree ? 'md:col-span-2' : ''}`}
-                                                                >
-                                                                    <div className="relative aspect-video bg-slate-900">
-                                                                        <img
-                                                                            src={img.src}
-                                                                            alt={img.name}
-                                                                            className="w-full h-full object-contain"
-                                                                            loading="lazy"
-                                                                            onError={(e) => {
-                                                                                e.target.style.opacity = '0';
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
-                                                                        <div className="flex justify-between items-center gap-2">
-                                                                            <div className="min-w-0">
-                                                                                <h3 className="text-slate-900 dark:text-white text-sm font-semibold truncate" title={img.name}>{img.name}</h3>
-                                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">{img.type}</p>
-                                                                            </div>
-                                                                            <a
-                                                                                href={img.link}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                className="shrink-0 text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
-                                                                            >
-                                                                                Visa fullstorlek
-                                                                            </a>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <CameraCarousel
+                                                        cameras={allImages}
+                                                        variant="expanded"
+                                                        onExpand={() => toggleCamera(event.id)}
+                                                        isExpanded={true}
+                                                    />
                                                 );
                                             })()}
 
