@@ -20,15 +20,72 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom Icon Logic for different event types
-const createCustomIcon = (iconUrl) => {
-    return new L.Icon({
-        iconUrl: iconUrl || 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-    });
+// Icon Cache to prevent flickering (Leaflet re-draws if Icon object identity changes)
+const iconCache = {};
+const getCustomIcon = (iconUrl) => {
+    const url = iconUrl || 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png';
+    if (!iconCache[url]) {
+        iconCache[url] = new L.Icon({
+            iconUrl: url,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+    }
+    return iconCache[url];
 };
+
+// Memoized Marker Component
+const TrafficMarker = React.memo(({ ev, onMarkerClick }) => {
+    if (!ev.latitude || !ev.longitude) return null;
+
+    return (
+        <Marker
+            position={[ev.latitude, ev.longitude]}
+            icon={getCustomIcon(ev.icon_url)}
+        >
+            <Popup>
+                <div className="p-0 overflow-hidden rounded-xl">
+                    {/* Preview Image if available */}
+                    {ev.camera_snapshot && (
+                        <div className="relative aspect-video bg-slate-200 dark:bg-slate-800">
+                            <img
+                                src={`/api/snapshots/${ev.camera_snapshot}`}
+                                alt={ev.title}
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 right-2 bg-blue-600 text-white p-1 rounded-lg shadow-lg">
+                                <Camera className="w-3.5 h-3.5" />
+                            </div>
+                        </div>
+                    )}
+                    <div className="p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                            {ev.icon_url && <img src={ev.icon_url} className="w-4 h-4 object-contain" alt="" />}
+                            <h3 className="font-bold text-xs truncate leading-tight dark:text-white">{ev.title}</h3>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2">{ev.description}</p>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
+                                <MapPin className="w-2.5 h-2.5" />
+                                <span className="truncate max-w-[120px]">{ev.location}</span>
+                            </div>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMarkerClick(ev);
+                                }}
+                                className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg font-bold transition-colors shadow-lg shadow-blue-500/20 active:scale-95"
+                            >
+                                Visa detaljer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Popup>
+        </Marker>
+    );
+});
 
 const styleFixes = `
   .leaflet-popup-content-wrapper, .leaflet-popup-tip {
@@ -193,56 +250,13 @@ const EventMapDashboard = () => {
                         spiderfyOnMaxZoom={true}
                         showCoverageOnHover={false}
                     >
-                        {filteredEvents.map(ev => {
-                            if (!ev.latitude || !ev.longitude) return null;
-                            return (
-                                <Marker
-                                    key={ev.id || ev.external_id}
-                                    position={[ev.latitude, ev.longitude]}
-                                    icon={createCustomIcon(ev.icon_url)}
-                                >
-                                    <Popup>
-                                        <div className="p-0 overflow-hidden rounded-xl">
-                                            {/* Preview Image if available */}
-                                            {ev.camera_snapshot && (
-                                                <div className="relative aspect-video bg-slate-200 dark:bg-slate-800">
-                                                    <img
-                                                        src={`/api/snapshots/${ev.camera_snapshot}`}
-                                                        alt={ev.title}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                    <div className="absolute top-2 right-2 bg-blue-600 text-white p-1 rounded-lg">
-                                                        <Camera className="w-3.5 h-3.5" />
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <div className="p-3">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {ev.icon_url && <img src={ev.icon_url} className="w-4 h-4 object-contain" alt="" />}
-                                                    <h3 className="font-bold text-xs truncate leading-tight dark:text-white">{ev.title}</h3>
-                                                </div>
-                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2">{ev.description}</p>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
-                                                        <MapPin className="w-2.5 h-2.5" />
-                                                        <span className="truncate max-w-[120px]">{ev.location}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleMarkerClick(ev);
-                                                        }}
-                                                        className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded-lg font-bold transition-colors shadow-lg shadow-blue-500/20"
-                                                    >
-                                                        Visa detaljer
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            );
-                        })}
+                        {filteredEvents.map(ev => (
+                            <TrafficMarker
+                                key={ev.id || ev.external_id}
+                                ev={ev}
+                                onMarkerClick={handleMarkerClick}
+                            />
+                        ))}
                     </MarkerClusterGroup>
                 </MapContainer>
             </div>
