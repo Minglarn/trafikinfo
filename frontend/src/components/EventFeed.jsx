@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar, AlertCircle, Thermometer, Wind } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar, AlertCircle, Thermometer, Wind, ChevronRight } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
@@ -110,6 +110,14 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
             console.error('Failed to fetch history:', err)
         } finally {
             setFetchingHistory(prev => ({ ...prev, [externalId]: false }))
+        }
+    }
+
+    const toggleHistory = (eventId, externalId) => {
+        if (activeTabs[eventId] === 'history') {
+            setActiveTabs(prev => ({ ...prev, [eventId]: 'current' }))
+        } else {
+            fetchHistory(externalId, eventId)
         }
     }
 
@@ -644,24 +652,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 >
                                                     <Info className="w-4 h-4" />
                                                 </button>
-                                                <button
-                                                    onClick={() => fetchHistory(event.external_id, event.id)}
-                                                    disabled={fetchingHistory[event.external_id]}
-                                                    className={`p-1.5 rounded-full transition-all flex items-center gap-1 ${activeTabs[event.id] === 'history'
-                                                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                                                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                                                        }`}
-                                                    title={`Historik${event.history_count > 0 ? ` (${event.history_count})` : ''}`}
-                                                >
-                                                    {fetchingHistory[event.external_id] ? (
-                                                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                                                            <Clock className="w-4 h-4" />
-                                                        </motion.div>
-                                                    ) : (
-                                                        <HistoryIcon className="w-4 h-4" />
-                                                    )}
-                                                    {event.history_count > 0 && <span className="text-[10px] font-bold">{event.history_count}</span>}
-                                                </button>
                                             </div>
 
                                             {/* Road Number Badge (Preserved Style) */}
@@ -931,6 +921,7 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 <EventMap
                                                     lat={event.latitude}
                                                     lng={event.longitude}
+                                                    popupContent={event.location}
                                                     interactive={false}
                                                 />
 
@@ -950,6 +941,56 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                         )}
                                     </div>
 
+                                    {/* Custom Update Pill / History Toggle - Placed below Camera/Map */}
+                                    {event.history_count > 0 && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleHistory(event.id, event.external_id);
+                                            }}
+                                            className={`mt-2 py-1.5 px-3 rounded-xl border transition-all relative overflow-hidden group/pill ${activeTabs[event.id] === 'history'
+                                                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20'
+                                                : 'bg-blue-50/50 dark:bg-blue-500/5 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/20 hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                                                }`}
+                                        >
+                                            {/* Fading Arrow Animation Overlay */}
+                                            <div className="absolute inset-0 flex items-center justify-around pointer-events-none opacity-20">
+                                                {[0, 1, 2, 3, 4].map((i) => (
+                                                    <motion.div
+                                                        key={i}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{
+                                                            opacity: [0, 1, 0],
+                                                            x: [-10, 10],
+                                                        }}
+                                                        transition={{
+                                                            duration: 2,
+                                                            repeat: Infinity,
+                                                            delay: i * 0.4,
+                                                            ease: "easeInOut"
+                                                        }}
+                                                    >
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+
+                                            <div className="relative z-10 flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-3">
+                                                    <HistoryIcon className={`w-3.5 h-3.5 ${activeTabs[event.id] === 'history' ? 'animate-pulse' : ''}`} />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Uppdaterad</span>
+                                                </div>
+                                                <div className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-colors ${activeTabs[event.id] === 'history'
+                                                    ? 'bg-blue-500/50 text-white'
+                                                    : 'bg-blue-100 dark:bg-blue-400/20 text-blue-700 dark:text-blue-300'
+                                                    }`}>
+                                                    {event.history_count} {event.history_count === 1 ? 'ändring' : 'ändringar'}
+                                                </div>
+                                            </div>
+                                        </motion.button>
+                                    )}
                                 </div>
                             </div>
 
