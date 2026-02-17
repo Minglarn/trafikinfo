@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Server, Activity, Lock, Unlock, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
-const MobileHeader = ({ onOpenLogin }) => {
+const MobileHeader = ({ onOpenLogin, isSSEConnected }) => {
     const { isLoggedIn, logout } = useAuth()
     const [status, setStatus] = useState({
         trafikverket: { connected: false },
@@ -44,6 +44,10 @@ const MobileHeader = ({ onOpenLogin }) => {
                     <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
                     <div className="flex items-center gap-1.5" title="MQTT">
                         <div className={`w-1.5 h-1.5 rounded-full ${!status.mqtt?.enabled ? 'bg-slate-300 dark:bg-slate-700' : status.mqtt?.connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+                    <div className="flex items-center gap-1.5" title="Live-ström (SSE)">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isSSEConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                     </div>
                 </div>
 

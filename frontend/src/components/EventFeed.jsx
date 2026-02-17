@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import axios from 'axios'
 import { format } from 'date-fns'
-import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar, AlertCircle, Thermometer, Wind, ChevronRight } from 'lucide-react'
+import { MapPin, Info, AlertTriangle, Clock, Filter, X, Camera, History as HistoryIcon, Activity, Calendar, AlertCircle, Thermometer, Wind, ChevronRight, ChevronLeft } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion'
 import EventMap from './EventMap'
@@ -33,6 +33,27 @@ const SEVERITY_COLORS = {
     'Mycket stor påverkan': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
 }
 
+const SEVERITY_ACCENT_COLORS = {
+    'Ingen påverkan': 'border-l-slate-200 dark:border-l-slate-700',
+    'Liten påverkan': 'border-l-yellow-400 dark:border-l-yellow-500',
+    'Stor påverkan': 'border-l-orange-500 dark:border-l-orange-600',
+    'Mycket stor påverkan': 'border-l-red-600 dark:border-l-red-500',
+}
+
+const SEVERITY_CARD_BORDERS = {
+    'Ingen påverkan': 'border-slate-200 dark:border-slate-700',
+    'Liten påverkan': 'border-yellow-300/60 dark:border-yellow-500/30',
+    'Stor påverkan': 'border-orange-300/60 dark:border-orange-500/30',
+    'Mycket stor påverkan': 'border-red-300/60 dark:border-red-500/30',
+}
+
+const SEVERITY_BG_TINTS = {
+    'Ingen påverkan': '',
+    'Liten påverkan': 'bg-yellow-500/[0.07] dark:bg-yellow-500/[0.10]',
+    'Stor påverkan': 'bg-orange-500/[0.09] dark:bg-orange-500/[0.14]',
+    'Mycket stor påverkan': 'bg-red-500/[0.12] dark:bg-red-500/[0.18]',
+}
+
 // Helper for safe date formatting
 const safeFormat = (dateStr, fmt) => {
     if (!dateStr) return ''
@@ -41,16 +62,87 @@ const safeFormat = (dateStr, fmt) => {
         if (isNaN(date.getTime())) return ''
         return format(date, fmt)
     } catch (e) {
-        console.error('Date formatting error:', e, dateStr)
+        console.error('Date formatting error:', dateStr, e)
         return ''
     }
 }
+
+const CameraCarousel = ({ cameras, onExpand, isExpanded }) => {
+    const [index, setIndex] = useState(0);
+
+    if (!cameras || cameras.length === 0) {
+        return (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                <Camera className="w-8 h-8 mb-1 opacity-20" />
+                <span className="text-[10px] italic">Ingen bild</span>
+            </div>
+        );
+    }
+
+    const next = () => setIndex((prev) => (prev + 1) % cameras.length);
+    const prev = () => setIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
+
+    return (
+        <div className="relative w-full h-full group/carousel overflow-hidden">
+            <AnimatePresence initial={false} mode="wait">
+                <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="absolute inset-0 cursor-zoom-in"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onExpand();
+                    }}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    onDragEnd={(e, { offset, velocity }) => {
+                        const swipe = offset.x;
+                        if (swipe < -30) next();
+                        else if (swipe > 30) prev();
+                    }}
+                >
+                    <img
+                        src={`/api/snapshots/${cameras[index].snapshot}`}
+                        alt={cameras[index].name || 'Trafikkamera'}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.opacity = '0'; }}
+                    />
+
+                    {/* Camera Name Overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[9px] text-white px-2 py-1 z-20">
+                        <div className="flex items-center gap-1 truncate">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            <span className="truncate">{cameras[index].name}</span>
+                            {cameras.length > 1 && (
+                                <span className="ml-auto text-slate-400">{index + 1}/{cameras.length}</span>
+                            )}
+                        </div>
+                    </div>
+                </motion.div>
+            </AnimatePresence>
+
+            {/* Subtle Swipe Hints */}
+            {cameras.length > 1 && (
+                <>
+                    <div className="absolute left-1 top-1/2 -translate-y-1/2 p-1 bg-black/20 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity pointer-events-none">
+                        <ChevronLeft className="w-3 h-3 text-white" />
+                    </div>
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 p-1 bg-black/20 rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity pointer-events-none">
+                        <ChevronRight className="w-3 h-3 text-white" />
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
 
 export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 'realtid' }) {
     const [events, setEvents] = useState([])
     const [selectedEvent, setSelectedEvent] = useState(null)
     const [loading, setLoading] = useState(true)
-    const [isConnected, setIsConnected] = useState(false)
     const [refreshKey, setRefreshKey] = useState(0)
     const [expandedMaps, setExpandedMaps] = useState(new Set())
     const [expandedCameras, setExpandedCameras] = useState(new Set())
@@ -334,7 +426,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
         }
 
         window.addEventListener('flux-traffic-event', handleTrafficEvent)
-        setIsConnected(true) // SSE is managed by App.jsx
 
         return () => {
             window.removeEventListener('flux-traffic-event', handleTrafficEvent)
@@ -474,14 +565,6 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                         )}
                     </button>
 
-                    {/* Live Status */}
-                    <div className={`px-2 sm:px-3 py-1 rounded-full text-xs font-mono border flex items-center gap-2 ${isConnected
-                        ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
-                        : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                        }`}>
-                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                        <span className="hidden sm:inline">{isConnected ? 'LIVE STREAM' : 'OFFLINE'}</span>
-                    </div>
                 </div>
             </div>
 
@@ -603,27 +686,11 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, x: -100 }}
-                            className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 transition-all group relative overflow-hidden shadow-sm dark:shadow-none"
+                            className={`bg-white dark:bg-slate-800/50 border p-4 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 transition-all group relative overflow-hidden shadow-sm dark:shadow-none border-l-4 ${SEVERITY_CARD_BORDERS[event.severity_text] || 'border-slate-200 dark:border-slate-700'} ${SEVERITY_ACCENT_COLORS[event.severity_text] || 'border-l-slate-200'} ${SEVERITY_BG_TINTS[event.severity_text] || ''}`}
                         >
-                            {/* Severe Event Border */
-                                event.severity_code >= 4 && (
-                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] z-10 animate-pulse"></div>
-                                )}
-
-                            {/* Standard Border (if not severe) */}
-                            {(!event.severity_code || event.severity_code < 4) && (
-                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.severity_code === 2 ? 'bg-yellow-500' : 'bg-blue-500'} 
-                                    shadow-[0_0_10px_rgba(59,130,246,0.5)]`}></div>
-                            )}
-
-                            {/* Update Flash Animation */}
-                            {event.updated_at && event.updated_at !== event.created_at && (
-                                <motion.div
-                                    initial={{ opacity: 0.5 }}
-                                    animate={{ opacity: 0 }}
-                                    transition={{ duration: 2 }}
-                                    className="absolute inset-0 bg-yellow-400/20 dark:bg-yellow-500/10 pointer-events-none z-0"
-                                />
+                            {/* Severe Event Pulsing Border Overlay */}
+                            {event.severity_text === 'Mycket stor påverkan' && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)] z-10 animate-pulse"></div>
                             )}
 
                             {/* Update Flash Animation */}
@@ -861,52 +928,68 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                     <div className="flex flex-row gap-2 w-full lg:w-auto mt-2 lg:mt-0 flex-shrink-0">
                                         {/* Camera Slot (Always visible) */}
                                         <div
-                                            className={`relative w-1/2 lg:w-48 h-24 sm:h-32 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 cursor-zoom-in ${expandedCameras.has(event.id) ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
-                                            onClick={(e) => {
-                                                if (event.camera_url || event.camera_snapshot) {
-                                                    e.stopPropagation();
-                                                    toggleCamera(event.id)
-                                                }
-                                            }}
+                                            className={`relative w-1/2 lg:w-48 h-24 sm:h-32 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 ${expandedCameras.has(event.id) ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
                                         >
-                                            {event.camera_snapshot ? (
-                                                <img
-                                                    src={`/api/snapshots/${event.camera_snapshot}`}
-                                                    alt={event.camera_name || 'Trafikkamera'}
-                                                    className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
-                                                    onError={(e) => {
-                                                        e.target.style.opacity = '0';
-                                                    }}
+                                            {/* Mobile Carousel View */}
+                                            <div className="md:hidden w-full h-full">
+                                                <CameraCarousel
+                                                    cameras={[
+                                                        ...(event.camera_snapshot ? [{ snapshot: event.camera_snapshot, name: event.camera_name }] : []),
+                                                        ...(event.extra_cameras?.filter(c => c.snapshot) || [])
+                                                    ]}
+                                                    onExpand={() => toggleCamera(event.id)}
+                                                    isExpanded={expandedCameras.has(event.id)}
                                                 />
-                                            ) : null}
-
-                                            {/* Placeholder shown if no camera or image fails */}
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
-                                                <Camera className="w-8 h-8 mb-1 opacity-20" />
-                                                <span className="text-[10px] italic lg:block hidden">Ingen bild</span>
                                             </div>
 
-                                            {/* Camera Name Overlay */}
-                                            {event.camera_name && (
-                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 z-20">
-                                                    <div className="flex items-center gap-1 truncate">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                                        <span className="truncate">{event.camera_name}</span>
+                                            {/* Desktop Static View */}
+                                            <div
+                                                className="hidden md:block w-full h-full cursor-zoom-in relative"
+                                                onClick={(e) => {
+                                                    if (event.camera_url || event.camera_snapshot) {
+                                                        e.stopPropagation();
+                                                        toggleCamera(event.id)
+                                                    }
+                                                }}
+                                            >
+                                                {event.camera_snapshot ? (
+                                                    <img
+                                                        src={`/api/snapshots/${event.camera_snapshot}`}
+                                                        alt={event.camera_name || 'Trafikkamera'}
+                                                        className="w-full h-full object-cover group-hover/camera:scale-105 transition-transform duration-500 z-10"
+                                                        onError={(e) => {
+                                                            e.target.style.opacity = '0';
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 z-0">
+                                                        <Camera className="w-8 h-8 mb-1 opacity-20" />
+                                                        <span className="text-[10px] italic">Ingen bild</span>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
 
-                                            {/* Extra Cameras Badge (Top Right) */}
-                                            {(() => {
-                                                const validExtras = event.extra_cameras?.filter(c => c.snapshot) || [];
-                                                if (validExtras.length === 0) return null;
-                                                return (
-                                                    <div className="absolute top-2 right-2 z-30 flex items-center gap-1.5 bg-blue-600/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg backdrop-blur-sm border border-white/20">
-                                                        <Camera className="w-3 h-3" />
-                                                        <span>+{validExtras.length}</span>
+                                                {/* Camera Name Overlay */}
+                                                {event.camera_name && (
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-1 z-20">
+                                                        <div className="flex items-center gap-1 truncate">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                            <span className="truncate">{event.camera_name}</span>
+                                                        </div>
                                                     </div>
-                                                );
-                                            })()}
+                                                )}
+
+                                                {/* Extra Cameras Badge (Top Right) */}
+                                                {(() => {
+                                                    const validExtras = event.extra_cameras?.filter(c => c.snapshot) || [];
+                                                    if (validExtras.length === 0) return null;
+                                                    return (
+                                                        <div className="absolute top-2 right-2 z-30 flex items-center gap-1.5 bg-blue-600/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg backdrop-blur-sm border border-white/20">
+                                                            <Camera className="w-3 h-3" />
+                                                            <span>+{validExtras.length}</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
                                         </div>
 
                                         {/* Map / Location Preview */}

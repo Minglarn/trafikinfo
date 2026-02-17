@@ -4,7 +4,7 @@ import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarC
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
-export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin, counts, setupRequired }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, onOpenLogin, counts, setupRequired, isSSEConnected }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { isLoggedIn, logout } = useAuth()
 
@@ -165,6 +165,17 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
                                     {!status.mqtt?.enabled ? 'Avaktiverad' : 'Frånkopplad'}
                                 </span>
                             )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Live Stream Status (SSE) */}
+                <div className="flex items-center gap-3">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isSSEConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    {!isCollapsed && (
+                        <div className="flex flex-col">
+                            <span className="text-sm text-slate-600 dark:text-slate-300">Live-ström</span>
+                            {!isSSEConnected && <span className="text-[10px] text-red-500">Frånkopplad</span>}
                         </div>
                     )}
                 </div>

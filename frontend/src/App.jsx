@@ -41,6 +41,9 @@ function AppContent() {
     cameras: 0
   })
 
+  // SSE Connection State
+  const [isSSEConnected, setIsSSEConnected] = useState(false)
+
   // 0. Last Seen State (Option A)
   const [lastSeen, setLastSeen] = useState(() => {
     const saved = localStorage.getItem('flux_lastSeen')
@@ -148,6 +151,7 @@ function AppContent() {
 
     eventSource.onopen = () => {
       console.log('SSE Stream connected (AppContent)')
+      setIsSSEConnected(true)
     }
 
     eventSource.onmessage = (event) => {
@@ -192,6 +196,7 @@ function AppContent() {
 
     eventSource.onerror = (err) => {
       console.error("Central SSE error", err)
+      setIsSSEConnected(false)
     }
 
     let isMounted = true
@@ -274,7 +279,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden transition-colors duration-300">
       {/* Mobile Top Header */}
-      <MobileHeader />
+      <MobileHeader isSSEConnected={isSSEConnected} />
 
       {/* Sidebar Navigation */}
       <Sidebar
@@ -284,6 +289,7 @@ function AppContent() {
         toggleTheme={toggleTheme}
         counts={counts}
         setupRequired={setupRequired}
+        isSSEConnected={isSSEConnected}
       />
 
       {/* Main Content Area */}
