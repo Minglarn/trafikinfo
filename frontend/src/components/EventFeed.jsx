@@ -116,19 +116,6 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded, variant = 'compact' }) 
                             className={`w-full h-full ${isExpandedVariant ? 'object-contain' : 'object-cover'}`}
                             onError={(e) => { e.target.style.opacity = '0'; }}
                         />
-
-                        {/* Compact Mode Overlay */}
-                        {!isExpandedVariant && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-md text-white p-2 z-20">
-                                <div className="flex items-center justify-between gap-1 truncate">
-                                    <div className="flex items-center gap-1.5 truncate">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                                        <span className="text-[9px] font-semibold truncate">{cameras[index].name}</span>
-                                    </div>
-                                    <span className="text-slate-400 text-[9px] font-medium shrink-0">{index + 1}/{cameras.length}</span>
-                                </div>
-                            </div>
-                        )}
                     </motion.div>
                 </AnimatePresence>
 
@@ -137,13 +124,13 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded, variant = 'compact' }) 
                     <>
                         <button
                             onClick={(e) => { e.stopPropagation(); prev(); }}
-                            className={`absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'opacity-0 group-hover/carousel:opacity-100 p-1.5' : 'opacity-100 p-2.5'}`}
+                            className={`absolute left-2 top-1/2 -translate-y-1/2 z-30 rounded-full bg-black/40 hover:bg-black/60 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'md:opacity-0 group-hover/carousel:opacity-100 p-1.5 opacity-100' : 'opacity-100 p-2.5'}`}
                         >
                             <ChevronLeft className={isExpandedVariant ? "w-6 h-6" : "w-4 h-4"} />
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); next(); }}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'opacity-0 group-hover/carousel:opacity-100 p-1.5' : 'opacity-100 p-2.5'}`}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 z-30 rounded-full bg-black/40 hover:bg-black/60 text-white transition-all backdrop-blur-sm ${!isExpandedVariant ? 'md:opacity-0 group-hover/carousel:opacity-100 p-1.5 opacity-100' : 'opacity-100 p-2.5'}`}
                         >
                             <ChevronRight className={isExpandedVariant ? "w-6 h-6" : "w-4 h-4"} />
                         </button>
@@ -977,8 +964,8 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                     )}
                                 </div>
 
-                                <div className="flex flex-col justify-start items-stretch gap-2 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700/50 pt-4 lg:pt-0 lg:pl-6 max-w-full overflow-hidden">
-                                    <div className="flex flex-row gap-2 w-full lg:w-auto mt-2 lg:mt-0 flex-shrink-0">
+                                <div className="flex flex-col justify-start items-stretch gap-3 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-700/50 pt-4 lg:pt-0 lg:pl-6 max-w-full">
+                                    <div className="flex flex-row gap-2 w-full lg:w-auto mt-1 lg:mt-0 flex-shrink-0">
                                         {/* Camera Slot (Always visible) */}
                                         <div
                                             className={`relative w-1/2 lg:w-48 h-24 sm:h-32 rounded-lg overflow-hidden border transition-all duration-300 group/camera flex items-center justify-center flex-shrink-0 ${expandedCameras.has(event.id) ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-500/10' : 'bg-slate-200 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
@@ -1169,12 +1156,60 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 );
 
                                                 return (
-                                                    <CameraCarousel
-                                                        cameras={allImages}
-                                                        variant="expanded"
-                                                        onExpand={() => toggleCamera(event.id)}
-                                                        isExpanded={true}
-                                                    />
+                                                    <div className="space-y-4">
+                                                        {/* Mobile Expanded Carousel */}
+                                                        <div className="md:hidden">
+                                                            <CameraCarousel
+                                                                cameras={allImages}
+                                                                variant="expanded"
+                                                                onExpand={() => toggleCamera(event.id)}
+                                                                isExpanded={true}
+                                                            />
+                                                        </div>
+
+                                                        {/* Desktop Expanded Grid (Reverted) */}
+                                                        <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {allImages.map((img, idx) => {
+                                                                const isThreeImages = allImages.length === 3;
+                                                                const isFirstOfThree = isThreeImages && idx === 0;
+
+                                                                return (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className={`relative group/expanded rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-black/5 flex flex-col ${isFirstOfThree ? 'md:col-span-2' : ''}`}
+                                                                    >
+                                                                        <div className="relative aspect-video bg-slate-900">
+                                                                            <img
+                                                                                src={img.src}
+                                                                                alt={img.name}
+                                                                                className="w-full h-full object-contain"
+                                                                                loading="lazy"
+                                                                                onError={(e) => {
+                                                                                    e.target.style.opacity = '0';
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md p-3 border-t border-slate-200 dark:border-white/10">
+                                                                            <div className="flex justify-between items-center gap-2">
+                                                                                <div className="min-w-0">
+                                                                                    <h3 className="text-slate-900 dark:text-white text-sm font-semibold truncate" title={img.name}>{img.name}</h3>
+                                                                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">{img.type}</p>
+                                                                                </div>
+                                                                                <a
+                                                                                    href={img.link}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="shrink-0 text-[10px] bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 px-2.5 py-1.5 rounded transition-colors text-slate-700 dark:text-slate-300 font-medium"
+                                                                                >
+                                                                                    Visa fullstorlek
+                                                                                </a>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                 );
                                             })()}
 
