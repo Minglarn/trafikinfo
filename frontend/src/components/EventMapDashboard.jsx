@@ -246,7 +246,7 @@ const EventMapDashboard = () => {
 
                     <MarkerClusterGroup
                         chunkedLoading
-                        maxClusterRadius={50}
+                        maxClusterRadius={20}
                         spiderfyOnMaxZoom={true}
                         showCoverageOnHover={false}
                     >
