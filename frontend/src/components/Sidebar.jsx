@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server, Camera, Lock, Unlock, LogOut, Snowflake, Calendar } from 'lucide-react'
+import { Activity, History, Settings, ChevronLeft, ChevronRight, Sun, Moon, BarChart2, Server, Camera, Lock, Unlock, LogOut, Snowflake, Calendar, Map as MapIcon } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -11,6 +11,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, toggleTheme, o
     const menuItems = [
         { id: 'feed', label: 'Realtid', icon: Activity },
         { id: 'planned', label: 'Planerat', icon: Calendar },
+        { id: 'map', label: 'Karta', icon: MapIcon },
         { id: 'road-conditions', label: 'Väglag', icon: Snowflake },
         { id: 'cameras', label: 'Vägkamera', icon: Camera },
         { id: 'statistics', label: 'Statistik', icon: BarChart2 },

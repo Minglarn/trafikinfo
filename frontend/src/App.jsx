@@ -13,6 +13,7 @@ import RoadCameraDashboard from './components/RoadCameraDashboard'
 import WhatIsNewModal from './components/WhatIsNewModal'
 import SessionGate from './components/SessionGate'
 import AdminDashboard from './components/AdminDashboard'
+import EventMapDashboard from './components/EventMapDashboard'
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('feed')
@@ -298,6 +299,7 @@ function AppContent() {
           <div className="max-w-7xl mx-auto">
             {activeTab === 'feed' && <EventFeed mode="realtid" initialEventId={initialEventId} onClearInitialEvent={() => setInitialEventId(null)} />}
             {activeTab === 'planned' && <EventFeed mode="planned" />}
+            {activeTab === 'map' && <EventMapDashboard />}
             {activeTab === 'road-conditions' && <RoadConditions />}
             {activeTab === 'cameras' && <RoadCameraDashboard />}
             {activeTab === 'statistics' && <Statistics />}

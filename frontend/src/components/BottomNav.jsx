@@ -1,10 +1,11 @@
 import React from 'react'
-import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar, Lock } from 'lucide-react'
+import { Activity, Camera, BarChart2, History, Settings, Snowflake, Calendar, Lock, Map as MapIcon } from 'lucide-react'
 
 const BottomNav = ({ activeTab, setActiveTab, counts = {}, setupRequired }) => {
     const tabs = [
         { id: 'feed', icon: Activity, label: 'Realtid' },
         { id: 'planned', icon: Calendar, label: 'Planerat' },
+        { id: 'map', icon: MapIcon, label: 'Karta' },
         { id: 'road-conditions', icon: Snowflake, label: 'Väglag' },
         { id: 'cameras', icon: Camera, label: 'Kamera' },
         { id: 'settings', icon: Settings, label: 'Inställn.' },

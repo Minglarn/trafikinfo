@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.82-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.90-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -22,6 +22,7 @@ Ett modernt system för att visa trafikinformation från Trafikverket i realtid.
 - **Historik**: Sökbar databas över alla historiska händelser och versionsändringar för att se hur en situation utvecklats över tid.
 - **MQTT-Integration**: Fullt stöd för Home Assistant och andra system via MQTT för både händelser och väglag.
 - **Vägkamera / Dashboard**: En dedikerad vy för att bläddra bland alla trafik- och väglagskameror. Inkluderar en interaktiv karta och en favorit-grid (Dashboard) som sparas lokalt i webbläsaren.
+- **Händelsekarta (Event Map)**: Visualisera alla händelser geografiskt på en fullskärmskarta med marker-clustering och realtidsuppdateringar.
 
 ## Kom igång med Docker Compose
 
