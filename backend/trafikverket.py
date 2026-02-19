@@ -4,6 +4,7 @@ import asyncio
 import xml.etree.ElementTree as ET
 from sse_starlette.sse import EventSourceResponse
 import re
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ class TrafikverketStream:
         self.connected = False
         self.last_error = None
         self.queue = asyncio.Queue()
+        self.last_activity = datetime.now()
 
         
 
@@ -73,6 +75,31 @@ class TrafikverketStream:
                 logger.error(f"Failed to get SSE URL: {e}")
                 return None
 
+    async def test_connection(self):
+        """Minimal query to check if API is reachable and key is valid."""
+        query = f"""
+        <REQUEST>
+            <LOGIN authenticationkey='{self.api_key}' />
+            <QUERY objecttype='Icon' schemaversion='1.1' namespace='Road.Infrastructure' limit='1'>
+                <INCLUDE>Id</INCLUDE>
+            </QUERY>
+        </REQUEST>
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                response.raise_for_status()
+                # If we get here, the API is reachable and the key is valid
+                self.connected = True
+                self.last_error = None
+                self.last_activity = datetime.now()
+                return True
+            except Exception as e:
+                self.connected = False
+                self.last_error = str(e)
+                logger.error(f"Connection test failed: {e}")
+                return False
+
     async def start_streaming(self, county_ids: list = None, object_type: str = "Situation"):
         self.running = True
         while self.running:
@@ -91,6 +118,7 @@ class TrafikverketStream:
                             if line.startswith("data:"):
                                 data = line[5:].strip()
                                 if data:
+                                    self.last_activity = datetime.now()
                                     await self.queue.put(data)
             except Exception as e:
                 self.connected = False

@@ -565,6 +565,38 @@ async def dynamic_worker_manager(api_key: str):
                     logger.info(f"Detected change in required counties (15-day window): {current_counties} -> {needed_counties}. Restarting workers...")
                     current_counties = needed_counties
                     start_worker(api_key, list(needed_counties) if needed_counties else [])
+                
+                # 5. Watchdog: check for task death or connection issues
+                else:
+                    tasks_healthy = True
+                    # Check Situation stream
+                    if stream_task and stream_task.done():
+                        logger.warning("Main Situation stream task died. Restarting...")
+                        tasks_healthy = False
+                    # Check RoadCondition stream
+                    if rc_stream_task and rc_stream_task.done():
+                        logger.warning("RoadCondition stream task died. Restarting...")
+                        tasks_healthy = False
+                    
+                    if tv_stream:
+                        # If disconnected, try a test connection
+                        if not tv_stream.connected:
+                            logger.info("API disconnected. Performing scheduled connection test...")
+                            await tv_stream.test_connection()
+                        else:
+                            # If connected but NO activity for 10 minutes, maybe stream is dead
+                            inactive_min = (datetime.now() - tv_stream.last_activity).total_seconds() / 60
+                            if inactive_min > 10:
+                                logger.warning(f"No activity on stream for {inactive_min:.1f} minutes. Testing API...")
+                                if not await tv_stream.test_connection():
+                                    logger.error("API unreachable during inactivity check.")
+                                else:
+                                    logger.warning("API reachable but stream idle. Restarting to be safe.")
+                                    tasks_healthy = False
+                    
+                    if not tasks_healthy:
+                        start_worker(api_key, list(current_counties) if current_counties else [])
+
             finally:
                 db.close()
             
