@@ -1,4 +1,4 @@
-VERSION = "26.2.89"
+VERSION = "26.2.90"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -441,7 +441,7 @@ async def sync_icons():
                 icon_url += "?type=png32x32"
                 
             try:
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=15.0) as client:
                     r = await client.get(icon_url)
                     if r.status_code == 200:
                         with open(local_path, "wb") as f:
@@ -531,6 +531,7 @@ async def dynamic_worker_manager(api_key: str):
     current_counties = set()
     while True:
         try:
+            logger.debug("Heartbeat: dynamic_worker_manager checking status...")
             db = SessionLocal()
             try:
                 # 1. Get subscriber counties
@@ -2020,21 +2021,17 @@ def get_events(limit: int = 50, offset: int = 0, hours: int = None, date: str = 
             query = query.filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
             
             # Type-specific filters (Partitioned by Start Time & Duration)
+            # Threshold: now + 1 minute grace period
+            grace_now = now + timedelta(minutes=1)
+            
             if type == "planned":
-                # Planned = Future starts OR Long-term (>= 5 days)
-                # Note: We use a small 1-minute grace for 'now' to avoid split-second race conditions
-                grace_now = now - timedelta(minutes=1)
-                
-                # Logic: (Start > Now) OR (Duration >= 5 days)
-                # In SQL terms for 'planned': start_time > now  OR  (end_time - start_time) >= 5 days
-                # SQLite doesn't have easy interval math, so we'll check the duration condition
+                # Planned = Future starts (> 1 min) OR Long-term (>= 5 days)
                 query = query.filter(
                     (TrafficEvent.start_time > grace_now) | 
                     (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5)
                 )
             else: # realtid (default)
-                # Realtid = Started AND Short-term (< 5 days)
-                grace_now = now + timedelta(minutes=1)
+                # Realtid = Started (or starts <= 1 min) AND Short-term (< 5 days)
                 query = query.filter(TrafficEvent.start_time <= grace_now)
                 query = query.filter(
                     (TrafficEvent.end_time == None) | 
@@ -2757,17 +2754,24 @@ def get_status_counts(
     # Base query for non-expired events
     active_events_query = db.query(TrafficEvent).filter((TrafficEvent.end_time == None) | (TrafficEvent.end_time > now))
     
-    # Realtid (Simplified matching API)
+    # Threshold: now + 1 minute grace period
+    grace_now = now + timedelta(minutes=1)
+
+    # Realtid: Started (or starts <= 1 min) AND Short-term (< 5 days)
     realtid_q = active_events_query.filter(
-        TrafficEvent.start_time <= (now + timedelta(minutes=30))
+        TrafficEvent.start_time <= grace_now
+    ).filter(
+        (TrafficEvent.end_time == None) | 
+        (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) < 5)
     )
     if s_feed:
         realtid_q = realtid_q.filter(TrafficEvent.created_at > s_feed)
     realtid_count = realtid_q.count()
     
-    # Planned (Simplified matching API)
+    # Planned: Future starts (> 1 min) OR Long-term (>= 5 days)
     planned_q = active_events_query.filter(
-        TrafficEvent.start_time > (now + timedelta(minutes=30))
+        (TrafficEvent.start_time > grace_now) | 
+        (func.julianday(TrafficEvent.end_time) - func.julianday(TrafficEvent.start_time) >= 5)
     )
     if s_planned:
         # For planned, we care about when they were added to the system

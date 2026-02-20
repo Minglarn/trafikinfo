@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.90] - 2026-02-20
+
+### 🚀 New Features
+- **Unified Sorting Logic**: Standardized the definition of "Real-time" and "Planned" across the entire application. Fixed a bug where events starting within 1 minute was miscategorized as planned.
+- **Robust SSE Reconnection**: Implemented manual reconnection logic with exponential backoff on the frontend to ensure the live stream stays active even after backend restarts or brief network drops.
+
+### 🛡️ Stability & Security
+- **Request Timeouts**: Implemented mandatory 15-second timeouts for all `httpx` network requests to prevent system-wide lockups during Trafikverket API latency.
+- **Improved Watchdog**: Enhanced the `dynamic_worker_manager` with heartbeat logging and more proactive reconnection checks for silent streams.
+- **Resource Management**: Verified and ensured proper database session closure in all background workers to prevent connection leaks.
+
 ## [26.2.89] - 2026-02-16
 
 ### 🚀 New Features

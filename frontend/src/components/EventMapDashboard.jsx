@@ -154,6 +154,16 @@ const EventMapDashboard = () => {
         // Listen for real-time updates from SSE via App.jsx custom events
         const handleNewEvent = (e) => {
             const data = e.detail;
+
+            // Filter by type: Only show "Real-time" on map
+            const now = new Date();
+            const start = new Date(data.start_time);
+            const end = data.end_time ? new Date(data.end_time) : null;
+            const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
+            const isPlanned = start > (new Date(now.getTime() + 60000)) || durationDays >= 5;
+
+            if (isPlanned) return;
+
             setEvents(prev => {
                 const existing = prev.find(ev => ev.id === data.id || ev.external_id === data.external_id);
                 if (existing) {

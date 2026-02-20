@@ -59,7 +59,7 @@ class TrafikverketStream:
             </QUERY>
         </REQUEST>
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 response.raise_for_status()
@@ -147,7 +147,7 @@ class TrafikverketStream:
             </QUERY>
         </REQUEST>
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 response.raise_for_status()
@@ -175,7 +175,7 @@ class TrafikverketStream:
             </QUERY>
         </REQUEST>
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 if response.status_code >= 400:
@@ -203,7 +203,7 @@ class TrafikverketStream:
             </QUERY>
         </REQUEST>
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 response.raise_for_status()
@@ -229,7 +229,7 @@ class TrafikverketStream:
             </QUERY>
         </REQUEST>
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
                 response.raise_for_status()
@@ -545,7 +545,7 @@ async def get_cameras(api_key: str):
         <INCLUDE>Location</INCLUDE>
     </QUERY>
 </REQUEST>"""
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.post(url, content=query, headers={"Content-Type": "text/xml"})
             if response.status_code != 200:

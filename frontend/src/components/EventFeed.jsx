@@ -436,9 +436,8 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                 const end = newEvent.end_time ? new Date(newEvent.end_time) : null;
                 const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
 
-                // Align with backend: Planned if (Future start) OR (Long-term)
-                // Add 1-min grace to avoid disappearance due to split-second differences
-                const isPlanned = start > (new Date(now.getTime() - 60000)) || durationDays >= 5;
+                // Align with backend: Planned if (Future start > 1 min) OR (Long-term >= 5 days)
+                const isPlanned = start > (new Date(now.getTime() + 60000)) || durationDays >= 5;
 
                 if (mode === 'planned' && !isPlanned) return prev;
                 if (mode === 'realtid' && isPlanned) return prev;
@@ -799,7 +798,8 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                                 const start = new Date(event.start_time);
                                                 const end = event.end_time ? new Date(event.end_time) : null;
                                                 const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
-                                                if (start > now) return (
+                                                // Simplified badge logic matching the tab separation
+                                                if (start > (new Date(now.getTime() + 60000))) return (
                                                     <span className="bg-purple-50 dark:bg-purple-500/5 text-purple-600 dark:text-purple-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-purple-200/50 dark:border-purple-500/20">
                                                         Kommande
                                                     </span>

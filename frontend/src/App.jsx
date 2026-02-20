@@ -44,6 +44,7 @@ function AppContent() {
 
   // SSE Connection State
   const [isSSEConnected, setIsSSEConnected] = useState(false)
+  const [sseRetryTrigger, setSseRetryTrigger] = useState(0)
 
   // 0. Last Seen State (Option A)
   const [lastSeen, setLastSeen] = useState(() => {
@@ -153,6 +154,7 @@ function AppContent() {
     eventSource.onopen = () => {
       console.log('SSE Stream connected (AppContent)')
       setIsSSEConnected(true)
+      setSseRetryTrigger(0) // Reset retries on successful connection
     }
 
     eventSource.onmessage = (event) => {
@@ -173,15 +175,13 @@ function AppContent() {
         } else {
           window.dispatchEvent(new CustomEvent('flux-traffic-event', { detail: data }))
 
-          // Logic for traffic event counts (feed or planned)
+          // Align with backend: Planned if (Future start > 1 min) OR (Long-term >= 5 days)
           const now = new Date();
           const start = new Date(data.start_time);
           const end = data.end_time ? new Date(data.end_time) : null;
           const durationDays = end ? (end - start) / (1000 * 60 * 60 * 24) : 0;
 
-          // Align with backend: Planned if (Future start) OR (Long-term)
-          // Add 1-min grace to avoid disappearance due to split-second differences
-          const isPlanned = start > (new Date(now.getTime() - 60000)) || durationDays >= 5;
+          const isPlanned = start > (new Date(now.getTime() + 60000)) || durationDays >= 5;
           const tab = isPlanned ? 'planned' : 'feed';
 
           if (activeTabRef.current !== tab) {
@@ -196,8 +196,18 @@ function AppContent() {
     }
 
     eventSource.onerror = (err) => {
-      console.error("Central SSE error", err)
+      console.error("Central SSE error (AppContent):", err)
       setIsSSEConnected(false)
+      eventSource.close()
+
+      // Attempt reconnection after a delay
+      const delay = Math.min(1000 * Math.pow(2, sseRetryTrigger), 30000)
+      console.log(`SSE reconnecting in ${delay}ms (Attempt ${sseRetryTrigger + 1})...`)
+      setTimeout(() => {
+        if (isMounted) {
+          setSseRetryTrigger(prev => prev + 1)
+        }
+      }, delay)
     }
 
     let isMounted = true
@@ -211,7 +221,7 @@ function AppContent() {
       console.log("Closing central SSE stream (AppContent)...")
       eventSource.close()
     }
-  }, []) // Connection is now truly stable, established once on mount
+  }, [sseRetryTrigger]) // Connection is now truly stable, established once on mount
 
 
   // Report Base URL and handle Deep Links
