@@ -1,6 +1,6 @@
 # 🚦 Trafikinfo Flux
 
-[![Version](https://img.shields.io/badge/version-26.2.92-blue.svg)](https://github.com/Minglarn/trafikinfo)
+[![Version](https://img.shields.io/badge/version-26.2.93-blue.svg)](https://github.com/Minglarn/trafikinfo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [![Python](https://img.shields.io/badge/python-3.11+-yellow.svg)](https://www.python.org/)
@@ -249,3 +249,6 @@ Projektet är byggt med följande teknologier:
 
 ## Licens
 Detta projekt är licensierat under **MIT License**.
+
+## Tack till 
+Ett stort tack till [@tubalainen](https://github.com/tubalainen) för att ha hittat och rapporterat buggen gällande länsfiltrering för vägkameror!

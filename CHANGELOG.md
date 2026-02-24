@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [26.2.93] - 2026-02-24
+
+### 🐛 Bug Fixes
+- **Camera County Filtering**: Fixed an issue where the map and view didn't respect the locally selected user counties for camera filtering, falling back to global admin settings. Thanks to [@tubalainen](https://github.com/tubalainen) for reporting this!
+
 ## [26.2.90] - 2026-02-20
 
 ### 🚀 New Features

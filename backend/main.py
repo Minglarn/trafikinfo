@@ -1,4 +1,4 @@
-VERSION = "26.2.90"
+VERSION = "26.2.93"
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, Header, status, Response, Cookie, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1812,12 +1812,33 @@ async def get_cameras_api(
     is_favorite: bool = None,
     road_number: str = None,
     ids: str = None,
+    county_no: str = None,
     db: Session = Depends(get_db),
     user=Depends(require_app_auth)
 ):
-    # Get selected counties from settings
-    county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
-    selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
+    selected_counties = []
+    
+    if county_no:
+        # Support comma-separated list of counties from frontend
+        try:
+            req_counties = [int(c.strip()) for c in str(county_no).split(",") if c.strip().isdigit()]
+            if req_counties:
+                # Stockholm normalization
+                if 1 in req_counties and 2 not in req_counties:
+                    req_counties.append(2)
+                
+                # Always include National/General items (ID 0)
+                if 0 not in req_counties:
+                    req_counties.append(0)
+                        
+                selected_counties = req_counties
+        except Exception as e:
+            logger.error(f"Error parsing camera counties filter: {e}")
+
+    if not selected_counties:
+        # Fall back to global selected counties from settings
+        county_setting = db.query(Settings).filter(Settings.key == "selected_counties").first()
+        selected_counties = [int(c.strip()) for c in county_setting.value.split(",")] if county_setting and county_setting.value else []
     
     # Base query for all relevant cameras in selected counties
     base_query = db.query(Camera)
