@@ -51,17 +51,15 @@ class TrafikverketStream:
         
         namespace_attr = f" namespace='{namespace}'" if namespace else ""
 
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='{object_type}' schemaversion='{schema_version}' sseurl='true'{namespace_attr}>
-                {filter_block}
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="{object_type}" schemaversion="{schema_version}" sseurl="true"{namespace_attr}>{filter_block}</QUERY></REQUEST>'
+        
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {
+                    "Content-Type": "text/xml",
+                    "Accept": "application/json"
+                }
+                response = await client.post(self.base_url, content=query, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 # The response contains a link to the SSE stream
@@ -77,17 +75,11 @@ class TrafikverketStream:
 
     async def test_connection(self):
         """Minimal query to check if API is reachable and key is valid."""
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='Icon' schemaversion='1.1' namespace='Road.Infrastructure' limit='1'>
-                <INCLUDE>Id</INCLUDE>
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="Icon" schemaversion="1.1" namespace="Road.Infrastructure" limit="1"><INCLUDE>Id</INCLUDE></QUERY></REQUEST>'
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+                response = await client.post(self.base_url, content=query, headers=headers)
                 response.raise_for_status()
                 # If we get here, the API is reachable and the key is valid
                 self.connected = True
@@ -137,19 +129,11 @@ class TrafikverketStream:
 
     async def fetch_icons(self):
         """Fetches all available icons from Road.Infrastructure"""
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='Icon' schemaversion='1.1' namespace='Road.Infrastructure'>
-                <FILTER>
-                    <EQ name="Deleted" value="false" />
-                </FILTER>
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="Icon" schemaversion="1.1" namespace="Road.Infrastructure"><FILTER><EQ name="Deleted" value="false" /></FILTER></QUERY></REQUEST>'
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+                response = await client.post(self.base_url, content=query, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 return data['RESPONSE']['RESULT'][0]['Icon']
@@ -162,22 +146,11 @@ class TrafikverketStream:
         # Note: County filtering in 2.1 is inconsistent; fetching all for local lookup
         filter_block = '<EQ name="Deleted" value="false" />'
 
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='road.weatherinfo'>
-                <FILTER>
-                    {filter_block}
-                </FILTER>
-                <INCLUDE>Id</INCLUDE>
-                <INCLUDE>Name</INCLUDE>
-                <INCLUDE>Geometry</INCLUDE>
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="WeatherMeasurepoint" schemaversion="2.1" namespace="road.weatherinfo"><FILTER>{filter_block}</FILTER><INCLUDE>Id</INCLUDE><INCLUDE>Name</INCLUDE><INCLUDE>Geometry</INCLUDE></QUERY></REQUEST>'
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+                response = await client.post(self.base_url, content=query, headers=headers)
                 if response.status_code >= 400:
                     logger.error(f"Weather API Error {response.status_code}: {response.text}")
                 response.raise_for_status()
@@ -189,23 +162,11 @@ class TrafikverketStream:
 
     async def fetch_weather_measurepoint(self, sid: str):
         """Fetches a specific weather measurepoint by ID (v2.1)"""
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherMeasurepoint' schemaversion='2.1' namespace='road.weatherinfo'>
-                <FILTER>
-                    <EQ name="Id" value="{sid}" />
-                </FILTER>
-                <INCLUDE>Id</INCLUDE>
-                <INCLUDE>Name</INCLUDE>
-                <INCLUDE>Geometry</INCLUDE>
-                <INCLUDE>Observation</INCLUDE>
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="WeatherMeasurepoint" schemaversion="2.1" namespace="road.weatherinfo"><FILTER><EQ name="Id" value="{sid}" /></FILTER><INCLUDE>Id</INCLUDE><INCLUDE>Name</INCLUDE><INCLUDE>Geometry</INCLUDE><INCLUDE>Observation</INCLUDE></QUERY></REQUEST>'
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+                response = await client.post(self.base_url, content=query, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 points = data['RESPONSE']['RESULT'][0].get('WeatherMeasurepoint', [])
@@ -221,17 +182,11 @@ class TrafikverketStream:
             conditions = "".join([f'<EQ name="MeasurepointId" value="{sid}" />' for sid in station_ids])
             filter_block = f"<FILTER><OR>{conditions}</OR></FILTER>"
 
-        query = f"""
-        <REQUEST>
-            <LOGIN authenticationkey='{self.api_key}' />
-            <QUERY objecttype='WeatherObservation' schemaversion='1.0' namespace='Road.WeatherInfo'>
-                {filter_block}
-            </QUERY>
-        </REQUEST>
-        """
+        query = f'<REQUEST><LOGIN authenticationkey="{self.api_key}" /><QUERY objecttype="WeatherObservation" schemaversion="1.0" namespace="Road.WeatherInfo">{filter_block}</QUERY></REQUEST>'
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
-                response = await client.post(self.base_url, content=query, headers={"Content-Type": "text/xml"})
+                headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+                response = await client.post(self.base_url, content=query, headers=headers)
                 response.raise_for_status()
                 data = response.json()
                 return data['RESPONSE']['RESULT'][0]['WeatherObservation']
@@ -522,32 +477,11 @@ def find_nearby_cameras(lat, lon, cameras, target_road=None, max_dist_km=5.0, li
 async def get_cameras(api_key: str):
     """Fetch all traffic cameras from Trafikverket API."""
     url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
-    query = f"""<REQUEST>
-    <LOGIN authenticationkey='{api_key}' />
-    <QUERY objecttype='Camera' namespace='road.infrastructure' schemaversion='1.1'>
-        <FILTER>
-            <EQ name="Deleted" value="false" />
-            <EQ name="Active" value="true" />
-        </FILTER>
-        <INCLUDE>Id</INCLUDE>
-        <INCLUDE>Name</INCLUDE>
-        <INCLUDE>Description</INCLUDE>
-        <INCLUDE>Type</INCLUDE>
-        <INCLUDE>PhotoUrl</INCLUDE>
-        <INCLUDE>PhotoUrlFullsize</INCLUDE>
-        <INCLUDE>PhotoUrlSketch</INCLUDE>
-        <INCLUDE>PhotoTime</INCLUDE>
-        <INCLUDE>HasFullSizePhoto</INCLUDE>
-        <INCLUDE>HasSketchImage</INCLUDE>
-        <INCLUDE>Geometry.WGS84</INCLUDE>
-        <INCLUDE>Direction</INCLUDE>
-        <INCLUDE>CountyNo</INCLUDE>
-        <INCLUDE>Location</INCLUDE>
-    </QUERY>
-</REQUEST>"""
+    query = f'<REQUEST><LOGIN authenticationkey="{api_key}" /><QUERY objecttype="Camera" namespace="road.infrastructure" schemaversion="1.1"><FILTER><EQ name="Deleted" value="false" /><EQ name="Active" value="true" /></FILTER><INCLUDE>Id</INCLUDE><INCLUDE>Name</INCLUDE><INCLUDE>Description</INCLUDE><INCLUDE>Type</INCLUDE><INCLUDE>PhotoUrl</INCLUDE><INCLUDE>PhotoUrlFullsize</INCLUDE><INCLUDE>PhotoUrlSketch</INCLUDE><INCLUDE>PhotoTime</INCLUDE><INCLUDE>HasFullSizePhoto</INCLUDE><INCLUDE>HasSketchImage</INCLUDE><INCLUDE>Geometry.WGS84</INCLUDE><INCLUDE>Direction</INCLUDE><INCLUDE>CountyNo</INCLUDE><INCLUDE>Location</INCLUDE></QUERY></REQUEST>'
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.post(url, content=query, headers={"Content-Type": "text/xml"})
+            headers = {"Content-Type": "text/xml", "Accept": "application/json"}
+            response = await client.post(url, content=query, headers=headers)
             if response.status_code != 200:
                 logger.error(f"Trafikverket API Error: {response.status_code} - {response.text}")
             response.raise_for_status()
