@@ -23,8 +23,8 @@ class TrafikverketStream:
 
     async def get_sse_url(self, county_ids: list = None, object_type: str = "Situation"):
         # Determine schema version, namespace, and filter field
-        schema_version = "1.5"
-        namespace = ""
+        schema_version = "1.6"
+        namespace = "Road.TrafficInfo"
         filter_field = "Deviation.CountyNo"
         
         if object_type == "RoadCondition":
@@ -70,7 +70,10 @@ class TrafikverketStream:
             except Exception as e:
                 self.connected = False
                 self.last_error = str(e)
-                logger.error(f"Failed to get SSE URL: {e}")
+                error_detail = ""
+                if hasattr(e, 'response'):
+                    error_detail = f" - {e.response.text}"
+                logger.error(f"Failed to get SSE URL for {object_type} v{schema_version}: {e}{error_detail}")
                 return None
 
     async def test_connection(self):
