@@ -179,6 +179,465 @@ const CameraCarousel = ({ cameras, onExpand, isExpanded, variant = 'compact' }) 
     );
 };
 
+// ─── Smart Timeline: Diff-engine for event history ───────────────────────────
+// Computes meaningful diffs between consecutive versions, groups sequential
+// changes of the same type, filters ghost updates, and collapses by default.
+
+function computeDiffs(versions, currentEvent) {
+    if (!versions || versions.length === 0) return [];
+
+    // Versions come newest-first from API. Reverse to process chronologically.
+    const chronological = [...versions].reverse();
+
+    const diffs = [];
+
+    for (let i = 0; i < chronological.length; i++) {
+        const prev = i === 0 ? null : chronological[i - 1];
+        const curr = chronological[i];
+
+        // For the very first version, compare against the CURRENT event state
+        // (since the first version is actually the oldest saved snapshot)
+        const changes = [];
+
+        if (i === 0) {
+            // This is the original state — mark as "created"
+            changes.push({ type: 'created', label: 'Händelse skapad', icon: '🆕' });
+            if (curr.title) changes[0].detail = curr.title;
+        } else {
+            // Compare curr (newer) vs prev (older)
+            if (curr.title !== prev.title) {
+                changes.push({
+                    type: 'title',
+                    label: 'Titel ändrad',
+                    icon: '📝',
+                    detail: curr.title,
+                    oldValue: prev.title
+                });
+            }
+
+            if (curr.severity_text !== prev.severity_text) {
+                changes.push({
+                    type: 'severity',
+                    label: `Allvarlighet ändrad`,
+                    icon: '⚠️',
+                    detail: `${prev.severity_text || 'Okänd'} → ${curr.severity_text || 'Okänd'}`,
+                    oldValue: prev.severity_text,
+                    newValue: curr.severity_text
+                });
+            }
+
+            if (curr.location !== prev.location) {
+                changes.push({
+                    type: 'location',
+                    label: 'Plats ändrad',
+                    icon: '📍',
+                    detail: curr.location,
+                    oldValue: prev.location
+                });
+            }
+
+            if (curr.description !== prev.description) {
+                changes.push({
+                    type: 'description',
+                    label: 'Beskrivning uppdaterad',
+                    icon: '📋',
+                    detail: curr.description
+                });
+            }
+
+            // end_time change
+            const prevEnd = prev.end_time ? new Date(prev.end_time) : null;
+            const currEnd = curr.end_time ? new Date(curr.end_time) : null;
+            if (currEnd && prevEnd) {
+                const diffMin = Math.round((currEnd - prevEnd) / 60000);
+                if (Math.abs(diffMin) >= 1) {
+                    changes.push({
+                        type: 'end_time',
+                        label: diffMin > 0 ? 'Beräknad sluttid framflyttad' : 'Beräknad sluttid tidigarelagd',
+                        icon: '🕒',
+                        detail: `${safeFormat(prev.end_time, 'HH:mm')} → ${safeFormat(curr.end_time, 'HH:mm')}`,
+                        diffMinutes: diffMin,
+                        oldTime: prev.end_time,
+                        newTime: curr.end_time
+                    });
+                }
+            } else if (currEnd && !prevEnd) {
+                changes.push({
+                    type: 'end_time',
+                    label: 'Sluttid tillagd',
+                    icon: '🕒',
+                    detail: safeFormat(curr.end_time, 'd MMM HH:mm'),
+                    diffMinutes: 0,
+                    newTime: curr.end_time
+                });
+            }
+
+            if (curr.camera_snapshot !== prev.camera_snapshot && curr.camera_snapshot) {
+                changes.push({
+                    type: 'camera',
+                    label: 'Ny kamerabild',
+                    icon: '📸',
+                    snapshot: curr.camera_snapshot
+                });
+            }
+
+            if (curr.message_type !== prev.message_type) {
+                changes.push({
+                    type: 'message_type',
+                    label: 'Meddelandetyp ändrad',
+                    icon: '🏷️',
+                    detail: `${prev.message_type || '–'} → ${curr.message_type || '–'}`
+                });
+            }
+
+            if (curr.temporary_limit !== prev.temporary_limit) {
+                changes.push({
+                    type: 'restriction',
+                    label: 'Hastighetsbegränsning ändrad',
+                    icon: '🚫',
+                    detail: curr.temporary_limit || 'Borttagen'
+                });
+            }
+
+            if (curr.traffic_restriction_type !== prev.traffic_restriction_type) {
+                changes.push({
+                    type: 'restriction',
+                    label: 'Trafikbegränsning ändrad',
+                    icon: '🚧',
+                    detail: curr.traffic_restriction_type || 'Borttagen'
+                });
+            }
+        }
+
+        // Ghost update filter: if no visible changes, skip
+        if (changes.length === 0) continue;
+
+        diffs.push({
+            timestamp: curr.version_timestamp,
+            changes,
+            severity_text: curr.severity_text
+        });
+    }
+
+    // Now also compare the LAST version (newest) against the current live event
+    if (chronological.length > 0) {
+        const lastVersion = chronological[chronological.length - 1];
+        const liveChanges = [];
+
+        if (currentEvent.title !== lastVersion.title) {
+            liveChanges.push({
+                type: 'title',
+                label: 'Titel ändrad',
+                icon: '📝',
+                detail: currentEvent.title,
+                oldValue: lastVersion.title
+            });
+        }
+        if (currentEvent.severity_text !== lastVersion.severity_text) {
+            liveChanges.push({
+                type: 'severity',
+                label: 'Allvarlighet ändrad',
+                icon: '⚠️',
+                detail: `${lastVersion.severity_text || 'Okänd'} → ${currentEvent.severity_text || 'Okänd'}`
+            });
+        }
+        if (currentEvent.location !== lastVersion.location) {
+            liveChanges.push({
+                type: 'location',
+                label: 'Plats ändrad',
+                icon: '📍',
+                detail: currentEvent.location
+            });
+        }
+        if (currentEvent.description !== lastVersion.description) {
+            liveChanges.push({
+                type: 'description',
+                label: 'Beskrivning uppdaterad',
+                icon: '📋',
+                detail: currentEvent.description
+            });
+        }
+        const lastEnd = lastVersion.end_time ? new Date(lastVersion.end_time) : null;
+        const liveEnd = currentEvent.end_time ? new Date(currentEvent.end_time) : null;
+        if (liveEnd && lastEnd) {
+            const diffMin = Math.round((liveEnd - lastEnd) / 60000);
+            if (Math.abs(diffMin) >= 1) {
+                liveChanges.push({
+                    type: 'end_time',
+                    label: diffMin > 0 ? 'Beräknad sluttid framflyttad' : 'Beräknad sluttid tidigarelagd',
+                    icon: '🕒',
+                    detail: `${safeFormat(lastVersion.end_time, 'HH:mm')} → ${safeFormat(currentEvent.end_time, 'HH:mm')}`,
+                    diffMinutes: diffMin
+                });
+            }
+        }
+
+        if (liveChanges.length > 0) {
+            diffs.push({
+                timestamp: currentEvent.updated_at || currentEvent.created_at,
+                changes: liveChanges,
+                severity_text: currentEvent.severity_text,
+                isCurrent: true
+            });
+        }
+    }
+
+    return diffs;
+}
+
+function groupDiffs(diffs) {
+    if (diffs.length === 0) return [];
+
+    const grouped = [];
+    let i = 0;
+
+    while (i < diffs.length) {
+        const entry = diffs[i];
+
+        // Check if this is a single end_time-only change
+        if (entry.changes.length === 1 && entry.changes[0].type === 'end_time') {
+            // Scan ahead for consecutive end_time-only entries
+            let j = i + 1;
+            while (
+                j < diffs.length &&
+                diffs[j].changes.length === 1 &&
+                diffs[j].changes[0].type === 'end_time'
+            ) {
+                j++;
+            }
+
+            const count = j - i;
+            if (count >= 2) {
+                // Group them
+                const first = diffs[i].changes[0];
+                const last = diffs[j - 1].changes[0];
+                const totalDiff = (diffs.slice(i, j)).reduce((sum, d) => sum + (d.changes[0].diffMinutes || 0), 0);
+
+                grouped.push({
+                    timestamp: diffs[j - 1].timestamp,
+                    firstTimestamp: diffs[i].timestamp,
+                    isGroup: true,
+                    groupCount: count,
+                    changes: [{
+                        type: 'end_time_group',
+                        label: `Sluttid justerad ${count} gånger`,
+                        icon: '🕒',
+                        detail: `${safeFormat(first.oldTime || first.detail?.split(' → ')[0], 'HH:mm') || '–'} → ${safeFormat(last.newTime || last.detail?.split(' → ')[1], 'HH:mm') || '–'}`,
+                        totalDiffMinutes: totalDiff,
+                        count
+                    }],
+                    severity_text: diffs[j - 1].severity_text
+                });
+                i = j;
+                continue;
+            }
+        }
+
+        grouped.push(entry);
+        i++;
+    }
+
+    return grouped;
+}
+
+const CHANGE_TYPE_STYLES = {
+    created: 'bg-green-500',
+    title: 'bg-blue-500',
+    severity: 'bg-red-500',
+    location: 'bg-purple-500',
+    description: 'bg-slate-500',
+    end_time: 'bg-amber-500',
+    end_time_group: 'bg-amber-500',
+    camera: 'bg-cyan-500',
+    message_type: 'bg-indigo-500',
+    restriction: 'bg-orange-500',
+};
+
+const CHANGE_TYPE_BG = {
+    created: 'bg-green-50 dark:bg-green-500/10 border-green-200/50 dark:border-green-500/20',
+    title: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200/50 dark:border-blue-500/20',
+    severity: 'bg-red-50 dark:bg-red-500/10 border-red-200/50 dark:border-red-500/20',
+    location: 'bg-purple-50 dark:bg-purple-500/10 border-purple-200/50 dark:border-purple-500/20',
+    description: 'bg-slate-50 dark:bg-slate-500/10 border-slate-200/50 dark:border-slate-500/20',
+    end_time: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200/50 dark:border-amber-500/20',
+    end_time_group: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200/50 dark:border-amber-500/20',
+    camera: 'bg-cyan-50 dark:bg-cyan-500/10 border-cyan-200/50 dark:border-cyan-500/20',
+    message_type: 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200/50 dark:border-indigo-500/20',
+    restriction: 'bg-orange-50 dark:bg-orange-500/10 border-orange-200/50 dark:border-orange-500/20',
+};
+
+function SmartTimeline({ versions, currentEvent }) {
+    const [expanded, setExpanded] = useState(false);
+    const [expandedSnapshots, setExpandedSnapshots] = useState(new Set());
+
+    const rawDiffs = useMemo(() => computeDiffs(versions, currentEvent), [versions, currentEvent]);
+    const grouped = useMemo(() => groupDiffs(rawDiffs), [rawDiffs]);
+
+    // Reverse so newest is on top
+    const displayDiffs = useMemo(() => [...grouped].reverse(), [grouped]);
+
+    const DEFAULT_SHOW = 3;
+    const visibleDiffs = expanded ? displayDiffs : displayDiffs.slice(0, DEFAULT_SHOW);
+    const hiddenCount = displayDiffs.length - DEFAULT_SHOW;
+    const totalRawVersions = versions?.length || 0;
+    const filteredOutCount = totalRawVersions - rawDiffs.length;
+
+    const toggleSnapshot = (idx) => {
+        setExpandedSnapshots(prev => {
+            const next = new Set(prev);
+            if (next.has(idx)) next.delete(idx);
+            else next.add(idx);
+            return next;
+        });
+    };
+
+    if (displayDiffs.length === 0) {
+        return (
+            <div className="text-center py-6 px-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                <HistoryIcon className="w-6 h-6 mx-auto mb-2 text-slate-300 dark:text-slate-700 opacity-50" />
+                <p className="text-slate-500 text-sm">Inga meningsfulla ändringar hittades</p>
+                {filteredOutCount > 0 && (
+                    <p className="text-slate-400 text-[10px] mt-1">
+                        {filteredOutCount} interna uppdatering{filteredOutCount > 1 ? 'ar' : ''} filtrerades bort (inga synliga ändringar)
+                    </p>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1">
+            {/* Summary bar */}
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Händelseförlopp</span>
+                    <span className="text-[10px] bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold">
+                        {displayDiffs.length} {displayDiffs.length === 1 ? 'ändring' : 'ändringar'}
+                    </span>
+                </div>
+                {filteredOutCount > 0 && (
+                    <span className="text-[9px] text-slate-400 italic">
+                        {filteredOutCount} intern{filteredOutCount > 1 ? 'a' : ''} dold{filteredOutCount > 1 ? 'a' : ''}
+                    </span>
+                )}
+            </div>
+
+            {/* Timeline */}
+            <div className="relative pl-6 space-y-3 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gradient-to-b before:from-blue-300 before:via-slate-200 before:to-slate-100 dark:before:from-blue-600 dark:before:via-slate-700 dark:before:to-slate-800">
+                {visibleDiffs.map((diff, idx) => {
+                    const primaryChange = diff.changes[0];
+                    const dotColor = CHANGE_TYPE_STYLES[primaryChange.type] || 'bg-slate-400';
+                    const bgColor = CHANGE_TYPE_BG[primaryChange.type] || 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/50 dark:border-slate-700/50';
+
+                    return (
+                        <div key={idx} className="relative">
+                            {/* Timeline dot */}
+                            <div className={`absolute -left-[24px] top-2 w-[13px] h-[13px] rounded-full ${dotColor} border-2 border-white dark:border-slate-800 z-10 shadow-sm ${diff.isCurrent ? 'ring-2 ring-blue-400/50 animate-pulse' : ''}`} />
+
+                            <div className={`rounded-lg border p-2.5 transition-all ${bgColor}`}>
+                                {/* Timestamp row */}
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                        {diff.isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
+                                        {diff.isCurrent ? 'Nuvarande' : safeFormat(diff.timestamp, 'd MMM HH:mm:ss')}
+                                    </span>
+                                    {diff.isGroup && (
+                                        <span className="text-[9px] bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold">
+                                            ×{diff.groupCount}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Changes */}
+                                <div className="space-y-1.5">
+                                    {diff.changes.map((change, cidx) => (
+                                        <div key={cidx}>
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-sm flex-shrink-0 mt-0.5">{change.icon}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        {change.label}
+                                                    </span>
+                                                    {change.detail && (
+                                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed break-words">
+                                                            {change.detail}
+                                                        </p>
+                                                    )}
+                                                    {change.oldValue && change.type === 'title' && (
+                                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-through">
+                                                            {change.oldValue}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Camera snapshot (collapsible) */}
+                                            {change.type === 'camera' && change.snapshot && (
+                                                <div className="mt-2 ml-6">
+                                                    <button
+                                                        onClick={() => toggleSnapshot(`${idx}-${cidx}`)}
+                                                        className="text-[10px] text-cyan-600 dark:text-cyan-400 font-medium hover:underline flex items-center gap-1"
+                                                    >
+                                                        <Camera className="w-3 h-3" />
+                                                        {expandedSnapshots.has(`${idx}-${cidx}`) ? 'Dölj bild' : 'Visa bild'}
+                                                    </button>
+                                                    <AnimatePresence>
+                                                        {expandedSnapshots.has(`${idx}-${cidx}`) && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                className="overflow-hidden"
+                                                            >
+                                                                <div className="mt-2 relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-video max-w-xs">
+                                                                    <img
+                                                                        src={`/api/snapshots/${change.snapshot}`}
+                                                                        alt="Historisk bild"
+                                                                        className="w-full h-full object-cover cursor-zoom-in"
+                                                                        onClick={() => window.open(`/api/snapshots/${change.snapshot}`, '_blank')}
+                                                                    />
+                                                                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm px-2 py-1 text-[8px] text-white flex items-center gap-1">
+                                                                        <Camera className="w-2 h-2" />
+                                                                        <span>Bild från denna tidpunkt</span>
+                                                                    </div>
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Expand / Collapse */}
+            {hiddenCount > 0 && (
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="w-full mt-2 py-2 px-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400 transition-all flex items-center justify-center gap-2"
+                >
+                    {expanded ? (
+                        <>
+                            <ChevronRight className="w-3 h-3 rotate-[-90deg]" />
+                            Visa mindre
+                        </>
+                    ) : (
+                        <>
+                            <ChevronRight className="w-3 h-3 rotate-90" />
+                            Visa hela historiken ({hiddenCount} till)
+                        </>
+                    )}
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 'realtid' }) {
     const [events, setEvents] = useState([])
     const [selectedEvent, setSelectedEvent] = useState(null)
@@ -900,56 +1359,10 @@ export default function EventFeed({ initialEventId, onClearInitialEvent, mode = 
                                     ) : (
                                         <div className="space-y-4 py-2">
                                             {eventHistory[event.external_id]?.length > 0 ? (
-                                                <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
-                                                    {eventHistory[event.external_id].map((version, vidx) => (
-                                                        <div key={vidx} className="relative">
-                                                            <div className="absolute -left-[24px] top-1.5 w-[13px] h-[13px] rounded-full bg-blue-500 border-2 border-white dark:border-slate-800 z-10 shadow-sm"></div>
-                                                            <div className="space-y-1">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                                        Uppdatering {safeFormat(version.version_timestamp, 'd MMM HH:mm:ss')}
-                                                                    </span>
-                                                                    {version.severity_text && (
-                                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${SEVERITY_COLORS[version.severity_text] || ''}`}>
-                                                                            {version.severity_text}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                                                    {version.icon_url && <img src={version.icon_url} alt="" className="w-5 h-5" />}
-                                                                    {version.title}
-                                                                </p>
-                                                                {version.location && (
-                                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 ml-1">
-                                                                        <MapPin className="w-3 h-3" />
-                                                                        <span>{version.location}</span>
-                                                                    </div>
-                                                                )}
-                                                                <div className="mt-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100/50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-                                                                    {version.description?.split(' | ').map((d, i) => <p key={i} className="leading-relaxed">{d}</p>)}
-
-                                                                    {version.camera_snapshot && (
-                                                                        <div className="mt-3 relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-video max-w-sm">
-                                                                            <img
-                                                                                src={`/api/snapshots/${version.camera_snapshot}`}
-                                                                                alt="Historisk bild"
-                                                                                className="w-full h-full object-cover cursor-zoom-in"
-                                                                                onClick={() => window.open(`/api/snapshots/${version.camera_snapshot}`, '_blank')}
-                                                                            />
-                                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm px-2 py-1 text-[8px] text-white flex items-center gap-1">
-                                                                                <Camera className="w-2 h-2" />
-                                                                                <span>Bild från denna tidpunkt</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    <div className="text-[10px] text-slate-400 italic pt-2">
-                                                        * Endast ändringar sparas i historiken
-                                                    </div>
-                                                </div>
+                                                <SmartTimeline
+                                                    versions={eventHistory[event.external_id]}
+                                                    currentEvent={event}
+                                                />
                                             ) : (
                                                 <div className="text-center py-8 px-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
                                                     <HistoryIcon className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700 opacity-50" />
