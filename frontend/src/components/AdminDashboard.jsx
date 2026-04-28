@@ -63,6 +63,28 @@ const AdminDashboard = () => {
     const [saveStatus, setSaveStatus] = useState(null);
     const [showApiKey, setShowApiKey] = useState(false);
 
+    // Broadcast State
+    const [broadcastTitle, setBroadcastTitle] = useState('Systemmeddelande');
+    const [broadcastMessage, setBroadcastMessage] = useState('Systemet startas om för underhåll. Det kan förekomma kortare avbrott i tjänsten.');
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+    const handleBroadcast = async () => {
+        if (!window.confirm(`Är du säker på att du vill skicka detta meddelande till ALLA ${data?.push_subscriptions?.length || 0} prenumeranter?`)) return;
+        setIsBroadcasting(true);
+        try {
+            const res = await axios.post('/api/admin/push-broadcast', {
+                title: broadcastTitle,
+                message: broadcastMessage,
+                url: "/"
+            });
+            alert(`Notisen skickades framgångsrikt till ${res.data.sent_count} prenumeranter.`);
+        } catch (err) {
+            console.error(err);
+            alert('Det gick inte att skicka notisen.');
+        }
+        setIsBroadcasting(false);
+    };
+
     useEffect(() => {
         if (isLoggedIn) {
             fetchAdminData();
@@ -622,6 +644,52 @@ const AdminDashboard = () => {
                         >
                             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                                 <div className="p-8 space-y-8">
+                                    {/* Push Broadcast */}
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 bg-purple-500/10 rounded-xl">
+                                                <Bell className="w-6 h-6 text-purple-500" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold dark:text-white">Broadcast Notis</h3>
+                                                <p className="text-xs text-slate-500">Skicka push-notis till ALLA registrerade klienter</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-purple-50 dark:bg-purple-900/10 p-6 rounded-2xl border border-purple-100 dark:border-purple-800/30 space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Titel</label>
+                                                <input
+                                                    type="text"
+                                                    value={broadcastTitle}
+                                                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                                                    className="w-full px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white text-sm"
+                                                    placeholder="Titel"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Meddelande</label>
+                                                <textarea
+                                                    value={broadcastMessage}
+                                                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                                                    rows="3"
+                                                    className="w-full px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-purple-500 dark:text-white text-sm resize-none"
+                                                    placeholder="Meddelande text..."
+                                                ></textarea>
+                                            </div>
+                                            <button
+                                                onClick={handleBroadcast}
+                                                disabled={isBroadcasting}
+                                                className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-400 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-purple-600/20 active:scale-95"
+                                            >
+                                                {isBroadcasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+                                                Skicka till Alla ({data?.push_subscriptions?.length || 0})
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Divider */}
+                                    <div className="border-t border-slate-100 dark:border-slate-800"></div>
+
                                     {/* Data Retention */}
                                     <div>
                                         <div className="flex items-center gap-3 mb-6">

@@ -2695,6 +2695,24 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             logger.error(f"Error notifying subscriber {sub.id}: {e}")
             continue
 
+class PushBroadcastRequest(BaseModel):
+    title: str
+    message: str
+    url: str = "/"
+
+@app.post("/api/admin/push-broadcast")
+async def broadcast_push_notification(payload: PushBroadcastRequest, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    subs = db.query(PushSubscription).all()
+    count = 0
+    for sub in subs:
+        try:
+            # We don't filter by county/topic because this is a system admin broadcast
+            await send_push_notification(sub, payload.title, payload.message, payload.url, db, icon=None, image=None, ttl=86400)
+            count += 1
+        except Exception as e:
+            logger.error(f"Failed to broadcast to {sub.endpoint}: {e}")
+    return {"status": "ok", "sent_count": count, "total_subs": len(subs)}
+
 @app.get("/api/admin/clients")
 def get_admin_clients(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     """Return active clients and push subscriptions for admin monitoring."""
