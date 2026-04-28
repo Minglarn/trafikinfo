@@ -384,6 +384,7 @@ rc_stream = None
 rc_stream_task = None
 rc_processor_task = None
 icon_sync_task = None
+cleanup_task = None
 weather_sync_task = None
 cameras = []
 weather_stations = {}
@@ -393,9 +394,9 @@ weather_stations = {}
 async def shutdown_event():
     logger.info("Shutdown requested, stopping background tasks...")
     global stream_task, processor_task, refresh_task, init_cameras_task, tv_stream
-    global rc_stream_task, rc_processor_task, rc_stream
+    global rc_stream_task, rc_processor_task, rc_stream, cleanup_task
     
-    tasks = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task, rc_stream_task, rc_processor_task] if t]
+    tasks = [t for t in [stream_task, processor_task, refresh_task, init_cameras_task, rc_stream_task, rc_processor_task, cleanup_task] if t]
     if tasks:
         for task in tasks:
             task.cancel()
@@ -456,6 +457,50 @@ async def sync_icons():
     except Exception as e:
         logger.error(f"Error during icon sync: {e}")
 
+async def periodic_cleanup():
+    """Background task to clean up old events and snapshots based on retention_days."""
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                retention_setting = db.query(Settings).filter(Settings.key == "retention_days").first()
+                days = int(retention_setting.value) if retention_setting and retention_setting.value.isdigit() else 30
+                
+                cutoff_date = datetime.now() - timedelta(days=days)
+                logger.info(f"Running periodic cleanup. Removing events and snapshots older than {cutoff_date} ({days} days)")
+                
+                # Delete old DB records
+                db.query(TrafficEventVersion).filter(TrafficEventVersion.version_timestamp < cutoff_date).delete()
+                events_deleted = db.query(TrafficEvent).filter(TrafficEvent.updated_at < cutoff_date).delete()
+                
+                db.query(RoadConditionVersion).filter(RoadConditionVersion.timestamp < cutoff_date).delete()
+                rcs_deleted = db.query(RoadCondition).filter(RoadCondition.updated_at < cutoff_date).delete()
+                
+                db.commit()
+                
+                # Delete files in SNAPSHOTS_DIR older than cutoff_date
+                cutoff_timestamp = datetime.now().timestamp() - (days * 86400)
+                deleted_files = 0
+                if os.path.exists(SNAPSHOTS_DIR):
+                    for filename in os.listdir(SNAPSHOTS_DIR):
+                        file_path = os.path.join(SNAPSHOTS_DIR, filename)
+                        try:
+                            if os.path.isfile(file_path):
+                                if os.stat(file_path).st_mtime < cutoff_timestamp:
+                                    os.remove(file_path)
+                                    deleted_files += 1
+                        except Exception as e:
+                            logger.error(f"Failed to delete old snapshot file {file_path}: {e}")
+                
+                logger.info(f"Cleanup complete. Deleted {events_deleted} events, {rcs_deleted} road conditions, and {deleted_files} snapshot files.")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in periodic_cleanup: {e}")
+            
+        # Run once a day
+        await asyncio.sleep(86400)
+
 async def periodic_icon_sync():
     """Background task to sync icons once per day."""
     while True:
@@ -511,6 +556,11 @@ def start_worker(api_key: str, county_ids: list = None):
     # Start icon sync
     if not icon_sync_task or icon_sync_task.done():
         icon_sync_task = asyncio.create_task(periodic_icon_sync())
+        
+    # Start cleanup task
+    global cleanup_task
+    if not cleanup_task or cleanup_task.done():
+        cleanup_task = asyncio.create_task(periodic_cleanup())
     
     # Start weather sync (One-time initialization)
     global weather_sync_task
