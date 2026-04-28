@@ -1150,7 +1150,7 @@ async def event_processor():
                         )
                         
                         if not push_relevant_change and ev.get('end_time'):
-                            new_end_time = datetime.fromisoformat(ev['end_time'])
+                            new_end_time = datetime.fromisoformat(ev['end_time']).replace(tzinfo=None)
                             if not existing.end_time:
                                 push_relevant_change = True
                             else:
@@ -1542,7 +1542,7 @@ async def road_condition_processor():
                         )
                         
                         if not push_relevant_change and rc.get('end_time'):
-                            new_end_time = datetime.fromisoformat(rc['end_time'])
+                            new_end_time = datetime.fromisoformat(rc['end_time']).replace(tzinfo=None)
                             if not existing.end_time:
                                 push_relevant_change = True
                             else:
