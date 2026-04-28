@@ -2589,7 +2589,7 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             severity_icon = SEVERITY_ICONS.get(severity, "⚠️")
             
             # 1. Build Title — compact: emoji + event description
-            title_core = data.get('title', 'Trafikhändelse')
+            title_core = data.get('message_type') or 'Trafikhändelse'
             # Clean county suffix from title
             clean_title_core = clean_county_text(title_core)
             title = f"{severity_icon} {clean_title_core}"
