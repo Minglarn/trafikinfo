@@ -50,8 +50,8 @@ export default function Settings() {
     const [pushEnabled, setPushEnabled] = useState(false)
     const [subscribing, setSubscribing] = useState(false)
     const [status, setStatus] = useState(null)
-    const [topicRealtid, setTopicRealtid] = useState(true)
-    const [topicRoadCondition, setTopicRoadCondition] = useState(true)
+    const [topicRealtid, setTopicRealtid] = useState(() => localStorage.getItem('push_topic_realtid') !== 'false')
+    const [topicRoadCondition, setTopicRoadCondition] = useState(() => localStorage.getItem('push_topic_road_condition') !== 'false')
 
     // Customization preferences
     const [includeSeverity, setIncludeSeverity] = useState(() => localStorage.getItem('push_include_severity') !== 'false')
@@ -79,6 +79,8 @@ export default function Settings() {
     }, [localCounties])
 
     useEffect(() => {
+        localStorage.setItem('push_topic_realtid', topicRealtid)
+        localStorage.setItem('push_topic_road_condition', topicRoadCondition)
         localStorage.setItem('push_include_severity', includeSeverity)
         localStorage.setItem('push_include_image', includeImage)
         localStorage.setItem('push_include_weather', includeWeather)
