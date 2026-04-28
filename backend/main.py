@@ -482,15 +482,15 @@ async def periodic_cleanup():
                 cutoff_timestamp = datetime.now().timestamp() - (days * 86400)
                 deleted_files = 0
                 if os.path.exists(SNAPSHOTS_DIR):
-                    for filename in os.listdir(SNAPSHOTS_DIR):
-                        file_path = os.path.join(SNAPSHOTS_DIR, filename)
-                        try:
-                            if os.path.isfile(file_path):
+                    for root, dirs, files in os.walk(SNAPSHOTS_DIR):
+                        for filename in files:
+                            file_path = os.path.join(root, filename)
+                            try:
                                 if os.stat(file_path).st_mtime < cutoff_timestamp:
                                     os.remove(file_path)
                                     deleted_files += 1
-                        except Exception as e:
-                            logger.error(f"Failed to delete old snapshot file {file_path}: {e}")
+                            except Exception as e:
+                                logger.error(f"Failed to delete old snapshot file {file_path}: {e}")
                 
                 logger.info(f"Cleanup complete. Deleted {events_deleted} events, {rcs_deleted} road conditions, and {deleted_files} snapshot files.")
             finally:
