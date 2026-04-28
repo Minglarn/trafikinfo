@@ -1138,7 +1138,25 @@ async def event_processor():
                         # We still need fullsize_url if we want to update the primary snapshot later
                         # but if we have existing.camera_snapshot, it won't be called.
                     
+                    push_relevant_change = False
                     if existing:
+                        push_relevant_change = (
+                            existing.title != ev['title'] or
+                            existing.location != ev['location'] or
+                            existing.severity_code != ev.get('severity_code') or
+                            existing.message_type != ev.get('message_type') or
+                            existing.icon_id != ev.get('icon_id') or
+                            existing.county_no != ev.get('county_no', 0)
+                        )
+                        
+                        if not push_relevant_change and ev.get('end_time'):
+                            new_end_time = datetime.fromisoformat(ev['end_time'])
+                            if not existing.end_time:
+                                push_relevant_change = True
+                            else:
+                                diff = abs((new_end_time - existing.end_time).total_seconds()) / 60
+                                if diff >= 15:
+                                    push_relevant_change = True
                         # Check if anything significant changed before updating
                         # We compare: title, description, location, severity_code, message_type, times
                         has_changed = (
@@ -1413,7 +1431,7 @@ async def event_processor():
                     db.commit()
 
                     # Notify subscribers for NEW events or SIGNIFICANT updates
-                    if not existing or has_changed:
+                    if not existing or push_relevant_change:
                         await notify_subscribers(mqtt_data, db, type="event")
 
                     # Broadcast to connected frontend clients
@@ -1514,7 +1532,23 @@ async def road_condition_processor():
                                  camera_snapshot = await download_camera_snapshot(camera_url, f"rc_{target_id}", rc.get('county_no', 0), fullsize_url)
 
                     final_rc = None
+                    push_relevant_change = False
                     if existing:
+                        push_relevant_change = (
+                            existing.condition_text != rc.get('condition_text') or
+                            existing.measure != rc.get('measure') or
+                            existing.warning != rc.get('warning') or
+                            existing.location_text != rc.get('location_text')
+                        )
+                        
+                        if not push_relevant_change and rc.get('end_time'):
+                            new_end_time = datetime.fromisoformat(rc['end_time'])
+                            if not existing.end_time:
+                                push_relevant_change = True
+                            else:
+                                diff = abs((new_end_time - existing.end_time).total_seconds()) / 60
+                                if diff >= 15:
+                                    push_relevant_change = True
                         existing.condition_code = rc['condition_code']
                         existing.condition_text = rc['condition_text']
                         existing.measure = rc['measure']
@@ -1748,7 +1782,7 @@ async def road_condition_processor():
                     }
                     
                     # Notify subscribers for NEW/UPDATED road conditions with warnings
-                    if final_rc.warning:
+                    if final_rc.warning and (not is_update or push_relevant_change):
                         # Fetch base_url for consistency
                         await notify_subscribers(condition_data, db, type="road_condition")
 
