@@ -2620,6 +2620,11 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             
             # 2. Build Message — newline-separated lines
             lines = []
+            
+            original_title = data.get('title')
+            if original_title:
+                lines.append(clean_county_text(original_title))
+                
             if sub.include_location:
                 location = data.get('location', '')
                 if location:
