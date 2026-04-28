@@ -67,6 +67,7 @@ self.addEventListener('push', (event) => {
                 data: {
                     url: data.url
                 },
+                actions: data.actions || [],
                 tag: data.url,
                 renotify: true
             };
@@ -89,7 +90,27 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const urlToOpen = event.notification.data.url || '/';
+    
+    if (event.action && event.action.startsWith('mute_')) {
+        const hours = parseInt(event.action.split('_')[1]);
+        
+        const promise = self.registration.pushManager.getSubscription().then((subscription) => {
+            if (subscription) {
+                return fetch('/api/push/mute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        endpoint: subscription.endpoint,
+                        hours: hours
+                    })
+                });
+            }
+        });
+        event.waitUntil(promise);
+        return; // Stop execution so it doesn't open the app
+    }
+
+    const urlToOpen = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

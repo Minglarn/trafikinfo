@@ -210,6 +210,7 @@ class PushSubscription(Base):
     include_weather = Column(Integer, default=1)
     include_location = Column(Integer, default=1)
     rc_warning_filter = Column(String, default="")  # Comma-separated: "Halka,Snörök,..." Empty = all
+    muted_until = Column(DateTime, nullable=True)
 
 class ClientInterest(Base) :
     __tablename__ = "client_interests"
@@ -302,6 +303,9 @@ def migrate_db():
                 if "rc_warning_filter" not in existing_cols:
                     print("Migrating push_subscriptions: Adding rc_warning_filter")
                     conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN rc_warning_filter TEXT DEFAULT ''"))
+                if "muted_until" not in existing_cols:
+                    print("Migrating push_subscriptions: Adding muted_until")
+                    conn.execute(sa_text("ALTER TABLE push_subscriptions ADD COLUMN muted_until DATETIME"))
         
         # Migration for traffic_events
         if "traffic_events" in inspector.get_table_names():

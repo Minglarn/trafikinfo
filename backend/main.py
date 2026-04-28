@@ -2481,6 +2481,20 @@ def unsubscribe(payload: dict, db: Session = Depends(get_db), user=Depends(requi
         db.commit()
     return {"status": "ok"}
 
+@app.post("/api/push/mute")
+def mute_subscription(payload: dict, db: Session = Depends(get_db)):
+    # We do not require auth here since it's triggered from the Service Worker background execution
+    endpoint = payload.get("endpoint")
+    hours = payload.get("hours", 1)
+    if endpoint:
+        sub = db.query(PushSubscription).filter(PushSubscription.endpoint == endpoint).first()
+        if sub:
+            sub.muted_until = datetime.now() + timedelta(hours=int(hours))
+            db.commit()
+            logger.info(f"Muted subscription {sub.id} for {hours} hours (until {sub.muted_until})")
+            return {"status": "ok", "muted_until": sub.muted_until.isoformat()}
+    return {"status": "error", "message": "Subscription not found"}
+
 async def send_push_notification(subscription: PushSubscription, title: str, message: str, url: str, db: Session, icon: str = None, image: str = None, ttl: int = 7200):
     private_key_pem, _ = get_vapid_keys(db)
     
@@ -2493,7 +2507,12 @@ async def send_push_notification(subscription: PushSubscription, title: str, mes
             "message": message,
             "url": url,
             "icon": icon,
-            "image": image # Big image (camera snapshot)
+            "image": image, # Big image (camera snapshot)
+            "actions": [
+                {"action": "mute_1h", "title": "Tysta 1h"},
+                {"action": "mute_3h", "title": "Tysta 3h"},
+                {"action": "mute_5h", "title": "Tysta 5h"}
+            ]
         }
         logger.info(f"Sending push (TTL: {ttl}s) to {subscription.endpoint[:30]}... Image: {image}")
 
@@ -2564,6 +2583,11 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             ttl = 7200
 
     for sub in subs:
+        # Check if muted
+        if sub.muted_until and sub.muted_until > datetime.now():
+            logger.info(f"Sub {sub.id} skipped: Muted until {sub.muted_until}")
+            continue
+
         # Check filters
         allowed_counties = sub.counties.split(",") if sub.counties else []
         item_county = str(data.get('county_no'))
