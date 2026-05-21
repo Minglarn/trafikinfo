@@ -2696,25 +2696,30 @@ async def notify_subscribers(data: dict, db: Session, type: str = "event"):
             severity = data.get('severity_code')
             severity_icon = SEVERITY_ICONS.get(severity, "⚠️")
             
-            # 1. Build Title — compact: emoji + event description
+            # 1. Extract texts
             title_core = data.get('message_type') or 'Trafikhändelse'
-            # Clean county suffix from title
             clean_title_core = clean_county_text(title_core)
-            title = f"{severity_icon} {clean_title_core}"
             
-            # 2. Build Message — newline-separated lines
+            location = data.get('location', '')
+            clean_location = clean_county_text(location) if location else ''
+            
+            use_location_in_title = sub.include_location and clean_location
+            
+            # 2. Build Title — compact: emoji + location (if available and requested)
+            if use_location_in_title:
+                title = f"{severity_icon} {clean_location}"
+            else:
+                title = f"{severity_icon} {clean_title_core}"
+            
+            # 3. Build Message — newline-separated lines
             lines = []
+            
+            if use_location_in_title:
+                lines.append(f"ℹ️ {clean_title_core}")
             
             original_title = data.get('title')
             if original_title:
                 lines.append(clean_county_text(original_title))
-                
-            if sub.include_location:
-                location = data.get('location', '')
-                if location:
-                    # Clean county suffix from location
-                    clean_location = clean_county_text(location)
-                    lines.append(f"📍 {clean_location}")
             
             if sub.include_weather:
                 weather = data.get('weather') or {}

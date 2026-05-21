@@ -60,18 +60,25 @@ async def main():
         
         title_core = fake_data.get('message_type') or 'Trafikhändelse'
         clean_title_core = clean_county_text(title_core)
-        title = f"{severity_icon} {clean_title_core}"
+        
+        location = fake_data.get('location', '')
+        clean_location = clean_county_text(location) if location else ''
+        
+        use_location_in_title = target_sub.include_location and clean_location
+        
+        if use_location_in_title:
+            title = f"{severity_icon} {clean_location}"
+        else:
+            title = f"{severity_icon} {clean_title_core}"
         
         lines = []
+        
+        if use_location_in_title:
+            lines.append(f"ℹ️ {clean_title_core}")
+            
         original_title = fake_data.get('title')
         if original_title:
             lines.append(clean_county_text(original_title))
-
-        if target_sub.include_location:
-            location = fake_data.get('location', '')
-            if location:
-                clean_location = clean_county_text(location)
-                lines.append(f"📍 {clean_location}")
         
         if target_sub.include_weather:
             weather = fake_data.get('weather') or {}
